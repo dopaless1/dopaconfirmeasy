@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="/favicon.ico">
+  <title>DopaConfirm — فحص الخادم</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="/js/theme.js"></script>
+  <style>
+    .nav-item.active::before { right: -12px; left: auto; border-radius: 4px 0 0 4px; }
+    .toast-container { right: auto; left: 24px; }
+
+    .health-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; margin-bottom:24px; }
+    .health-card {
+      background:var(--bg-surface); border:1.5px solid var(--border); border-radius:12px;
+      padding:18px; display:flex; align-items:center; gap:14px;
+    }
+    .health-icon { font-size:32px; flex-shrink:0; }
+    .health-info { flex:1; min-width:0; }
+    .health-title { font-size:13px; font-weight:700; color:var(--text-muted); margin-bottom:4px; }
+    .health-status { font-size:16px; font-weight:800; }
+    .status-ok { color:#00a650; }
+    .status-error { color:#de3618; }
+    .status-warn { color:#f59e0b; }
+    .health-detail { font-size:12px; color:var(--text-muted); margin-top:3px; }
+
+    .stats-table { width:100%; border-collapse:collapse; }
+    .stats-table td { padding:10px 14px; border-bottom:1px solid var(--border); font-size:13px; }
+    .stats-table td:first-child { font-weight:600; color:var(--text-secondary); }
+    .stats-table td:last-child { text-align:left; font-weight:700; }
+
+    .refresh-note { font-size:12px; color:var(--text-muted); margin-bottom:16px; }
+  </style>
+</head>
+<body>
+<div class="app-layout" id="main-app" style="display:flex">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <a href="/" class="logo-mark">
+        <div class="logo-icon">📦</div>
+        <div class="logo-text"><span class="logo-name">DopaConfirm</span><span class="logo-sub">نظام تأكيد الطلبات</span></div>
+      </a>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">القائمة الرئيسية</div>
+      <a href="/" class="nav-item"><span class="nav-icon">📋</span><span>الطلبات</span></a>
+      <a href="/settings" class="nav-item"><span class="nav-icon">⚙️</span><span>الإعدادات</span></a>
+      <a href="/workspace" class="nav-item"><span class="nav-icon">🗂️</span><span>مساحة العمل</span></a>
+      <a href="/notes" class="nav-item"><span class="nav-icon">📝</span><span>الملاحظات</span></a>
+      <a href="/profit" class="nav-item"><span class="nav-icon">💰</span><span>صافي الربح</span></a>
+      <div class="nav-section-title" style="margin-top:16px">أدوات</div>
+      <a href="/health" class="nav-item active"><span class="nav-icon">❤️</span><span>فحص الخادم</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="server-status">
+        <div class="status-dot" id="status-dot"></div>
+        <div class="status-info"><span class="status-label">الخادم يعمل</span><span class="status-sub">متصل</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-left" style="display:flex;align-items:center;gap:12px">
+        <button class="btn btn-ghost" onclick="toggleSidebar()" style="padding:8px;font-size:20px">☰</button>
+        <div>
+          <h1 class="page-title">❤️ فحص الخادم</h1>
+          <p class="page-subtitle">حالة النظام والخدمات المتصلة</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-ghost btn-sm" onclick="loadHealth()">🔄 تحديث</button>
+      </div>
+    </header>
+
+    <div class="page-content" style="padding:24px">
+      <div class="refresh-note" id="last-updated"></div>
+
+      <div class="health-grid" id="health-grid"></div>
+
+      <div class="table-card">
+        <div class="table-header"><div class="table-title">📊 إحصائيات الأوردرات</div></div>
+        <table class="stats-table" id="stats-table"></table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  document.getElementById('main-app').classList.toggle('sidebar-collapsed');
+}
+
+function fmtUptime(seconds) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  let parts = [];
+  if (d) parts.push(d + ' يوم');
+  if (h) parts.push(h + ' ساعة');
+  parts.push(m + ' دقيقة');
+  return parts.join(' و ');
+}
+
+async function loadHealth() {
+  try {
+    const res = await fetch('/api/health');
+    const data = await res.json();
+    render(data);
+    document.getElementById('last-updated').textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-EG');
+  } catch (e) {
+    document.getElementById('health-grid').innerHTML = `<div style="color:var(--error)">فشل الاتصال بالسيرفر</div>`;
+  }
+}
+
+function render(data) {
+  const cards = [];
+
+  cards.push({
+    icon: '🟢', title: 'حالة السيرفر', status: 'يعمل', cls: 'status-ok',
+    detail: 'مدة التشغيل: ' + fmtUptime(data.uptime)
+  });
+
+  const dbOk = data.db === 'ok';
+  cards.push({
+    icon: dbOk ? '🗄️' : '⚠️', title: 'قاعدة البيانات (Turso)',
+    status: dbOk ? 'متصلة' : 'مشكلة اتصال', cls: dbOk ? 'status-ok' : 'status-error',
+    detail: dbOk ? 'الاتصال والجداول سليمة' : String(data.db)
+  });
+
+  const waState = data.whatsapp?.state || 'unknown';
+  const waOk = waState === 'connected';
+  const waLabelMap = { connected: 'متصل', connecting: 'جاري الاتصال', qr: 'بانتظار QR', disconnected: 'منقطع', reconnecting: 'إعادة اتصال', unknown: 'غير معروف' };
+  cards.push({
+    icon: waOk ? '💬' : '🔌', title: 'واتساب',
+    status: waLabelMap[waState] || waState, cls: waOk ? 'status-ok' : (waState==='qr'||waState==='connecting'?'status-warn':'status-error'),
+    detail: waOk ? 'جاهز لإرسال الرسائل' : 'راجع صفحة الواتساب للتفاصيل'
+  });
+
+  const shopifyOk = !!data.env.shopify_store;
+  cards.push({
+    icon: '🛍️', title: 'Shopify', status: shopifyOk ? 'مضبوط' : 'غير مضبوط',
+    cls: shopifyOk ? 'status-ok' : 'status-error',
+    detail: shopifyOk ? data.env.shopify_store : 'أضف SHOPIFY_STORE في الإعدادات'
+  });
+
+  const starlinkOk = data.env.starlink_configured;
+  cards.push({
+    icon: '🚚', title: 'Starlink (شحن تلقائي)', status: starlinkOk ? 'مضبوط' : 'غير مضبوط',
+    cls: starlinkOk ? 'status-ok' : 'status-warn',
+    detail: starlinkOk ? 'جاهز لاستقبال الأوردرات' : 'STARLINK_API_URL غير موجود'
+  });
+
+  const portalOk = data.env.starlink_portal_configured;
+  cards.push({
+    icon: '🔄', title: 'مزامنة حالة الشحن', status: portalOk ? 'مضبوط' : 'غير مضبوط',
+    cls: portalOk ? 'status-ok' : 'status-warn',
+    detail: portalOk ? 'بيانات بوابة Starlink متوفرة' : 'أضف STARLINK_PORTAL_USERNAME/PASSWORD'
+  });
+
+  const alertsOk = !!data.env.owner_alert_phone;
+  cards.push({
+    icon: '🔔', title: 'تنبيهات المالك', status: alertsOk ? 'مفعّلة' : 'غير مفعّلة',
+    cls: alertsOk ? 'status-ok' : 'status-warn',
+    detail: alertsOk ? data.env.owner_alert_phone : 'أضف OWNER_ALERT_PHONE في الإعدادات'
+  });
+
+  document.getElementById('health-grid').innerHTML = cards.map(c => `
+    <div class="health-card">
+      <div class="health-icon">${c.icon}</div>
+      <div class="health-info">
+        <div class="health-title">${c.title}</div>
+        <div class="health-status ${c.cls}">${c.status}</div>
+        <div class="health-detail">${c.detail}</div>
+      </div>
+    </div>`).join('');
+
+  const s = data.stats || {};
+  const rows = [
+    ['إجمالي الأوردرات', s.total ?? '—'],
+    ['في انتظار الرد', s.pending ?? '—'],
+    ['مؤكدة', s.confirmed ?? '—'],
+    ['أُرسلت للشحن', s.shipping_sent ?? '—'],
+    ['تم التسليم', s.delivered ?? '—'],
+    ['ملغية', s.cancelled ?? '—'],
+    ['فشل واتساب', s.whatsapp_failed ?? '—'],
+  ];
+  document.getElementById('stats-table').innerHTML = rows.map(([label, val]) =>
+    `<tr><td>${label}</td><td>${val}</td></tr>`).join('');
+}
+
+document.addEventListener('DOMContentLoaded', loadHealth);
+setInterval(loadHealth, 30000);
+</script>
+</body>
+</html>

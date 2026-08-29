@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="/favicon.ico">
+  <title>DopaConfirm — صافي الربح</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="/js/theme.js"></script>
+  <style>
+    .nav-item.active::before { right: -12px; left: auto; border-radius: 4px 0 0 4px; }
+    .toast-container { right: auto; left: 24px; }
+
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
+    .kpi-card { background:var(--bg-surface); border:1.5px solid var(--border); border-radius:12px; padding:18px; }
+    .kpi-label { font-size:12px; color:var(--text-muted); font-weight:600; margin-bottom:6px; }
+    .kpi-value { font-size:26px; font-weight:800; }
+    .kpi-card.revenue .kpi-value { color:#5C6AC4; }
+    .kpi-card.cost .kpi-value { color:#de3618; }
+    .kpi-card.shipping .kpi-value { color:#f59e0b; }
+    .kpi-card.profit { background:linear-gradient(135deg,#00a650,#00c853); border:none; }
+    .kpi-card.profit .kpi-label, .kpi-card.profit .kpi-value { color:#fff; }
+
+    .range-tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+    .range-tab {
+      padding:7px 16px; border-radius:20px; border:1.5px solid var(--border);
+      background:var(--bg-surface); color:var(--text-secondary); font-size:13px; font-weight:600;
+      cursor:pointer; transition:all .15s;
+    }
+    .range-tab.active { background:var(--primary-color); color:#fff; border-color:var(--primary-color); }
+    .date-range-inputs { display:flex; gap:8px; align-items:center; }
+    .date-range-inputs input { padding:6px 10px; border:1.5px solid var(--border); border-radius:8px; font-size:13px; }
+
+    .warning-banner {
+      background:#fff8e1; border:1.5px solid #ffc107; border-radius:10px;
+      padding:12px 16px; margin-bottom:20px; font-size:13px; color:#856404;
+    }
+
+    .product-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+    .product-row:last-child { border-bottom:none; }
+    .product-name { flex:2; font-weight:600; font-size:13px; min-width:140px; }
+    .product-row input {
+      width:90px; padding:6px 8px; border:1.5px solid var(--border); border-radius:6px;
+      font-size:13px; text-align:center;
+    }
+    .product-total { flex:0 0 90px; font-size:12px; color:var(--text-muted); text-align:center; }
+
+    .rate-row { display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid var(--border); font-size:13px; }
+    .rate-row:last-child { border-bottom:none; }
+    .rate-row input { width:80px; padding:5px 8px; border:1.5px solid var(--border); border-radius:6px; text-align:center; }
+  </style>
+</head>
+<body>
+<div class="app-layout" id="main-app" style="display:flex">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <a href="/" class="logo-mark">
+        <div class="logo-icon">📦</div>
+        <div class="logo-text"><span class="logo-name">DopaConfirm</span><span class="logo-sub">نظام تأكيد الطلبات</span></div>
+      </a>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">القائمة الرئيسية</div>
+      <a href="/" class="nav-item"><span class="nav-icon">📋</span><span>الطلبات</span></a>
+      <a href="/settings" class="nav-item"><span class="nav-icon">⚙️</span><span>الإعدادات</span></a>
+      <a href="/workspace" class="nav-item"><span class="nav-icon">🗂️</span><span>مساحة العمل</span></a>
+      <a href="/notes" class="nav-item"><span class="nav-icon">📝</span><span>الملاحظات</span></a>
+      <a href="/profit" class="nav-item active"><span class="nav-icon">💰</span><span>صافي الربح</span></a>
+      <div class="nav-section-title" style="margin-top:16px">أدوات</div>
+      <a href="/health" class="nav-item" target="_blank"><span class="nav-icon">❤️</span><span>فحص الخادم</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="server-status">
+        <div class="status-dot" id="status-dot"></div>
+        <div class="status-info"><span class="status-label">الخادم يعمل</span><span class="status-sub">متصل</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-left" style="display:flex;align-items:center;gap:12px">
+        <button class="btn btn-ghost" onclick="toggleSidebar()" style="padding:8px;font-size:20px">☰</button>
+        <div>
+          <h1 class="page-title">💰 صافي الربح</h1>
+          <p class="page-subtitle">الإيرادات، التكاليف، والشحن حسب المحافظة</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-content" style="padding:24px">
+
+      <!-- Range selector -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:8px">
+        <div class="range-tabs">
+          <button class="range-tab active" data-range="today" onclick="setRange(this)">اليوم</button>
+          <button class="range-tab" data-range="week" onclick="setRange(this)">آخر أسبوع</button>
+          <button class="range-tab" data-range="month" onclick="setRange(this)">آخر شهر</button>
+          <button class="range-tab" data-range="custom" onclick="setRange(this)">فترة مخصصة</button>
+        </div>
+        <div class="date-range-inputs" id="custom-range-inputs" style="display:none">
+          <input type="date" id="from-date">
+          <span>إلى</span>
+          <input type="date" id="to-date">
+          <button class="btn btn-primary btn-sm" onclick="loadReport()">تطبيق</button>
+        </div>
+        <button class="btn btn-success btn-sm" onclick="exportProfitPdf()">📄 تصدير PDF</button>
+      </div>
+
+      <div id="unmatched-warning"></div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid" id="kpi-grid">
+        <div class="kpi-card revenue"><div class="kpi-label">💵 إجمالي الإيرادات</div><div class="kpi-value" id="kpi-revenue">—</div></div>
+        <div class="kpi-card cost"><div class="kpi-label">📦 تكلفة المنتجات</div><div class="kpi-value" id="kpi-cost">—</div></div>
+        <div class="kpi-card shipping"><div class="kpi-label">🚚 تكلفة الشحن</div><div class="kpi-value" id="kpi-shipping">—</div></div>
+        <div class="kpi-card profit"><div class="kpi-label">✅ صافي الربح</div><div class="kpi-value" id="kpi-profit">—</div></div>
+      </div>
+
+      <!-- Products cost management -->
+      <div class="table-card" style="margin-bottom:20px">
+        <div class="table-header">
+          <div class="table-title">📦 تكلفة المنتجات</div>
+          <button class="btn btn-primary btn-sm" onclick="syncProducts()" id="sync-products-btn">🔄 مزامنة من Shopify</button>
+        </div>
+        <div style="padding:8px 20px">
+          <div style="display:flex;padding:8px 14px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase">
+            <span style="flex:2;min-width:140px">المنتج</span>
+            <span style="width:90px;text-align:center">سعر التكلفة</span>
+            <span style="width:90px;text-align:center">التغليف</span>
+            <span style="width:90px;text-align:center">إضافي</span>
+            <span style="flex:0 0 90px;text-align:center">الإجمالي</span>
+            <span style="width:90px;text-align:center">الرسالة</span>
+          </div>
+          <div id="products-list"></div>
+        </div>
+      </div>
+
+      <!-- Shipping rates -->
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">🚚 أسعار الشحن بالمحافظات</div>
+          <span style="font-size:12px;color:var(--text-muted)">حسب قائمة Starlink</span>
+        </div>
+        <div style="padding:8px 20px;max-height:400px;overflow-y:auto">
+          <div id="rates-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+function showToast(msg, type='success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  document.getElementById('main-app').classList.toggle('sidebar-collapsed');
+}
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtMoney(n) { return (n||0).toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج.م'; }
+
+let _currentRange = 'today';
+
+function setRange(el) {
+  document.querySelectorAll('.range-tab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  _currentRange = el.dataset.range;
+  document.getElementById('custom-range-inputs').style.display = _currentRange === 'custom' ? 'flex' : 'none';
+  if (_currentRange !== 'custom') loadReport();
+}
+
+function exportProfitPdf() {
+  let url = '/api/profit/export/pdf?';
+  if (_currentRange === 'custom') {
+    const from = document.getElementById('from-date').value;
+    const to = document.getElementById('to-date').value;
+    if (!from || !to) return showToast('اختار الفترة الأول', 'error');
+    url += `from=${from}T00:00:00&to=${to}T23:59:59`;
+  } else {
+    url += `range=${_currentRange}`;
+  }
+  window.location.href = url;
+}
+
+async function loadReport() {
+  document.getElementById('kpi-revenue').textContent = '...';
+  document.getElementById('kpi-cost').textContent = '...';
+  document.getElementById('kpi-shipping').textContent = '...';
+  document.getElementById('kpi-profit').textContent = '...';
+
+  let url = '/api/profit/report?';
+  if (_currentRange === 'custom') {
+    const from = document.getElementById('from-date').value;
+    const to = document.getElementById('to-date').value;
+    if (!from || !to) return showToast('اختار الفترة الأول', 'error');
+    url += `from=${from}T00:00:00&to=${to}T23:59:59`;
+  } else {
+    url += `range=${_currentRange}`;
+  }
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.success) return showToast(data.error || 'فشل التحميل', 'error');
+    renderReport(data.report);
+  } catch (e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
+function renderReport(r) {
+  document.getElementById('kpi-revenue').textContent  = fmtMoney(r.totalRevenue);
+  document.getElementById('kpi-cost').textContent      = fmtMoney(r.totalProductCost);
+  document.getElementById('kpi-shipping').textContent  = fmtMoney(r.totalShippingCost);
+  document.getElementById('kpi-profit').textContent    = fmtMoney(r.netProfit);
+
+  const warn = document.getElementById('unmatched-warning');
+  if (r.unmatchedGovernorateCount > 0) {
+    warn.innerHTML = `<div class="warning-banner">⚠️ ${r.unmatchedGovernorateCount} أوردر من أصل ${r.orderCount} ما اتحددش المحافظة بتاعته تلقائي — تكلفة الشحن بتاعتهم اتحسبت صفر. راجعهم يدوي لو حبيت دقة أعلى.</div>`;
+  } else {
+    warn.innerHTML = '';
+  }
+}
+
+// ═══ PRODUCTS ═══
+let _products = [];
+
+async function loadProducts() {
+  const list = document.getElementById('products-list');
+  list.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:20px">جاري التحميل...</div>`;
+  try {
+    const res = await fetch('/api/profit/products');
+    const data = await res.json();
+    _products = data.products || [];
+    renderProducts();
+  } catch (e) {
+    list.innerHTML = `<div style="text-align:center;color:var(--error);padding:20px">فشل التحميل</div>`;
+  }
+}
+
+function renderProducts() {
+  const list = document.getElementById('products-list');
+  if (!_products.length) {
+    list.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:24px">مفيش منتجات لسه — اضغط "مزامنة من Shopify"</div>`;
+    return;
+  }
+  list.innerHTML = _products.map(p => {
+    const total = (p.base_cost||0) + (p.packaging_cost||0) + (p.extra_cost||0);
+    const hasMessage = !!(p.message_text && p.message_text.trim());
+    return `
+    <div class="product-row">
+      <span class="product-name">${escHtml(p.name)}</span>
+      <input type="number" step="0.01" id="pc-base-${p.id}" value="${p.base_cost||0}" onchange="saveProductCost(${p.id})">
+      <input type="number" step="0.01" id="pc-pack-${p.id}" value="${p.packaging_cost||0}" onchange="saveProductCost(${p.id})">
+      <input type="number" step="0.01" id="pc-extra-${p.id}" value="${p.extra_cost||0}" onchange="saveProductCost(${p.id})">
+      <span class="product-total" id="pc-total-${p.id}">${fmtMoney(total)}</span>
+      <button class="btn btn-sm ${hasMessage ? 'btn-success' : 'btn-ghost'}" style="width:90px;font-size:12px" onclick="openMessageModal(${p.id})">
+        ${hasMessage ? '✅ مخصصة' : '✉️ رسالة'}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+// ═══ PER-PRODUCT CUSTOM WHATSAPP MESSAGE ═══
+let _messageModalProductId = null;
+
+function openMessageModal(id) {
+  const p = _products.find(p => p.id === id);
+  if (!p) return;
+  _messageModalProductId = id;
+  document.getElementById('msg-modal-product-name').textContent = p.name;
+  document.getElementById('msg-modal-text').value = p.message_text || '';
+  document.getElementById('msg-modal-image-base64').value = p.message_image_base64 || '';
+  const preview = document.getElementById('msg-modal-image-preview');
+  if (p.message_image_base64) {
+    preview.src = 'data:image/jpeg;base64,' + p.message_image_base64;
+    preview.style.display = 'block';
+    document.getElementById('msg-modal-clear-image').style.display = 'inline-block';
+  } else {
+    preview.style.display = 'none';
+    document.getElementById('msg-modal-clear-image').style.display = 'none';
+  }
+  document.getElementById('message-modal').style.display = 'flex';
+}
+
+function closeMessageModal() {
+  document.getElementById('message-modal').style.display = 'none';
+}
+
+function handleMsgImageUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 2 * 1024 * 1024) return showToast('الصورة أكبر من 2MB', 'error');
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result.split(',')[1];
+    document.getElementById('msg-modal-image-base64').value = base64;
+    const preview = document.getElementById('msg-modal-image-preview');
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    document.getElementById('msg-modal-clear-image').style.display = 'inline-block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearMsgImage() {
+  document.getElementById('msg-modal-image-base64').value = '';
+  document.getElementById('msg-modal-image-file').value = '';
+  document.getElementById('msg-modal-image-preview').style.display = 'none';
+  document.getElementById('msg-modal-clear-image').style.display = 'none';
+}
+
+async function saveProductMessage() {
+  const messageText = document.getElementById('msg-modal-text').value;
+  const messageImageBase64 = document.getElementById('msg-modal-image-base64').value;
+  try {
+    const res = await fetch(`/api/profit/products/${_messageModalProductId}/message`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageText, messageImageBase64 })
+    });
+    const data = await res.json();
+    if (data.success) {
+      _products = data.products;
+      renderProducts();
+      closeMessageModal();
+      showToast('✅ تم حفظ الرسالة المخصصة');
+    } else showToast(data.error || 'فشل الحفظ', 'error');
+  } catch (e) { showToast('❌ خطأ في الاتصال', 'error'); }
+}
+
+async function saveProductCost(id) {
+  const baseCost      = document.getElementById(`pc-base-${id}`).value;
+  const packagingCost = document.getElementById(`pc-pack-${id}`).value;
+  const extraCost     = document.getElementById(`pc-extra-${id}`).value;
+  try {
+    const res = await fetch(`/api/profit/products/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ baseCost, packagingCost, extraCost })
+    });
+    const data = await res.json();
+    if (data.success) {
+      const total = (parseFloat(baseCost)||0) + (parseFloat(packagingCost)||0) + (parseFloat(extraCost)||0);
+      document.getElementById(`pc-total-${id}`).textContent = fmtMoney(total);
+      showToast('✅ تم الحفظ');
+    }
+  } catch (e) { showToast('❌ فشل الحفظ', 'error'); }
+}
+
+async function syncProducts() {
+  const btn = document.getElementById('sync-products-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري المزامنة...';
+  try {
+    const res = await fetch('/api/profit/products/sync', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      _products = data.products;
+      renderProducts();
+      showToast(`✅ تمت مزامنة ${data.syncedCount} منتج من Shopify`);
+    } else showToast(data.error || 'فشلت المزامنة', 'error');
+  } catch (e) { showToast('❌ خطأ في الاتصال', 'error'); }
+  btn.disabled = false;
+  btn.textContent = '🔄 مزامنة من Shopify';
+}
+
+// ═══ SHIPPING RATES ═══
+async function loadRates() {
+  const list = document.getElementById('rates-list');
+  list.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:20px">جاري التحميل...</div>`;
+  try {
+    const res = await fetch('/api/profit/shipping-rates');
+    const data = await res.json();
+    renderRates(data.rates || []);
+  } catch (e) {
+    list.innerHTML = `<div style="text-align:center;color:var(--error);padding:20px">فشل التحميل</div>`;
+  }
+}
+
+function renderRates(rates) {
+  const list = document.getElementById('rates-list');
+  list.innerHTML = rates.map(r => `
+    <div class="rate-row">
+      <span style="flex:1">${escHtml(r.governorate_ar)}</span>
+      <input type="number" step="1" id="rate-${r.id}" value="${r.price}" onchange="saveRate(${r.id})">
+      <span style="color:var(--text-muted);font-size:12px">ج.م</span>
+    </div>`).join('');
+}
+
+async function saveRate(id) {
+  const price = document.getElementById(`rate-${id}`).value;
+  try {
+    await fetch(`/api/profit/shipping-rates/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price })
+    });
+    showToast('✅ تم تحديث السعر');
+  } catch (e) { showToast('❌ فشل الحفظ', 'error'); }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadReport();
+  loadProducts();
+  loadRates();
+});
+</script>
+
+<script>
+(function() {
+  document.addEventListener('DOMContentLoaded', async function() {
+    try {
+      const res = await fetch('/api/me');
+      const data = await res.json();
+      if (!data.username) return;
+      const topbar = document.querySelector('.topbar');
+      if (!topbar) return;
+      const badge = document.createElement('div');
+      badge.style.cssText = 'margin-right:auto;font-size:12px;font-weight:700;color:var(--text-secondary);background:var(--bg-base);padding:6px 12px;border-radius:20px;border:1px solid var(--border);';
+      badge.textContent = data.role === 'admin' ? '👑 المالك' : '👤 ' + data.username;
+      topbar.appendChild(badge);
+    } catch (e) {}
+  });
+})();
+</script>
+
+<!-- Per-product custom WhatsApp message modal -->
+<div id="message-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-surface);border-radius:14px;padding:24px;max-width:480px;width:92%;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h3 style="margin:0">✉️ رسالة مخصصة</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeMessageModal()">✕</button>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px" id="msg-modal-product-name"></div>
+
+    <label style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">نص الرسالة (سيبها فاضية للرجوع للرسالة العامة)</label>
+    <textarea id="msg-modal-text" rows="6" placeholder="مثال: أهلاً {name}! 🎉 وصلنا طلبك..."
+      style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Cairo',sans-serif;font-size:14px;resize:vertical;margin-bottom:8px"></textarea>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px">المتغيرات المتاحة: {name} {order_number} {items} {total} {address}</div>
+
+    <label style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">صورة المنتج (اختياري)</label>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <input type="file" id="msg-modal-image-file" accept="image/*" onchange="handleMsgImageUpload(this)" style="flex:1">
+      <button class="btn btn-danger btn-sm" id="msg-modal-clear-image" onclick="clearMsgImage()" style="display:none">إزالة</button>
+    </div>
+    <img id="msg-modal-image-preview" src="" style="max-width:100%;max-height:180px;border-radius:8px;display:none;margin-bottom:16px">
+    <input type="hidden" id="msg-modal-image-base64">
+
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-ghost" onclick="closeMessageModal()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveProductMessage()">✅ حفظ</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

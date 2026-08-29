@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="/favicon.ico">
+  <title>DopaConfirm — مساحة العمل</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    th, td { text-align: right; }
+    .nav-item.active::before { right: -12px; left: auto; border-radius: 4px 0 0 4px; }
+    .toast-container { right: auto; left: 24px; }
+
+    .ws-tabs { display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; }
+    .ws-tab {
+      padding:8px 20px; border-radius:20px; border:1.5px solid var(--border);
+      background:var(--bg-surface); color:var(--text-secondary);
+      font-size:14px; font-weight:600; cursor:pointer; transition:all 0.15s;
+    }
+    .ws-tab:hover { border-color:var(--primary-color); color:var(--primary-color); }
+    .ws-tab.active { background:var(--primary-color); color:#fff; border-color:var(--primary-color); }
+
+    .task-item {
+      display:flex; align-items:flex-start; gap:12px;
+      padding:12px 16px; background:var(--bg-surface);
+      border:1.5px solid var(--border); border-radius:10px; margin-bottom:8px;
+    }
+    .task-item.done { opacity:0.5; }
+    .task-item.done .task-text { text-decoration:line-through; color:var(--text-muted); }
+    .task-item.overdue { border-color:#de3618; }
+    .task-checkbox { width:18px; height:18px; cursor:pointer; flex-shrink:0; margin-top:2px; accent-color:var(--primary-color); }
+    .task-text { flex:1; font-size:14px; line-height:1.5; word-break:break-word; }
+    .task-badge { font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; }
+    .badge-high { background:#fff0f0; color:#de3618; }
+    .badge-med  { background:#fff8e1; color:#856404; }
+    .badge-low  { background:#e6f9f0; color:#00a650; }
+    .assignee-chip { font-size:11px; padding:2px 8px; border-radius:12px; background:var(--primary-light); color:var(--primary-color); font-weight:700; white-space:nowrap; }
+
+    .worker-card {
+      display:flex; align-items:center; gap:12px;
+      background:var(--bg-surface); border:1px solid var(--border);
+      border-radius:10px; padding:12px 16px; margin-bottom:8px;
+    }
+    .worker-avatar {
+      width:36px; height:36px; border-radius:50%; background:var(--primary-light);
+      color:var(--primary-color); display:flex; align-items:center; justify-content:center;
+      font-weight:700; font-size:15px; flex-shrink:0;
+    }
+
+    .sup-group { margin-bottom:20px; }
+    .sup-group-header {
+      display:flex; align-items:center; justify-content:space-between;
+      background:var(--bg-base); border:1.5px solid var(--border);
+      border-radius:10px; padding:10px 16px; cursor:pointer;
+      font-weight:700; font-size:15px; margin-bottom:4px;
+    }
+    .sup-group-header:hover { border-color:var(--primary-color); }
+    .sup-group-body { padding-right:16px; }
+    .supplier-card {
+      background:var(--bg-surface); border:1px solid var(--border);
+      border-radius:10px; padding:14px 16px; margin-bottom:8px;
+    }
+    .supplier-name { font-size:14px; font-weight:700; margin-bottom:6px; }
+    .supplier-meta { display:flex; flex-wrap:wrap; gap:8px; font-size:13px; color:var(--text-secondary); }
+    .supplier-tag { background:var(--primary-light); color:var(--primary-color); padding:2px 8px; border-radius:10px; font-size:12px; font-weight:600; }
+
+    .add-row { display:flex; gap:8px; flex-wrap:wrap; }
+    .add-row input, .add-row select {
+      padding:8px 12px; border:1.5px solid var(--border); border-radius:8px;
+      font-size:13px; font-family:'Cairo',sans-serif;
+      background:var(--bg-surface); color:var(--text-primary);
+    }
+    .add-row input:focus, .add-row select:focus { outline:none; border-color:var(--primary-color); }
+
+    .section-empty { text-align:center; color:var(--text-muted); padding:32px; font-size:14px; }
+
+    .link-item {
+      display:flex; align-items:center; gap:12px;
+      background:var(--bg-surface); border:1px solid var(--border);
+      border-radius:8px; padding:10px 14px; margin-bottom:8px;
+      cursor:grab;
+    }
+    .link-item.dragging { opacity:0.4; }
+    .link-item.drag-over { border-color:var(--primary-color); border-style:dashed; }
+    .link-favicon { width:20px; height:20px; border-radius:4px; flex-shrink:0; }
+    .drag-handle { color:var(--text-muted); font-size:16px; cursor:grab; flex-shrink:0; }
+
+    .assignee-picker { display:flex; flex-wrap:wrap; gap:6px; }
+    .assignee-option {
+      padding:4px 12px; border-radius:16px; border:1.5px solid var(--border);
+      font-size:12px; cursor:pointer; background:var(--bg-surface); transition:all .1s;
+    }
+    .assignee-option.selected { background:var(--primary-color); border-color:var(--primary-color); color:#fff; }
+  </style>
+</head>
+<body>
+<div class="app-layout" id="main-app" style="display:flex">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <a href="/" class="logo-mark">
+        <div class="logo-icon">📦</div>
+        <div class="logo-text">
+          <span class="logo-name">DopaConfirm</span>
+          <span class="logo-sub">نظام تأكيد الطلبات</span>
+        </div>
+      </a>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">القائمة الرئيسية</div>
+      <a href="/" class="nav-item"><span class="nav-icon">📋</span><span>الطلبات</span></a>
+      <a href="/settings" class="nav-item"><span class="nav-icon">⚙️</span><span>الإعدادات</span></a>
+      <a href="/workspace" class="nav-item active"><span class="nav-icon">🗂️</span><span>مساحة العمل</span></a>
+      <a href="/notes" class="nav-item"><span class="nav-icon">📝</span><span>الملاحظات</span></a>
+      <div class="nav-section-title" style="margin-top:16px">أدوات</div>
+      <a href="/health" class="nav-item" target="_blank"><span class="nav-icon">❤️</span><span>فحص الخادم</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="server-status">
+        <div class="status-dot" id="status-dot"></div>
+        <div class="status-info">
+          <span class="status-label">الخادم يعمل</span>
+          <span class="status-sub">متصل</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-left" style="display:flex;align-items:center;gap:12px">
+        <button class="btn btn-ghost" onclick="toggleSidebar()" style="padding:8px;font-size:20px">☰</button>
+        <div>
+          <h1 class="page-title">🗂️ مساحة العمل</h1>
+          <p class="page-subtitle">المهام، العمال، السبلايرز، واللينكات السريعة</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-content" style="padding:24px">
+      <div class="ws-tabs">
+        <button class="ws-tab active" data-tab="tasks"     onclick="switchTab(this)">✅ المهام</button>
+        <button class="ws-tab"        data-tab="workers"   onclick="switchTab(this)">👷 العمال</button>
+        <button class="ws-tab"        data-tab="suppliers" onclick="switchTab(this)">🏭 السبلايرز</button>
+        <button class="ws-tab"        data-tab="links"     onclick="switchTab(this)">🔗 اللينكات</button>
+      </div>
+
+      <div id="tab-tasks">
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">✅ المهام</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-sm" id="tf-all"     onclick="filterTasks('all')"     style="opacity:1">الكل</button>
+              <button class="btn btn-ghost btn-sm" id="tf-pending" onclick="filterTasks('pending')" style="opacity:0.5">معلقة</button>
+              <button class="btn btn-ghost btn-sm" id="tf-done"    onclick="filterTasks('done')"    style="opacity:0.5">منجزة</button>
+              <button class="btn btn-danger btn-sm" onclick="clearDoneTasks()">🗑 حذف المنجزة</button>
+            </div>
+          </div>
+          <div style="padding:16px 20px">
+            <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+              <div class="add-row" style="margin-bottom:8px">
+                <input id="task-input" type="text" placeholder="اكتب المهمة..." style="flex:2;min-width:200px" onkeydown="if(event.key==='Enter')addTask()">
+                <select id="task-priority" style="min-width:110px">
+                  <option value="high">🔴 عالية</option>
+                  <option value="med" selected>🟡 متوسطة</option>
+                  <option value="low">🟢 منخفضة</option>
+                </select>
+                <input id="task-due" type="datetime-local" style="min-width:190px">
+              </div>
+              <div style="margin-bottom:8px">
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">موجهة لـ (اختر واحد أو أكثر):</div>
+                <div class="assignee-picker" id="task-assignee-picker"></div>
+              </div>
+              <button class="btn btn-primary" onclick="addTask()">+ إضافة المهمة</button>
+            </div>
+            <div id="tasks-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-workers" style="display:none">
+        <div class="table-card">
+          <div class="table-header"><div class="table-title">👷 العمال</div></div>
+          <div style="padding:16px 20px">
+            <div class="add-row" style="margin-bottom:20px">
+              <input id="worker-name" type="text" placeholder="اسم العامل" style="flex:1;min-width:140px">
+              <input id="worker-phone" type="text" placeholder="رقم واتساب (مثال: 201012345678)" style="flex:1;min-width:200px;direction:ltr">
+              <button class="btn btn-primary" onclick="addWorker()">+ إضافة</button>
+            </div>
+            <div id="workers-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-suppliers" style="display:none">
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">🏭 السبلايرز</div>
+            <button class="btn btn-primary btn-sm" onclick="openAddGroupModal()">+ مجموعة جديدة</button>
+          </div>
+          <div style="padding:16px 20px">
+            <div id="suppliers-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-links" style="display:none">
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">🔗 اللينكات السريعة</div>
+            <span style="font-size:12px;color:var(--text-muted)">اسحب لإعادة الترتيب</span>
+          </div>
+          <div style="padding:16px 20px">
+            <div class="add-row" style="margin-bottom:20px">
+              <input id="ql-name" type="text" placeholder="الاسم" style="flex:1;min-width:150px">
+              <input id="ql-url"  type="url"  placeholder="https://..." style="flex:2;min-width:220px;direction:ltr">
+              <button class="btn btn-primary" onclick="addQuickLink()">+ إضافة</button>
+            </div>
+            <div id="links-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="add-group-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-surface);border-radius:14px;padding:24px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="margin:0" id="group-modal-title">+ مجموعة جديدة</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeGroupModal()">✕</button>
+    </div>
+    <input id="group-name-input" type="text" placeholder="اسم المجموعة (مثل: التغليف، الورق...)"
+      class="form-input" style="width:100%;margin-bottom:16px;padding:8px 12px"
+      onkeydown="if(event.key==='Enter')saveGroup()">
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-ghost" onclick="closeGroupModal()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveGroup()">✅ حفظ</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="add-supplier-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-surface);border-radius:14px;padding:24px;max-width:500px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="margin:0">+ سبلاير جديد</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeSupplierModal()">✕</button>
+    </div>
+    <input type="hidden" id="sup-group-id">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <input id="sup-name"    type="text" placeholder="اسم السبلاير *" class="form-input" style="padding:8px 12px">
+      <input id="sup-product" type="text" placeholder="المنتج / الخدمة" class="form-input" style="padding:8px 12px">
+      <input id="sup-phone"   type="text" placeholder="رقم التليفون" class="form-input" style="padding:8px 12px;direction:ltr">
+      <input id="sup-price"   type="text" placeholder="السعر / الشروط" class="form-input" style="padding:8px 12px">
+      <input id="sup-notes"   type="text" placeholder="ملاحظات إضافية" class="form-input" style="padding:8px 12px">
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeSupplierModal()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveSupplier()">✅ إضافة</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+function showToast(msg, type='success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  document.getElementById('main-app').classList.toggle('sidebar-collapsed');
+}
+
+function switchTab(el) {
+  const tab = el.dataset.tab;
+  ['tasks','workers','suppliers','links'].forEach(function(t) {
+    document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.ws-tab').forEach(function(b) { b.classList.remove('active'); });
+  el.classList.add('active');
+  if (tab === 'links') loadLinks();
+  if (tab === 'tasks') loadTasks();
+  if (tab === 'workers') loadWorkers();
+  if (tab === 'suppliers') loadSuppliers();
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ═══ WORKERS ═══
+var _workers = [];
+
+function loadWorkers() {
+  var list = document.getElementById('workers-list');
+  list.innerHTML = '<div class="section-empty">جاري التحميل...</div>';
+  fetch('/api/workspace/workers').then(function(r){return r.json();}).then(function(data){
+    _workers = data.workers || [];
+    renderWorkers();
+    renderAssigneePicker();
+  }).catch(function(){
+    list.innerHTML = '<div class="section-empty" style="color:var(--error)">فشل التحميل</div>';
+  });
+}
+
+function renderWorkers() {
+  var list = document.getElementById('workers-list');
+  if (!_workers.length) {
+    list.innerHTML = '<div class="section-empty">لا يوجد عمال بعد — أضف أول عامل من الأعلى</div>';
+    return;
+  }
+  list.innerHTML = _workers.map(function(w) {
+    return '<div class="worker-card">' +
+      '<div class="worker-avatar">' + escHtml(w.name.charAt(0)) + '</div>' +
+      '<div style="flex:1">' +
+        '<div style="font-weight:700;font-size:14px">' + escHtml(w.name) + '</div>' +
+        '<a href="https://wa.me/' + w.phone + '" target="_blank" style="font-size:12px;color:var(--primary-color);direction:ltr;display:inline-block">' + escHtml(w.phone) + '</a>' +
+      '</div>' +
+      '<button class="btn btn-ghost btn-sm" onclick="deleteWorker(' + w.id + ')" style="opacity:0.5">🗑</button>' +
+    '</div>';
+  }).join('');
+}
+
+function addWorker() {
+  var name  = document.getElementById('worker-name').value.trim();
+  var phone = document.getElementById('worker-phone').value.trim();
+  if (!name || !phone) return showToast('اكتب الاسم والرقم', 'error');
+  fetch('/api/workspace/workers', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ name: name, phone: phone })
+  }).then(function(r){return r.json();}).then(function(data){
+    if (data.success) {
+      document.getElementById('worker-name').value = '';
+      document.getElementById('worker-phone').value = '';
+      _workers = data.workers;
+      renderWorkers();
+      renderAssigneePicker();
+      showToast('تمت إضافة العامل');
+    } else showToast(data.error || 'فشل', 'error');
+  }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
+}
+
+function deleteWorker(id) {
+  if (!confirm('هتحذف العامل ده؟')) return;
+  fetch('/api/workspace/workers/' + id, { method:'DELETE' })
+    .then(function(r){return r.json();}).then(function(data){
+      if (data.success) { _workers = data.workers; renderWorkers(); renderAssigneePicker(); showToast('تم الحذف'); }
+    }).catch(function(){ showToast('خطأ', 'error'); });
+}
+
+// ═══ TASKS ═══
+var _tasks = [];
+var _selectedAssignees = {};
+var _taskFilter = 'all';
+
+function renderAssigneePicker() {
+  var el = document.getElementById('task-assignee-picker');
+  if (!_workers.length) {
+    el.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">أضف عامل من تبويب "العمال" الأول عشان تقدر توجّه له مهمة</span>';
+    return;
+  }
+  el.innerHTML = _workers.map(function(w) {
+    var sel = _selectedAssignees[w.id] ? ' selected' : '';
+    return '<div class="assignee-option' + sel + '" onclick="toggleAssignee(' + w.id + ', this)">' + escHtml(w.name) + '</div>';
+  }).join('');
+}
+
+function toggleAssignee(id, el) {
+  if (_selectedAssignees[id]) { delete _selectedAssignees[id]; el.classList.remove('selected'); }
+  else { _selectedAssignees[id] = true; el.classList.add('selected'); }
+}
+
+function loadTasks() {
+  var list = document.getElementById('tasks-list');
+  list.innerHTML = '<div class="section-empty">جاري التحميل...</div>';
+  fetch('/api/workspace/tasks').then(function(r){return r.json();}).then(function(data){
+    _tasks = data.tasks || [];
+    renderTasks();
+  }).catch(function(){
+    list.innerHTML = '<div class="section-empty" style="color:var(--error)">فشل التحميل</div>';
+  });
+}
+
+function addTask() {
+  var text = document.getElementById('task-input').value.trim();
+  if (!text) return showToast('اكتب المهمة الأول', 'error');
+  var priority = document.getElementById('task-priority').value;
+  var dueDate  = document.getElementById('task-due').value || null;
+  var assigneeWorkerIds = Object.keys(_selectedAssignees).map(Number);
+
+  fetch('/api/workspace/tasks', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ text: text, priority: priority, dueDate: dueDate, assigneeWorkerIds: assigneeWorkerIds })
+  }).then(function(r){return r.json();}).then(function(data){
+    if (data.success) {
+      _tasks = data.tasks;
+      document.getElementById('task-input').value = '';
+      document.getElementById('task-due').value = '';
+      _selectedAssignees = {};
+      renderAssigneePicker();
+      renderTasks();
+      showToast('تمت الإضافة' + (assigneeWorkerIds.length ? ' — تم إرسال إشعار واتساب فوري للمُكلّفين' : ''));
+    } else showToast(data.error || 'فشل', 'error');
+  }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
+}
+
+function toggleTask(id, done) {
+  fetch('/api/workspace/tasks/' + id + '/toggle', {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ done: done })
+  }).then(function(){
+    var t = _tasks.find(function(t){ return t.id === id; });
+    if (t) t.done = done;
+    renderTasks();
+  }).catch(function(){ showToast('خطأ', 'error'); });
+}
+
+function deleteTaskItem(id) {
+  fetch('/api/workspace/tasks/' + id, { method:'DELETE' }).then(function(){
+    _tasks = _tasks.filter(function(t){ return t.id !== id; });
+    renderTasks();
+    showToast('تم الحذف');
+  }).catch(function(){ showToast('خطأ', 'error'); });
+}
+
+function clearDoneTasks() {
+  fetch('/api/workspace/tasks/clear-done', { method:'POST' }).then(function(){
+    _tasks = _tasks.filter(function(t){ return !t.done; });
+    renderTasks();
+    showToast('تم حذف المنجزة');
+  }).catch(function(){ showToast('خطأ', 'error'); });
+}
+
+function filterTasks(f) {
+  _taskFilter = f;
+  ['all','pending','done'].forEach(function(k) {
+    document.getElementById('tf-' + k).style.opacity = k === f ? '1' : '0.5';
+  });
+  renderTasks();
+}
+
+var PRIORITY_MAP = {
+  high: ['badge-high','🔴 عالية'],
+  med:  ['badge-med', '🟡 متوسطة'],
+  low:  ['badge-low', '🟢 منخفضة']
+};
+
+function renderTasks() {
+  var tasks = _tasks;
+  if (_taskFilter === 'pending') tasks = tasks.filter(function(t){ return !t.done; });
+  if (_taskFilter === 'done')    tasks = tasks.filter(function(t){ return t.done; });
+
+  var el = document.getElementById('tasks-list');
+  if (!tasks.length) {
+    el.innerHTML = '<div class="section-empty">لا توجد مهام — أضف أول مهمة من الأعلى</div>';
+    return;
+  }
+
+  var now = new Date();
+
+  el.innerHTML = tasks.map(function(t) {
+    var pm = PRIORITY_MAP[t.priority] || PRIORITY_MAP.med;
+    var isOverdue = !t.done && t.due_date && new Date(t.due_date) < now;
+    var dueStr = t.due_date ? ('📅 ' + new Date(t.due_date).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}) + (isOverdue?' ⚠️ متأخرة':'')) : '';
+    var assigneeNames = (t.assigneeWorkerIds||[]).map(function(id){
+      var w = _workers.find(function(w){ return w.id === id; });
+      return w ? w.name : null;
+    }).filter(Boolean);
+    var assigneeHtml = assigneeNames.map(function(n){ return '<span class="assignee-chip">👤 ' + escHtml(n) + '</span>'; }).join('');
+    return '<div class="task-item ' + (t.done?'done':'') + ' ' + (isOverdue?'overdue':'') + '">' +
+      '<input type="checkbox" class="task-checkbox" ' + (t.done?'checked':'') + ' onchange="toggleTask(' + t.id + ', this.checked)">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div class="task-text">' + escHtml(t.text) + '</div>' +
+        (dueStr ? '<div style="font-size:12px;color:' + (isOverdue?'#de3618':'var(--text-muted)') + ';margin-top:3px">' + dueStr + '</div>' : '') +
+      '</div>' +
+      assigneeHtml +
+      '<span class="task-badge ' + pm[0] + '">' + pm[1] + '</span>' +
+      '<button class="btn btn-ghost btn-sm" onclick="deleteTaskItem(' + t.id + ')" style="padding:2px 6px;opacity:0.4;flex-shrink:0">✕</button>' +
+    '</div>';
+  }).join('');
+}
+
+// ═══ SUPPLIERS (server-side — shared across everyone) ═══
+var _supplierGroups = [];
+var _openGroupIds = {}; // client-side "expanded" state, not persisted server-side
+
+function loadSuppliers() {
+  var el = document.getElementById('suppliers-list');
+  el.innerHTML = '<div class="section-empty">جاري التحميل...</div>';
+  fetch('/api/workspace/suppliers').then(function(r){return r.json();}).then(function(data){
+    _supplierGroups = data.groups || [];
+    // Default: first load, expand all groups
+    _supplierGroups.forEach(function(g){ if (!(g.id in _openGroupIds)) _openGroupIds[g.id] = true; });
+    renderSuppliers();
+  }).catch(function(){
+    el.innerHTML = '<div class="section-empty" style="color:var(--error)">فشل التحميل</div>';
+  });
+}
+
+var _editGroupId = null;
+
+function openAddGroupModal() {
+  _editGroupId = null;
+  document.getElementById('group-name-input').value = '';
+  document.getElementById('group-modal-title').textContent = '+ مجموعة جديدة';
+  document.getElementById('add-group-modal').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('group-name-input').focus(); }, 50);
+}
+function closeGroupModal() { document.getElementById('add-group-modal').style.display = 'none'; }
+
+function saveGroup() {
+  var name = document.getElementById('group-name-input').value.trim();
+  if (!name) return showToast('اكتب اسم المجموعة', 'error');
+
+  var req = _editGroupId
+    ? fetch('/api/workspace/suppliers/groups/' + _editGroupId, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: name }) })
+    : fetch('/api/workspace/suppliers/groups', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: name }) });
+
+  req.then(function(r){return r.json();}).then(function(data){
+    if (data.success) {
+      _supplierGroups = data.groups;
+      _supplierGroups.forEach(function(g){ if (!(g.id in _openGroupIds)) _openGroupIds[g.id] = true; });
+      closeGroupModal();
+      renderSuppliers();
+      showToast(_editGroupId ? 'تم التعديل' : 'تمت إضافة المجموعة');
+    } else showToast(data.error || 'فشل', 'error');
+  }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
+}
+
+function toggleGroup(gid) {
+  _openGroupIds[gid] = !_openGroupIds[gid];
+  renderSuppliers();
+}
+
+function deleteGroup(gid) {
+  if (!confirm('هتحذف المجموعة وكل السبلايرز جوّاها؟')) return;
+  fetch('/api/workspace/suppliers/groups/' + gid, { method:'DELETE' })
+    .then(function(r){return r.json();}).then(function(data){
+      if (data.success) { _supplierGroups = data.groups; renderSuppliers(); showToast('تم حذف المجموعة'); }
+    }).catch(function(){ showToast('خطأ', 'error'); });
+}
+
+function editGroup(gid) {
+  var g = _supplierGroups.find(function(g){ return g.id === gid; });
+  if (!g) return;
+  _editGroupId = gid;
+  document.getElementById('group-name-input').value = g.name;
+  document.getElementById('group-modal-title').textContent = '✏️ تعديل المجموعة';
+  document.getElementById('add-group-modal').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('group-name-input').focus(); }, 50);
+}
+
+function openAddSupplierModal(gid) {
+  document.getElementById('sup-group-id').value = gid;
+  ['sup-name','sup-product','sup-phone','sup-price','sup-notes'].forEach(function(id) {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('add-supplier-modal').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('sup-name').focus(); }, 50);
+}
+function closeSupplierModal() { document.getElementById('add-supplier-modal').style.display = 'none'; }
+
+function saveSupplier() {
+  var name = document.getElementById('sup-name').value.trim();
+  if (!name) return showToast('اكتب اسم السبلاير', 'error');
+  var gid = parseInt(document.getElementById('sup-group-id').value);
+
+  fetch('/api/workspace/suppliers', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      groupId: gid,
+      name: name,
+      product: document.getElementById('sup-product').value.trim(),
+      phone:   document.getElementById('sup-phone').value.trim(),
+      price:   document.getElementById('sup-price').value.trim(),
+      notes:   document.getElementById('sup-notes').value.trim()
+    })
+  }).then(function(r){return r.json();}).then(function(data){
+    if (data.success) {
+      _supplierGroups = data.groups;
+      closeSupplierModal();
+      renderSuppliers();
+      showToast('تمت إضافة السبلاير');
+    } else showToast(data.error || 'فشل', 'error');
+  }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
+}
+
+function deleteSupplier(gid, sid) {
+  fetch('/api/workspace/suppliers/' + sid, { method:'DELETE' })
+    .then(function(r){return r.json();}).then(function(data){
+      if (data.success) { _supplierGroups = data.groups; renderSuppliers(); showToast('تم الحذف'); }
+    }).catch(function(){ showToast('خطأ', 'error'); });
+}
+
+function renderSuppliers() {
+  var el = document.getElementById('suppliers-list');
+  if (!_supplierGroups.length) {
+    el.innerHTML = '<div class="section-empty">ابدأ بإضافة مجموعة — مثل "الورق" أو "التغليف"</div>';
+    return;
+  }
+  el.innerHTML = _supplierGroups.map(function(g) {
+    var isOpen = !!_openGroupIds[g.id];
+    var suppliers = g.suppliers || [];
+    var body = '';
+    if (isOpen) {
+      if (!suppliers.length) {
+        body = '<div style="color:var(--text-muted);font-size:13px;padding:10px 0">لا يوجد سبلايرز — اضغط "+ سبلاير"</div>';
+      } else {
+        body = suppliers.map(function(s) {
+          return '<div class="supplier-card">' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+              '<div class="supplier-name">' + escHtml(s.name) + '</div>' +
+              '<button class="btn btn-ghost btn-sm" onclick="deleteSupplier(' + g.id + ',' + s.id + ')" style="opacity:0.4">🗑</button>' +
+            '</div>' +
+            '<div class="supplier-meta">' +
+              (s.product ? '<span>📦 ' + escHtml(s.product) + '</span>' : '') +
+              (s.phone ? '<a href="https://wa.me/' + s.phone.replace(/\D/g,'') + '" target="_blank" style="color:var(--primary-color)">📞 ' + escHtml(s.phone) + '</a>' : '') +
+              (s.price ? '<span class="supplier-tag">💰 ' + escHtml(s.price) + '</span>' : '') +
+            '</div>' +
+            (s.notes ? '<div style="margin-top:8px;font-size:13px;color:var(--text-secondary);background:var(--bg-base);padding:8px 10px;border-radius:6px">' + escHtml(s.notes) + '</div>' : '') +
+          '</div>';
+        }).join('');
+      }
+    }
+    return '<div class="sup-group">' +
+      '<div class="sup-group-header" onclick="toggleGroup(' + g.id + ')">' +
+        '<span>' + (isOpen?'▼':'▶') + ' 📦 ' + escHtml(g.name) + ' <span style="font-size:12px;color:var(--text-muted);font-weight:400">(' + suppliers.length + ' سبلاير)</span></span>' +
+        '<div style="display:flex;gap:6px" onclick="event.stopPropagation()">' +
+          '<button class="btn btn-ghost btn-sm" onclick="openAddSupplierModal(' + g.id + ')">+ سبلاير</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="editGroup(' + g.id + ')">✏️</button>' +
+          '<button class="btn btn-ghost btn-sm" style="color:#de3618" onclick="deleteGroup(' + g.id + ')">🗑</button>' +
+        '</div>' +
+      '</div>' +
+      (isOpen ? '<div class="sup-group-body">' + body + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+// ═══ QUICK LINKS — server-side + drag & drop + favicon ═══
+var _links = [];
+var _dragSrcId = null;
+
+function faviconFor(url) {
+  try {
+    var domain = new URL(url).hostname;
+    return 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=32';
+  } catch(e) { return ''; }
+}
+
+function loadLinks() {
+  var list = document.getElementById('links-list');
+  list.innerHTML = '<div class="section-empty">جاري التحميل...</div>';
+  fetch('/api/orders/quick-links').then(function(r){return r.json();}).then(function(data){
+    _links = data.links || [];
+    renderLinks();
+  }).catch(function(){
+    list.innerHTML = '<div class="section-empty" style="color:var(--error)">فشل التحميل</div>';
+  });
+}
+
+function renderLinks() {
+  var list = document.getElementById('links-list');
+  if (!_links.length) {
+    list.innerHTML = '<div class="section-empty">لا توجد لينكات — أضف أول لينك من الأعلى</div>';
+    return;
+  }
+  list.innerHTML = _links.map(function(l) {
+    return '<div class="link-item" draggable="true" data-id="' + l.id + '"' +
+         ' ondragstart="onDragStart(event,' + l.id + ')"' +
+         ' ondragover="onDragOver(event, this)"' +
+         ' ondragleave="this.classList.remove(\'drag-over\')"' +
+         ' ondrop="onDrop(event,' + l.id + ')"' +
+         ' ondragend="onDragEnd(event)">' +
+      '<span class="drag-handle">⠿</span>' +
+      '<img class="link-favicon" src="' + faviconFor(l.url) + '" onerror="this.style.display=\'none\'">' +
+      '<a href="' + escHtml(l.url) + '" target="_blank" rel="noopener" style="flex:1;font-weight:600;color:var(--primary-color);text-decoration:none;font-size:14px">' +
+        escHtml(l.name) +
+        '<span style="display:block;font-size:12px;color:var(--text-muted);font-weight:400;direction:ltr;margin-top:1px">' + escHtml(l.url) + '</span>' +
+      '</a>' +
+      '<button class="btn btn-ghost btn-sm" onclick="removeLink(' + l.id + ')" style="opacity:0.5">🗑</button>' +
+    '</div>';
+  }).join('');
+}
+
+function onDragStart(e, id) {
+  _dragSrcId = id;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e, el) {
+  e.preventDefault();
+  el.classList.add('drag-over');
+}
+function onDragEnd(e) {
+  document.querySelectorAll('.link-item').forEach(function(el){ el.classList.remove('dragging','drag-over'); });
+}
+function onDrop(e, targetId) {
+  e.preventDefault();
+  document.querySelectorAll('.link-item').forEach(function(el){ el.classList.remove('drag-over'); });
+  if (_dragSrcId === targetId) return;
+
+  var srcIndex = _links.findIndex(function(l){ return l.id === _dragSrcId; });
+  var tgtIndex = _links.findIndex(function(l){ return l.id === targetId; });
+  if (srcIndex === -1 || tgtIndex === -1) return;
+
+  var moved = _links.splice(srcIndex, 1)[0];
+  _links.splice(tgtIndex, 0, moved);
+  renderLinks();
+
+  fetch('/api/orders/quick-links/reorder', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ orderedIds: _links.map(function(l){ return l.id; }) })
+  }).catch(function(){ showToast('فشل حفظ الترتيب', 'error'); });
+}
+
+function addQuickLink() {
+  var name = document.getElementById('ql-name').value.trim();
+  var url  = document.getElementById('ql-url').value.trim();
+  if (!name||!url) return showToast('اكتب اسم ولينك الأول','error');
+  if (!url.startsWith('http')) return showToast('اللينك لازم يبدأ بـ https://','error');
+  fetch('/api/orders/quick-links', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,url:url})})
+    .then(function(r){return r.json();}).then(function(data){
+      if (data.success) {
+        document.getElementById('ql-name').value='';
+        document.getElementById('ql-url').value='';
+        _links = data.links;
+        renderLinks();
+        showToast('تم إضافة "' + name + '"');
+      } else showToast(data.error || 'فشل','error');
+    }).catch(function(){ showToast('خطأ في الاتصال','error'); });
+}
+
+function removeLink(id) {
+  fetch('/api/orders/quick-links/' + id, {method:'DELETE'})
+    .then(function(r){return r.json();}).then(function(data){
+      if (data.success) { _links = data.links; renderLinks(); showToast('تم الحذف'); }
+    }).catch(function(){ showToast('خطأ','error'); });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadTasks();
+  loadWorkers();
+  loadSuppliers();
+});
+</script>
+</body>
+</html>

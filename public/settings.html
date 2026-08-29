@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <link rel="icon" href="/favicon.ico">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DopaConfirm — الإعدادات</title>
+  <meta name="description" content="إعدادات نظام تأكيد الطلبات — Shopify وواتساب وStarlink" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    th, td { text-align: right; }
+    .nav-item.active::before { right: -12px; left: auto; border-radius: 4px 0 0 4px; }
+    .toast-container { right: auto; left: 24px; }
+    .search-icon { right: 14px; left: auto; }
+
+    /* ─── Feature Toggles ─────────────────────── */
+    .feature-row {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 16px;
+      padding-bottom: 20px; border-bottom: 1px solid var(--border);
+    }
+    .feature-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .feature-info { flex: 1; }
+    .feature-name { font-weight: 700; font-size: 15px; color: var(--text-primary); margin-bottom: 4px; }
+    .feature-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; margin-top: 2px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); border-radius: 26px; transition: background 0.2s; }
+    .toggle-slider:before { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background: white; left: 3px; top: 3px; transition: transform 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+    .toggle-switch input:checked + .toggle-slider { background: var(--primary-color); }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); }
+
+    /* ── Shipping Mode 3-way selector ──────────────────────────────── */
+    .shipping-mode-selector { display:flex; gap:10px; margin-bottom:10px; }
+    .ship-mode-btn {
+      flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;
+      padding:14px 10px; border-radius:12px; border:2px solid var(--border);
+      background:var(--surface); cursor:pointer; transition:all .2s;
+      font-family:inherit;
+    }
+    .ship-mode-btn:hover { border-color:var(--primary-color); background:var(--grey-100); }
+    .ship-mode-btn.active[data-mode="manual"]   { border-color:#6b7280; background:rgba(107,114,128,.1); }
+    .ship-mode-btn.active[data-mode="speedaf_auto"] { border-color:#f97316; background:rgba(249,115,22,.08); }
+    .ship-mode-btn.active[data-mode="starlink_auto"] { border-color:#22c55e; background:rgba(34,197,94,.08); }
+    .ship-icon  { font-size:22px; }
+    .ship-label { font-size:14px; font-weight:700; color:var(--text-primary); }
+    .ship-desc  { font-size:11px; color:var(--text-secondary); text-align:center; }
+  </style>
+</head>
+<body>
+
+<div class="app-layout" id="main-app" style="display:flex">
+
+  <!-- ─── Sidebar ─────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <a href="/" class="logo-mark">
+        <div class="logo-icon">📦</div>
+        <div class="logo-text">
+          <span class="logo-name">DopaConfirm</span>
+          <span class="logo-sub">نظام تأكيد الطلبات</span>
+        </div>
+      </a>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">القائمة الرئيسية</div>
+
+      <a href="/" class="nav-item">
+        <span class="nav-icon">📋</span>
+        <span>الطلبات</span>
+      </a>
+
+      <a href="/settings" class="nav-item active">
+        <span class="nav-icon">⚙️</span>
+        <span>الإعدادات</span>
+      </a>
+
+      <div class="nav-section-title" style="margin-top:16px">أدوات</div>
+
+      <a href="/workspace" class="nav-item"><span class="nav-icon">🗂️</span><span>مساحة العمل</span></a>
+      <a href="/notes" class="nav-item"><span class="nav-icon">📝</span><span>الملاحظات</span></a>
+
+      <div class="nav-section-title" style="margin-top:16px">أدوات</div>
+      <a href="/health" class="nav-item" target="_blank"><span class="nav-icon">❤️</span><span>فحص الخادم</span></a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="server-status">
+        <div class="status-dot" id="status-dot"></div>
+        <div class="status-info">
+          <span class="status-label">الخادم يعمل</span>
+          <span class="status-sub">متصل</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─── Main Content ─────────────────────── -->
+  <main class="main-content">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left" style="display: flex; align-items: center; gap: 12px;">
+        <button class="btn btn-ghost" onclick="toggleSidebar()" style="padding: 8px; font-size: 20px;">☰</button>
+        <div>
+          <h1 class="page-title">⚙️ الإعدادات</h1>
+          <p class="page-subtitle">إدارة جميع إعدادات النظام وربط الخدمات</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-outline" onclick="loadSettings()">🔄 إعادة تحميل</button>
+        <button class="btn btn-primary" onclick="saveAllSettings()" id="save-btn">
+          💾 حفظ جميع الإعدادات
+        </button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <div class="settings-grid">
+
+        <!-- ─── Order Source (SaaS Selection) ───────────────────── -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="card-icon">🏬</div>
+            <div>
+              <div class="card-title">مصدر الطلبات (Order Source)</div>
+              <div class="card-desc">اختر منصة متجرك الإلكتروني لاستقبال الطلبات وتأكيدها</div>
+            </div>
+          </div>
+          <div class="settings-card-body">
+            <div class="form-group">
+              <label class="form-label">المنصة النشطة</label>
+              <select class="form-input" id="ORDER_SOURCE" onchange="toggleOrderSourceCards()" style="font-size:15px;padding:10px 14px;font-weight:600">
+                <option value="easyorders">⚡ Easy Orders (إيزي أوردرز) - موصى به</option>
+                <option value="shopify">🛍️ Shopify (شوبيفاي)</option>
+                <option value="both">🔄 كلاهما معاً (Shopify + Easy Orders)</option>
+              </select>
+              <span class="form-hint">يمكنك استقبال الطلبات من كلا المنصتين في نفس الوقت أو التبديل بينهما</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Easy Orders Settings ───────────────────── -->
+        <div class="settings-card" id="easyorders-card">
+          <div class="settings-card-header">
+            <div class="card-icon">⚡</div>
+            <div>
+              <div class="card-title">إعدادات Easy Orders</div>
+              <div class="card-desc">ربط متجر Easy Orders بالـ API والـ Webhooks</div>
+            </div>
+          </div>
+          <div class="settings-card-body">
+            <div class="form-group">
+              <label class="form-label">API Key (مفتاح الـ API)</label>
+              <input type="password" class="form-input code-font" id="EASYORDERS_API_KEY" placeholder="أدخل API Key الخاص بمتجرك في Easy Orders" />
+              <span class="form-hint">احصل عليه من لوحة تحكم Easy Orders > الإعدادات > API</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">API Base URL</label>
+              <input type="text" class="form-input code-font" id="EASYORDERS_BASE_URL" placeholder="https://api.easy-orders.net/api/v1" />
+              <span class="form-hint">اتركه فارغاً للاستخدام الافتراضي</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">رابط استقبال الـ Webhook (في Easy Orders)</label>
+              <div style="display:flex;gap:8px">
+                <input type="text" class="form-input code-font" id="easyorders-webhook-url" readonly style="background:var(--bg-base);flex:1" />
+                <button type="button" class="btn btn-outline btn-sm" onclick="copyEasyOrdersWebhook()">📋 نسخ</button>
+              </div>
+              <span class="form-hint">انسخ هذا الرابط وضعه في إعدادات Webhooks في لوحة Easy Orders (حدث إنشاء الطلب)</span>
+            </div>
+            <div class="test-row">
+              <button class="btn btn-warning" onclick="testEasyOrders()" id="test-easyorders-btn">
+                🧪 اختبار الاتصال بـ Easy Orders
+              </button>
+            </div>
+            <div class="test-result" id="easyorders-test-result"></div>
+          </div>
+        </div>
+
+        <!-- ─── Shopify Settings ───────────────────── -->
+        <div class="settings-card" id="shopify-card">
+          <div class="settings-card-header">
+            <div class="card-icon">🛍️</div>
+            <div>
+              <div class="card-title">إعدادات Shopify</div>
+              <div class="card-desc">ربط المتجر وبيانات الـ API</div>
+            </div>
+          </div>
+          <div class="settings-card-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">رابط المتجر</label>
+                <input type="text" class="form-input" id="SHOPIFY_STORE" placeholder="your-store.myshopify.com" />
+                <span class="form-hint">بدون https://</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Client ID</label>
+                <input type="text" class="form-input code-font" id="SHOPIFY_CLIENT_ID" placeholder="Client ID" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Client Secret / Access Token</label>
+              <input type="text" class="form-input code-font" id="SHOPIFY_CLIENT_SECRET" placeholder="shpss_..." />
+              <span class="form-hint">يستخدم كـ Access Token لإلغاء الطلبات</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Webhook Secret</label>
+              <input type="text" class="form-input code-font" id="SHOPIFY_WEBHOOK_SECRET" placeholder="الـ HMAC secret من Shopify" />
+              <span class="form-hint">يُستخدم للتحقق من صحة الـ webhooks</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">رابط الـ Webhook الخاص بـ Shopify</label>
+              <div style="display:flex;gap:8px">
+                <input type="text" class="form-input code-font" id="webhook-url-display" readonly style="background:var(--bg-base);flex:1" />
+                <button type="button" class="btn btn-outline btn-sm" onclick="copyWebhookUrl()">📋 نسخ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Shipping Company ──────────────── -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="card-icon">🚚</div>
+            <div>
+              <div class="card-title">شركة الشحن وطريقة التحويل</div>
+              <div class="card-desc">اختر طريقة إرسال الشحنات وتتبعها</div>
+            </div>
+          </div>
+          <div class="settings-card-body">
+
+            <!-- Shipping Mode 3-way selector -->
+            <div class="form-group">
+              <label class="form-label">نظام الشحن</label>
+              <div class="shipping-mode-selector" id="shipping-mode-selector">
+                <button type="button" class="ship-mode-btn" data-mode="manual" onclick="setShippingMode('manual')">
+                  <span class="ship-icon">⚪</span>
+                  <span class="ship-label">يدوي</span>
+                  <span class="ship-desc">تحويل يدوي</span>
+                </button>
+                <button type="button" class="ship-mode-btn active" data-mode="speedaf_auto" onclick="setShippingMode('speedaf_auto')">
+                  <span class="ship-icon">🟠</span>
+                  <span class="ship-label">Speedaf Direct</span>
+                  <span class="ship-desc">تكامل مباشر + تتبع</span>
+                </button>
+                <button type="button" class="ship-mode-btn" data-mode="starlink_auto" onclick="setShippingMode('starlink_auto')">
+                  <span class="ship-icon">🟢</span>
+                  <span class="ship-label">Starlink</span>
+                  <span class="ship-desc">تلقائي عبر API</span>
+                </button>
+              </div>
+              <input type="hidden" id="SHIPPING_MODE" value="speedaf_auto">
+              <span class="form-hint" id="shipping-mode-hint">تحويل فوري ومباشر لـ Speedaf مع تتبع دوري كل 30 دقيقة</span>
+            </div>
+
+            <!-- Speedaf Direct Settings -->
+            <div id="speedaf-direct-fields" style="margin-top:16px;padding:16px;background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.2);border-radius:var(--radius-md);">
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:8px">📦 إعدادات تكامل Speedaf Direct API</div>
+              <div class="form-group">
+                <label class="form-label">Speedaf Session Token (التوكن)</label>
+                <input type="password" class="form-input code-font" id="SPEEDAF_TOKEN" placeholder="أدخل توكن جلسة الداشبورد" />
+                <span class="form-hint">من المتصفح بعد تسجيل الدخول في csp.speedaf.com (F12 > Application > Cookies > token)</span>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">اسم الراسل</label>
+                  <input type="text" class="form-input" id="SPEEDAF_SENDER_NAME" placeholder="DopaLess" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">هاتف الراسل</label>
+                  <input type="text" class="form-input" id="SPEEDAF_SENDER_PHONE" placeholder="01032462703" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">عنوان الراسل</label>
+                  <input type="text" class="form-input" id="SPEEDAF_SENDER_ADDRESS" placeholder="المنصورة" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">المحافظة</label>
+                  <input type="text" class="form-input" id="SPEEDAF_SENDER_PROVINCE_NAME" placeholder="الدقهلية" />
+                </div>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+                <button type="button" class="btn btn-warning btn-sm" onclick="testSpeedaf()" id="test-speedaf-btn">
+                  🧪 اختبار اتصال Speedaf
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="syncSpeedafAreas()" id="sync-speedaf-btn">
+                  🔄 مزامنة أكواد المحافظات والمناطق
+                </button>
+              </div>
+              <div class="test-result" id="speedaf-test-result" style="margin-top:10px"></div>
+            </div>
+
+            <!-- Starlink API URL (shows only in starlink mode) -->
+            <div class="form-group" id="starlink-url-group" style="display:none;margin-top:16px;">
+              <label class="form-label">رابط API Starlink</label>
+              <input type="text" class="form-input code-font" id="STARLINK_API_URL"
+                placeholder="https://ordapi.starlinkdelivery.com/api/Shopify/ReceiveWebhook?senderid=..." />
+              <span class="form-hint">الرابط الكامل مع جميع المتغيرات</span>
+              <div class="test-row" style="margin-top:10px">
+                <button class="btn btn-warning btn-sm" onclick="testStarlink()" id="test-starlink-btn">
+                  🧪 اختبار الاتصال بـ Starlink
+                </button>
+              </div>
+              <div class="test-result" id="starlink-test-result"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ─── WhatsApp Settings ──────── -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="card-icon">💬</div>
+            <div>
+              <div class="card-title">إعدادات واتساب (WhatsApp)</div>
+              <div class="card-desc">إرسال الرسائل عبر الواتساب المباشر (Baileys) أو Green API أو Meta API</div>
+            </div>
+          </div>
+          <div class="settings-card-body">
+            <!-- ⏱ WhatsApp Delay -->
+            <div class="form-group" style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+              <label class="form-label">⏱ تأخير إرسال رسالة التأكيد</label>
+              <div style="display:flex;align-items:center;gap:12px">
+                <input type="number" class="form-input" id="WHATSAPP_DELAY_HOURS"
+                  min="0" max="72" step="0.5" style="max-width:110px" placeholder="0" />
+                <span style="color:var(--text-secondary);font-size:14px">ساعة بعد وصول الأوردر</span>
+              </div>
+              <span class="form-hint">0 = إرسال فوري عند مجيء الأوردر &nbsp;·&nbsp; 0.5 = نص ساعة &nbsp;·&nbsp; 1 = ساعة</span>
+            </div>
+              <label class="form-label">مزود خدمة واتساب (WhatsApp Provider)</label>
+              <select class="form-input" id="WHATSAPP_PROVIDER" onchange="toggleWhatsappProviderFields()" style="padding: 9px 14px;">
+                <option value="internal">📱 واتساب مباشر (Baileys) - موصى به</option>
+                <option value="green">Green API</option>
+                <option value="meta">Meta Cloud API</option>
+              </select>
+            </div>
+
+            <!-- Green API Fields -->
+            <div id="green-api-fields">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Instance ID</label>
+                  <input type="text" class="form-input code-font" id="GREEN_API_INSTANCE_ID" placeholder="7107XXXXXXX" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">API Token</label>
+                  <input type="text" class="form-input code-font" id="GREEN_API_TOKEN" placeholder="096893f7..." />
+                </div>
+              </div>
+            </div>
+
+            <!-- Meta API Fields -->
+            <div id="meta-api-fields" style="display: none;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Phone Number ID</label>
+                  <input type="text" class="form-input code-font" id="META_PHONE_NUMBER_ID" placeholder="e.g. 1065582315..." />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Verify Token (Webhook)</label>
+                  <input type="text" class="form-input code-font" id="META_WEBHOOK_VERIFY_TOKEN" placeholder="dopaconfirm_verify" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Access Token (Permanent)</label>
+                <input type="text" class="form-input code-font" id="META_ACCESS_TOKEN" placeholder="EAABw..." />
+              </div>
+            </div>
+
+            <!-- Test WhatsApp -->
+            <div class="test-row" style="flex-direction:column;align-items:stretch;margin-top:16px;">
+              <label class="form-label">اختبار الإرسال</label>
+              <div style="display:flex;gap:8px">
+                <input type="text" class="form-input" id="test-wa-phone" placeholder="+201012345678"
+                  style="flex:1" />
+                <button class="btn btn-success" onclick="testWhatsApp()" id="test-wa-btn">
+                  💬 إرسال اختبار
+                </button>
+              </div>
+            </div>
+            <div class="test-result" id="wa-test-result"></div>
+
+            <!-- Register Webhook (Green API only) -->
+            <div id="green-webhook-register" style="margin-top:16px;padding:14px;background:rgba(99,202,183,0.08);border:1px solid rgba(99,202,183,0.3);border-radius:var(--radius-md);">
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">🔗 تسجيل Webhook (Green API)</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.6;">
+                اضغط لتسجيل رابط الاستقبال عند Green API حتى تصلك ردود العملاء على الداشبورد.
+                يستخدم الرابط المحفوظ في <strong>PUBLIC_URL</strong>.
+              </div>
+              <button class="btn btn-primary" onclick="registerGreenWebhook()" id="register-webhook-btn" style="width:100%;">
+                🔗 تسجيل Webhook الآن
+              </button>
+              <div class="test-result" id="webhook-register-result" style="margin-top:8px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── رسالة التأكيد ─────────────────── -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="card-icon">✅</div>
+            <div>
+              <div class="card-title">رسالة التأكيد</div>
+              <div class="card-desc">تُرسل تلقائياً فور استلام أوردر جديد</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="showSuggestions('confirm')" style="margin-right:auto">💡 اقتراحات</button>
+          </div>
+          <div class="settings-card-body">
+            <div class="form-group">
+              <label class="form-label">نص الرسالة</label>
+              <textarea class="form-textarea" id="WHATSAPP_MESSAGE_TEMPLATE" rows="8"
+                placeholder="اكتب الرسالة هنا..." oninput="updatePreview()"
+                style="min-height:180px;font-family:'Cairo',sans-serif;font-size:14px"></textarea>
+              <div style="margin-top:8px">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:600">المتغيرات (اضغط للإدراج):</div>
+                <div class="var-hints">
+                  <span class="var-chip" onclick="insertVar('{name}')">{name}</span>
+                  <span class="var-chip" onclick="insertVar('{order_number}')">{order_number}</span>
+                  <span class="var-chip" onclick="insertVar('{items}')">{items}</span>
+                  <span class="var-chip" onclick="insertVar('{total}')">{total}</span>
+                  <span class="var-chip" onclick="insertVar('{address}')">{address}</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:16px">
+              <label class="form-label">📸 صورة مرفقة مع رسالة التأكيد (اختياري)</label>
+              <div style="display:flex;gap:10px;align-items:center;">
+                <input type="file" class="form-input" id="WHATSAPP_IMAGE_FILE" accept="image/*" style="padding:9px 14px;flex:1;" onchange="handleImageUpload(this)">
+                <button class="btn btn-danger btn-sm" onclick="clearImage()" style="display:none;" id="clear-image-btn">إزالة</button>
+              </div>
+              <img id="whatsapp-image-preview" src="" style="max-height:120px;margin-top:8px;display:none;border-radius:8px;border:1px solid #ddd;">
+              <input type="hidden" id="WHATSAPP_MESSAGE_IMAGE_BASE64">
+            </div>
+            <div class="message-preview">
+              <div class="preview-title">📱 معاينة</div>
+              <div class="preview-bubble" id="message-preview">اكتب الرسالة أعلاه لرؤية المعاينة...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── رسالة التقييم ──────────────────── -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="card-icon">⭐</div>
+            <div>
+              <div class="card-title">رسالة طلب التقييم</div>
+              <div class="card-desc">تُرسل للعميل بعد التسليم لطلب تقييمه</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="showSuggestions('review')" style="margin-right:auto">💡 اقتراحات</button>
+          </div>
+          <div class="settings-card-body">
+            <div class="form-group">
+              <label class="form-label">نص الرسالة</label>
+              <textarea class="form-textarea" id="WHATSAPP_REVIEW_TEMPLATE" rows="8"
+                placeholder="اكتب رسالة التقييم هنا..." oninput="updateReviewPreview()"
+                style="min-height:180px;font-family:'Cairo',sans-serif;font-size:14px"></textarea>
+              <div style="margin-top:8px">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:600">المتغيرات (اضغط للإدراج):</div>
+                <div class="var-hints">
+                  <span class="var-chip" onclick="insertReviewVar('{name}')">{name}</span>
+                  <span class="var-chip" onclick="insertReviewVar('{order_number}')">{order_number}</span>
+                  <span class="var-chip" onclick="insertReviewVar('{total}')">{total}</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:16px">
+              <label class="form-label">📸 صورة مرفقة مع رسالة التقييم (اختياري)</label>
+              <div style="display:flex;gap:10px;align-items:center;">
+                <input type="file" class="form-input" id="WHATSAPP_REVIEW_IMAGE_FILE" accept="image/*" style="padding:9px 14px;flex:1;" onchange="handleReviewImageUpload(this)">
+                <button class="btn btn-danger btn-sm" onclick="clearReviewImage()" style="display:none;" id="clear-review-image-btn">إزالة</button>
+              </div>
+              <img id="whatsapp-review-image-preview" src="" style="max-height:120px;margin-top:8px;display:none;border-radius:8px;border:1px solid #ddd;">
+              <input type="hidden" id="WHATSAPP_REVIEW_IMAGE_BASE64">
+            </div>
+            <div class="message-preview">
+              <div class="preview-title">📱 معاينة</div>
+              <div class="preview-bubble" id="review-message-preview">اكتب رسالة التقييم أعلاه لرؤية المعاينة...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── System Settings ───────────── -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="card-icon">🖥️</div>
+            <div>
+              <div class="card-title">إعدادات النظام</div>
+              <div class="card-desc">إعدادات الخادم والأمان</div>
+            </div>
+          </div>
+          <div class="settings-card-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">منفذ الخادم (Port)</label>
+                <input type="number" class="form-input code-font" id="PORT" placeholder="3000" min="1" max="65535" />
+                <span class="form-hint">يتطلب إعادة تشغيل الخادم</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">كلمة مرور لوحة التحكم</label>
+                <input type="password" class="form-input" id="DASHBOARD_PASSWORD" placeholder="أدخل كلمة مرور جديدة" />
+                <span class="form-hint">اتركها فارغة لعدم التغيير</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">URL العام للخادم (ngrok)</label>
+              <input type="text" class="form-input code-font" id="PUBLIC_URL"
+                placeholder="https://abc123.ngrok.io" />
+              <span class="form-hint">يُستخدم لتسجيل webhook واتساب. أتركه فارغاً إن لم تستخدم ngrok</span>
+            </div>
+
+            <div style="background:var(--warning-light);border:1px solid rgba(244,147,66,0.3);border-radius:var(--radius-md);padding:14px;margin-top:8px">
+              <div style="font-size:13px;font-weight:600;color:#b5620e;margin-bottom:4px">⚠️ تنبيه مهم</div>
+              <div style="font-size:12px;color:#8a4a0a;line-height:1.6">
+                تأكد من أن رابط webhook في Shopify يشير إلى هذا الخادم:
+                <code id="shopify-webhook-hint" style="display:block;margin-top:6px;font-family:monospace;font-size:11px;background:rgba(0,0,0,0.08);padding:4px 8px;border-radius:4px;word-break:break-all"></code>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /settings-grid -->
+
+      <!-- ─── User Accounts Management ────────────────────────────────── -->
+      <div class="table-card" style="margin-bottom:24px" id="users-mgmt-card">
+        <div class="table-header">
+          <div class="table-title">👥 إدارة المستخدمين</div>
+          <div style="font-size:13px;color:var(--text-secondary)">وافق على الحسابات الجديدة أو أوقف حساب</div>
+        </div>
+        <div style="padding:20px">
+          <div id="pending-users-section" style="margin-bottom:20px">
+            <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:10px">⏳ طلبات في الانتظار</div>
+            <div id="pending-users-list"></div>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:10px">👤 كل المستخدمين</div>
+            <div id="all-users-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Feature Toggles Section ──────────────────────────────────── -->
+      <div class="table-card" style="margin-bottom:24px">
+        <div class="table-header">
+          <div class="table-title">⚙️ ميزات النظام</div>
+          <div style="font-size:13px;color:var(--text-secondary)">شغّل أو أوقف الميزات التلقائية</div>
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:20px;">
+
+          <!-- Auto-Retry -->
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-name">🔁 إعادة المحاولة التلقائية</div>
+              <div class="feature-desc">لو فشل إرسال واتساب، السيستم بيحاول تلقائياً كل 15 دقيقة — أقصى 3 محاولات</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="FEATURE_AUTO_RETRY" onchange="saveFeatureToggle('FEATURE_AUTO_RETRY', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Order Timeout -->
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-name">⏳ تذكير العميل + Timeout</div>
+              <div class="feature-desc">لو العميل ما ردش في الوقت المحدد، السيستم يبعتله تذكير — وبعدها يحوله لـ "يحتاج متابعة"</div>
+              <div class="feature-sub" id="timeout-sub" style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                  وقت التذكير:
+                  <input type="number" id="FEATURE_TIMEOUT_REMIND_HRS" min="1" max="48" value="6" style="width:60px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;">
+                  ساعة
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                  وقت الإغلاق:
+                  <input type="number" id="FEATURE_TIMEOUT_FINAL_HRS" min="1" max="72" value="12" style="width:60px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;">
+                  ساعة
+                </label>
+              </div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="FEATURE_ORDER_TIMEOUT" onchange="saveFeatureToggle('FEATURE_ORDER_TIMEOUT', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Daily Report -->
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-name">📊 تقرير يومي على واتساب</div>
+              <div class="feature-desc">كل يوم الساعة 8 الصبح بيجيلك ملخص الأوردرات على رقم التنبيهات</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="FEATURE_DAILY_REPORT" onchange="saveFeatureToggle('FEATURE_DAILY_REPORT', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Owner Alert Phone -->
+          <div class="feature-row" style="border-top:1px solid var(--border);padding-top:20px;">
+            <div class="feature-info">
+              <div class="feature-name">📱 رقم واتساب التنبيهات</div>
+              <div class="feature-desc">الرقم اللي بيستقبل التنبيهات والتقارير — بدون + وبكود الدولة</div>
+            </div>
+            <input type="text" id="OWNER_ALERT_PHONE" class="form-input" placeholder="201068093260" style="width:180px;text-align:left;direction:ltr;">
+          </div>
+
+          <!-- Site Favicon -->
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-name">🖼️ أيقونة الموقع (Favicon)</div>
+              <div class="feature-desc">تظهر جنب اسم الصفحة في تبويب المتصفح — يُفضّل صورة مربعة (32×32 أو 64×64)</div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                <img id="favicon-preview" src="" style="width:32px;height:32px;border-radius:4px;display:none;border:1px solid var(--border)">
+                <input type="file" id="favicon-file" accept="image/png,image/x-icon,image/jpeg" style="font-size:12px" onchange="handleFaviconUpload(this)">
+                <button class="btn btn-ghost btn-sm" onclick="clearFavicon()" id="clear-favicon-btn" style="display:none">إزالة</button>
+              </div>
+              <input type="hidden" id="SITE_FAVICON_BASE64">
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Save Bar -->
+      <div class="save-bar">
+        <span class="save-info" id="save-info">💡 الإعدادات تُحفظ في قاعدة البيانات وفي ملف .env</span>
+        <div style="display:flex;gap:12px">
+          <button class="btn btn-ghost" onclick="loadSettings()">↺ إلغاء التغييرات</button>
+          <button class="btn btn-primary" onclick="saveAllSettings()" id="save-btn-2">
+            💾 حفظ جميع الإعدادات
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /page-content -->
+  </main>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════════
+//  DopaConfirm Settings JavaScript
+// ═══════════════════════════════════════════
+
+// ─── Initialize ───────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  updateWebhookHint();
+  loadUsers();
+});
+
+// ─── User Accounts Management ─────────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    const res = await fetch('/api/users');
+    if (res.status === 403) {
+      // Logged-in as a member (not admin) — hide this card entirely
+      document.getElementById('users-mgmt-card').style.display = 'none';
+      return;
+    }
+    const data = await res.json();
+    renderUsers(data.users || []);
+  } catch (e) {
+    console.error('Failed to load users', e);
+  }
+}
+
+function renderUsers(users) {
+  const pending = users.filter(u => u.status === 'pending');
+  const others  = users.filter(u => u.status !== 'pending');
+
+  const pendingEl = document.getElementById('pending-users-list');
+  pendingEl.innerHTML = pending.length === 0
+    ? `<div style="color:var(--text-muted);font-size:13px">مفيش طلبات جديدة دلوقتي</div>`
+    : pending.map(u => `
+      <div style="display:flex;align-items:center;gap:10px;background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;margin-bottom:8px">
+        <span style="flex:1;font-weight:600;font-size:14px">${escapeHtmlSettings(u.username)}</span>
+        <button class="btn btn-success btn-sm" onclick="approveUser(${u.id})">✅ موافقة</button>
+        <button class="btn btn-danger btn-sm" onclick="rejectUser(${u.id})">❌ رفض</button>
+      </div>`).join('');
+
+  const STATUS_LABEL = { active: ['🟢 نشط', '#00a650'], rejected: ['🔴 مرفوض', '#de3618'], suspended: ['⏸️ موقوف', '#856404'] };
+  const othersEl = document.getElementById('all-users-list');
+  othersEl.innerHTML = others.length === 0
+    ? `<div style="color:var(--text-muted);font-size:13px">لا يوجد مستخدمين بعد</div>`
+    : others.map(u => {
+        const [label, color] = STATUS_LABEL[u.status] || ['—', '#999'];
+        return `
+      <div style="display:flex;align-items:center;gap:10px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:8px">
+        <span style="flex:1;font-weight:600;font-size:14px">${escapeHtmlSettings(u.username)}</span>
+        <span style="font-size:12px;font-weight:700;color:${color}">${label}</span>
+        ${u.status === 'active' ? `<button class="btn btn-ghost btn-sm" onclick="suspendUser(${u.id})">⏸️ إيقاف</button>` : ''}
+        ${u.status !== 'active' ? `<button class="btn btn-success btn-sm" onclick="approveUser(${u.id})">✅ تفعيل</button>` : ''}
+      </div>`;
+      }).join('');
+}
+
+async function approveUser(id) {
+  await fetch(`/api/users/${id}/approve`, { method: 'POST' });
+  showToast('✅ تم تفعيل الحساب');
+  loadUsers();
+}
+async function rejectUser(id) {
+  if (!confirm('هترفض الطلب ده؟')) return;
+  await fetch(`/api/users/${id}/reject`, { method: 'POST' });
+  showToast('تم الرفض');
+  loadUsers();
+}
+async function suspendUser(id) {
+  if (!confirm('هتوقف الحساب ده؟ هيتقفل الجلسة بتاعته فوراً')) return;
+  await fetch(`/api/users/${id}/suspend`, { method: 'POST' });
+  showToast('⏸️ تم إيقاف الحساب');
+  loadUsers();
+}
+
+// ─── Load Settings ────────────────────────
+// حفظ فوري لأي toggle بدون ما تضغط "حفظ الكل"
+async function saveFeatureToggle(key, value) {
+  try {
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [key]: value ? 'true' : 'false' })
+    });
+    showToast(`✅ تم حفظ الإعداد`, 'success');
+  } catch (e) {
+    showToast('❌ فشل الحفظ', 'error');
+  }
+}
+
+async function loadSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    const settings = await res.json();
+
+    const fields = [
+      'SHOPIFY_STORE', 'SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET',
+      'SHOPIFY_WEBHOOK_SECRET', 'GREEN_API_INSTANCE_ID', 'GREEN_API_TOKEN',
+      'STARLINK_API_URL', 'SHIPPING_MODE', 'WHATSAPP_DELAY_HOURS', 'WHATSAPP_MESSAGE_TEMPLATE', 'PORT', 'PUBLIC_URL',
+      'WHATSAPP_PROVIDER', 'META_PHONE_NUMBER_ID', 'META_ACCESS_TOKEN', 'META_WEBHOOK_VERIFY_TOKEN', 'WHATSAPP_REVIEW_TEMPLATE', 'WHATSAPP_MESSAGE_IMAGE_BASE64',
+      'ORDER_SOURCE', 'EASYORDERS_API_KEY', 'EASYORDERS_BASE_URL',
+      'SPEEDAF_TOKEN', 'SPEEDAF_SENDER_NAME', 'SPEEDAF_SENDER_PHONE', 'SPEEDAF_SENDER_ADDRESS', 'SPEEDAF_SENDER_PROVINCE_NAME'
+    ];
+
+    for (const key of fields) {
+      const el = document.getElementById(key);
+      if (!el) continue;
+      if (key === 'SHIPPING_MODE') {
+        const mode = settings[key] || 'speedaf_auto';
+        el.value = mode;
+        setShippingMode(mode, false);
+      } else if (key === 'ORDER_SOURCE') {
+        el.value = settings[key] || 'easyorders';
+      } else if (el.type === 'checkbox') {
+        el.checked = settings[key] === 'true';
+      } else {
+        el.value = settings[key] || '';
+      }
+    }
+
+    toggleOrderSourceCards();
+    toggleWhatsappProviderFields();
+    updatePreview();
+    updateReviewPreview();
+    updateWebhookHint();
+    updateWebhookUrlDisplay();
+
+    // Feature Toggles
+    const featureCheckboxes = ['FEATURE_AUTO_RETRY', 'FEATURE_ORDER_TIMEOUT', 'FEATURE_DAILY_REPORT'];
+    for (const key of featureCheckboxes) {
+      const el = document.getElementById(key);
+      if (el) el.checked = (settings[key] === 'true' || (settings[key] === undefined || settings[key] === null));
+    }
+    const numFields = ['FEATURE_TIMEOUT_REMIND_HRS', 'FEATURE_TIMEOUT_FINAL_HRS', 'OWNER_ALERT_PHONE'];
+    for (const key of numFields) {
+      const el = document.getElementById(key);
+      if (el && settings[key]) el.value = settings[key];
+    }
+    
+    if (settings['WHATSAPP_MESSAGE_IMAGE_BASE64']) {
+      document.getElementById('whatsapp-image-preview').src = 'data:image/jpeg;base64,' + settings['WHATSAPP_MESSAGE_IMAGE_BASE64'];
+      document.getElementById('whatsapp-image-preview').style.display = 'block';
+      document.getElementById('clear-image-btn').style.display = 'inline-block';
+    }
+    if (settings['WHATSAPP_REVIEW_IMAGE_BASE64']) {
+      document.getElementById('whatsapp-review-image-preview').src = 'data:image/jpeg;base64,' + settings['WHATSAPP_REVIEW_IMAGE_BASE64'];
+      document.getElementById('whatsapp-review-image-preview').style.display = 'block';
+      document.getElementById('clear-review-image-btn').style.display = 'inline-block';
+    }
+    if (settings['SITE_FAVICON_BASE64']) {
+      document.getElementById('SITE_FAVICON_BASE64').value = settings['SITE_FAVICON_BASE64'];
+      document.getElementById('favicon-preview').src = 'data:image/png;base64,' + settings['SITE_FAVICON_BASE64'];
+      document.getElementById('favicon-preview').style.display = 'inline-block';
+      document.getElementById('clear-favicon-btn').style.display = 'inline-block';
+    }
+    
+    showToast('✅ تم تحميل الإعدادات', 'success');
+  } catch (err) {
+    showToast('❌ فشل تحميل الإعدادات: ' + err.message, 'error');
+  }
+}
+
+// ─── Toggle Order Source Cards ───────────
+function toggleOrderSourceCards() {
+  const source = document.getElementById('ORDER_SOURCE')?.value || 'easyorders';
+  const easyCard = document.getElementById('easyorders-card');
+  const shopifyCard = document.getElementById('shopify-card');
+
+  if (source === 'easyorders') {
+    if (easyCard) easyCard.style.display = '';
+    if (shopifyCard) shopifyCard.style.display = 'none';
+  } else if (source === 'shopify') {
+    if (easyCard) easyCard.style.display = 'none';
+    if (shopifyCard) shopifyCard.style.display = '';
+  } else {
+    // both
+    if (easyCard) easyCard.style.display = '';
+    if (shopifyCard) shopifyCard.style.display = '';
+  }
+}
+
+// ─── Easy Orders Webhook Copy & Test ──────
+function copyEasyOrdersWebhook() {
+  const url = document.getElementById('easyorders-webhook-url')?.value;
+  if (url) {
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('📋 تم نسخ رابط الـ Webhook الخاص بـ Easy Orders', 'success');
+    });
+  }
+}
+
+async function testEasyOrders() {
+  const btn = document.getElementById('test-easyorders-btn');
+  const result = document.getElementById('easyorders-test-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ الاتصال...';
+  result.className = 'test-result visible';
+  result.textContent = 'جارٍ فحص الاتصال بـ Easy Orders...';
+
+  try {
+    const res = await fetch('/api/orders/import-from-easyorders?limit=1', { method: 'POST' });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    result.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      showToast('✅ متصل بـ Easy Orders بنجاح (إجمالي: ' + (data.total || 0) + ' طلب)', 'success');
+    } else {
+      showToast('❌ فشل الاتصال بـ Easy Orders: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    result.textContent = 'خطأ: ' + err.message;
+    result.className = 'test-result visible error';
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🧪 اختبار الاتصال بـ Easy Orders';
+  }
+}
+
+// ─── Speedaf Direct Test & Sync ──────────
+async function testSpeedaf() {
+  const btn = document.getElementById('test-speedaf-btn');
+  const result = document.getElementById('speedaf-test-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ الاتصال...';
+  result.className = 'test-result visible';
+  result.textContent = 'جارٍ فحص الاتصال بـ Speedaf Direct API...';
+
+  try {
+    const res = await fetch('/api/orders/speedaf/test');
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    result.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      showToast('✅ متصل بـ Speedaf بنجاح!', 'success');
+    } else {
+      showToast('❌ فشل الاتصال: ' + (data.error || 'تأكد من صحة التوكن'), 'error');
+    }
+  } catch (err) {
+    result.textContent = 'خطأ: ' + err.message;
+    result.className = 'test-result visible error';
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🧪 اختبار اتصال Speedaf';
+  }
+}
+
+async function syncSpeedafAreas() {
+  const btn = document.getElementById('sync-speedaf-btn');
+  const result = document.getElementById('speedaf-test-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ مزامنة المحافظات...';
+  result.className = 'test-result visible';
+  result.textContent = 'جارٍ مزامنة وتخزين أكواد المناطق من Speedaf...';
+
+  try {
+    const res = await fetch('/api/orders/speedaf/sync-areas', { method: 'POST' });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    result.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      showToast(`✅ تمت مزامنة ${data.synced || 0} منطقة ومحافظة بنجاح`, 'success');
+    } else {
+      showToast('❌ فشلت المزامنة: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    result.textContent = 'خطأ: ' + err.message;
+    result.className = 'test-result visible error';
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 مزامنة أكواد المحافظات والمناطق';
+  }
+}
+
+// ─── Save Settings ────────────────────────
+async function saveAllSettings() {
+  const saveBtn = document.getElementById('save-btn');
+  const saveBtn2 = document.getElementById('save-btn-2');
+
+  [saveBtn, saveBtn2].forEach(b => { if(b) { b.disabled = true; b.textContent = '⏳ جارٍ الحفظ...'; } });
+
+  const payload = {};
+  const fields = [
+    'SHOPIFY_STORE', 'SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET',
+    'SHOPIFY_WEBHOOK_SECRET', 'GREEN_API_INSTANCE_ID', 'GREEN_API_TOKEN',
+    'STARLINK_API_URL', 'SHIPPING_MODE', 'WHATSAPP_DELAY_HOURS', 'WHATSAPP_MESSAGE_TEMPLATE', 'PORT', 'PUBLIC_URL',
+    'WHATSAPP_PROVIDER', 'META_PHONE_NUMBER_ID', 'META_ACCESS_TOKEN', 'META_WEBHOOK_VERIFY_TOKEN', 'WHATSAPP_REVIEW_TEMPLATE', 'WHATSAPP_MESSAGE_IMAGE_BASE64',
+    'WHATSAPP_REVIEW_IMAGE_BASE64',
+    'FEATURE_TIMEOUT_REMIND_HRS', 'FEATURE_TIMEOUT_FINAL_HRS', 'OWNER_ALERT_PHONE',
+    'ORDER_SOURCE', 'EASYORDERS_API_KEY', 'EASYORDERS_BASE_URL',
+    'SPEEDAF_TOKEN', 'SPEEDAF_SENDER_NAME', 'SPEEDAF_SENDER_PHONE', 'SPEEDAF_SENDER_ADDRESS', 'SPEEDAF_SENDER_PROVINCE_NAME'
+  ];
+
+  for (const key of fields) {
+    const el = document.getElementById(key);
+    if (el && el.value.trim()) {
+      payload[key] = el.value;
+    }
+  }
+
+  // Feature toggle checkboxes
+  for (const key of ['FEATURE_AUTO_RETRY', 'FEATURE_ORDER_TIMEOUT', 'FEATURE_DAILY_REPORT']) {
+    const el = document.getElementById(key);
+    if (el) payload[key] = el.checked ? 'true' : 'false';
+  }
+
+  // Password only if set
+  const pwEl = document.getElementById('DASHBOARD_PASSWORD');
+  if (pwEl && pwEl.value.trim()) {
+    payload.DASHBOARD_PASSWORD = pwEl.value;
+  }
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showToast(`✅ تم حفظ ${data.updated.length} إعداد بنجاح`, 'success');
+      document.getElementById('save-info').textContent = `✅ آخر حفظ: ${new Date().toLocaleTimeString('ar-EG')}`;
+      updateWebhookHint();
+    } else {
+      showToast('❌ فشل الحفظ: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الشبكة: ' + err.message, 'error');
+  } finally {
+    [saveBtn, saveBtn2].forEach(b => { if(b) { b.disabled = false; b.textContent = '💾 حفظ جميع الإعدادات'; } });
+  }
+}
+
+// ─── Message Template Preview ─────────────
+function updatePreview() {
+  const template = document.getElementById('WHATSAPP_MESSAGE_TEMPLATE')?.value || '';
+  const preview = document.getElementById('message-preview');
+
+  if (!template.trim()) {
+    preview.textContent = 'اكتب الرسالة أعلاه لرؤية المعاينة...';
+    return;
+  }
+
+  let previewText = template
+    .replace(/{name}/g, 'أحمد محمد')
+    .replace(/{order_number}/g, '#1234')
+    .replace(/{items}/g, '• منتج تجريبي × 2 — 100 EGP\n• منتج آخر × 1 — 50 EGP')
+    .replace(/{total}/g, '250 EGP')
+    .replace(/{address}/g, '5 شارع التحرير، القاهرة، مصر')
+    .replace(/\\n/g, '\n');
+
+  preview.textContent = previewText;
+}
+
+// ─── Insert Template Variable ─────────────
+function insertVar(variable) {
+  const textarea = document.getElementById('WHATSAPP_MESSAGE_TEMPLATE');
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  textarea.value = text.substring(0, start) + variable + text.substring(end);
+  textarea.selectionStart = textarea.selectionEnd = start + variable.length;
+  textarea.focus();
+  updatePreview();
+}
+
+function toggleWhatsappProviderFields() {
+  const provider = document.getElementById('WHATSAPP_PROVIDER').value;
+  const greenFields = document.getElementById('green-api-fields');
+  const metaFields = document.getElementById('meta-api-fields');
+  const webhookRegister = document.getElementById('green-webhook-register');
+  if (provider === 'internal') {
+    greenFields.style.display = 'none';
+    metaFields.style.display = 'none';
+    if(webhookRegister) webhookRegister.style.display = 'none';
+  } else if (provider === 'meta') {
+    greenFields.style.display = 'none';
+    metaFields.style.display = 'block';
+    if(webhookRegister) webhookRegister.style.display = 'none';
+  } else {
+    greenFields.style.display = 'block';
+    metaFields.style.display = 'none';
+    if(webhookRegister) webhookRegister.style.display = 'block';
+  }
+}
+
+function handleImageUpload(input) {
+  const file = input.files[0];
+  if (file) {
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('❌ حجم الصورة كبير جداً (يجب أن يكون أقل من 2 ميجابايت)', 'error');
+      input.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result.split(',')[1];
+      document.getElementById('WHATSAPP_MESSAGE_IMAGE_BASE64').value = base64;
+      const preview = document.getElementById('whatsapp-image-preview');
+      preview.src = e.target.result;
+      preview.style.display = 'block';
+      document.getElementById('clear-image-btn').style.display = 'inline-block';
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function clearImage() {
+  document.getElementById('WHATSAPP_MESSAGE_IMAGE_BASE64').value = '';
+  document.getElementById('WHATSAPP_IMAGE_FILE').value = '';
+  document.getElementById('whatsapp-image-preview').style.display = 'none';
+  document.getElementById('whatsapp-image-preview').src = '';
+  document.getElementById('clear-image-btn').style.display = 'none';
+}
+
+function updateReviewPreview() {
+  const template = document.getElementById('WHATSAPP_REVIEW_TEMPLATE')?.value || '';
+  const preview = document.getElementById('review-message-preview');
+
+  if (!template.trim()) {
+    preview.textContent = 'اكتب الرسالة أعلاه لرؤية المعاينة...';
+    return;
+  }
+
+  let previewText = template
+    .replace(/{name}/g, 'أحمد محمد')
+    .replace(/{order_number}/g, '#1234')
+    .replace(/{total}/g, '250 EGP')
+    .replace(/{address}/g, '5 شارع التحرير، القاهرة، مصر')
+    .replace(/\\n/g, '\n');
+
+  preview.textContent = previewText;
+}
+
+function insertReviewVar(variable) {
+  const textarea = document.getElementById('WHATSAPP_REVIEW_TEMPLATE');
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  textarea.value = text.substring(0, start) + variable + text.substring(end);
+  textarea.selectionStart = textarea.selectionEnd = start + variable.length;
+  textarea.focus();
+  updateReviewPreview();
+}
+
+// ─── Review Image Upload ─────────────────────────────────────────────────────
+function handleReviewImageUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 2 * 1024 * 1024) return showToast('الصورة أكبر من 2MB', 'error');
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result.split(',')[1];
+    document.getElementById('WHATSAPP_REVIEW_IMAGE_BASE64').value = base64;
+    const preview = document.getElementById('whatsapp-review-image-preview');
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    document.getElementById('clear-review-image-btn').style.display = 'inline-block';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── Favicon ──────────────────────────────────────────────────────────────────
+function handleFaviconUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 500 * 1024) return showToast('الصورة أكبر من 500KB — اختر صورة أصغر', 'error');
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    document.getElementById('SITE_FAVICON_BASE64').value = base64;
+    document.getElementById('favicon-preview').src = e.target.result;
+    document.getElementById('favicon-preview').style.display = 'inline-block';
+    document.getElementById('clear-favicon-btn').style.display = 'inline-block';
+    // Save immediately — favicon is a site-wide asset, no need to wait for the main "save" button
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ SITE_FAVICON_BASE64: base64 })
+      });
+      showToast('✅ تم رفع الأيقونة — قد تحتاج لتحديث الصفحة (Ctrl+Shift+R) لرؤيتها');
+    } catch { showToast('❌ فشل الرفع', 'error'); }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function clearFavicon() {
+  document.getElementById('SITE_FAVICON_BASE64').value = '';
+  document.getElementById('favicon-file').value = '';
+  document.getElementById('favicon-preview').style.display = 'none';
+  document.getElementById('clear-favicon-btn').style.display = 'none';
+  try {
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ SITE_FAVICON_BASE64: '' })
+    });
+    showToast('🗑 تم إزالة الأيقونة');
+  } catch { showToast('❌ خطأ', 'error'); }
+}
+
+function clearReviewImage() {
+  document.getElementById('WHATSAPP_REVIEW_IMAGE_BASE64').value = '';
+  document.getElementById('WHATSAPP_REVIEW_IMAGE_FILE').value = '';
+  document.getElementById('whatsapp-review-image-preview').style.display = 'none';
+  document.getElementById('whatsapp-review-image-preview').src = '';
+  document.getElementById('clear-review-image-btn').style.display = 'none';
+}
+
+// ─── Message Suggestions ─────────────────────────────────────────────────────
+const MESSAGE_SUGGESTIONS = {
+  confirm: [
+    {
+      label: 'رسمي واضح',
+      text: `👋 مرحباً {name}!
+
+✅ تم استلام طلبك رقم *{order_number}* بنجاح.
+
+📦 *المنتجات:*
+{items}
+
+💰 *الإجمالي:* {total}
+📍 *العنوان:* {address}
+
+هل تؤكد الطلب؟
+رد بـ *نعم* للتأكيد أو *لا* للإلغاء 🙏`
+    },
+    {
+      label: 'ودي وقريب',
+      text: `أهلاً {name}! 🌸
+
+وصلنا طلبك رقم *{order_number}* 🎉
+
+{items}
+💰 الإجمالي: {total}
+
+تأكدي معانا عشان نشحنه بسرعة؟ 🚀`
+    },
+    {
+      label: 'مختصر',
+      text: `✅ طلبك *{order_number}* وصلنا!
+{items} — {total}
+
+رد *نعم* للتأكيد ✔️`
+    }
+  ],
+  review: [
+    {
+      label: 'عاطفي ومؤثر',
+      text: `⭐ مرحباً {name}!
+
+وصل طلبك بأمان 📦 وده أسعدنا جداً!
+
+رأيك يهمنا جداً — لو عجبك المنتج صورة أو كلمة بتفرق معانا كتير 🙏
+
+شكراً لثقتك في DopaLess 💕`
+    },
+    {
+      label: 'مباشر وسريع',
+      text: `📦 وصل طلبك {order_number}!
+
+نتمنى يعجبك — ممكن تشاركنا رأيك؟ ⭐
+صورة بالمنتج بتساعدنا كتير 🙏`
+    },
+    {
+      label: 'بـ Emoji فقط',
+      text: `{name} 🌟
+
+طلبك وصل ✅
+رأيك يفرق 💬⭐
+صورة = فرحة كبيرة لنا 📸💕`
+    }
+  ]
+};
+
+let _suggestionType = 'confirm';
+
+function showSuggestions(type) {
+  _suggestionType = type;
+  const modal = document.getElementById('suggestions-modal');
+  const title = document.getElementById('suggestions-title');
+  const list  = document.getElementById('suggestions-list');
+
+  title.textContent = type === 'confirm' ? '💡 اقتراحات رسالة التأكيد' : '💡 اقتراحات رسالة التقييم';
+
+  list.innerHTML = MESSAGE_SUGGESTIONS[type].map((s, i) => `
+    <div style="border:1.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer;transition:border-color 0.15s"
+         onmouseover="this.style.borderColor='var(--primary-color)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:700;font-size:13px;color:var(--primary-color)">${s.label}</span>
+        <button class="btn btn-primary btn-sm" onclick="applySuggestion(${i})">استخدام هذه</button>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap;background:var(--bg-base);padding:10px;border-radius:6px;line-height:1.7">${escapeHtmlSettings(s.text)}</div>
+    </div>`).join('');
+
+  modal.style.display = 'flex';
+}
+
+function applySuggestion(index) {
+  const s = MESSAGE_SUGGESTIONS[_suggestionType][index];
+  if (_suggestionType === 'confirm') {
+    document.getElementById('WHATSAPP_MESSAGE_TEMPLATE').value = s.text;
+    updatePreview();
+  } else {
+    document.getElementById('WHATSAPP_REVIEW_TEMPLATE').value = s.text;
+    updateReviewPreview();
+  }
+  document.getElementById('suggestions-modal').style.display = 'none';
+  showToast('✅ تم تطبيق الصيغة — لا تنسى تحفظ', 'success');
+}
+
+function escapeHtmlSettings(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Webhook URL Display ──────────────────
+function updateWebhookUrlDisplay() {
+  const display = document.getElementById('webhook-url-display');
+  if (display) {
+    display.value = `${window.location.protocol}//${window.location.host}/webhook/shopify`;
+  }
+  const eoDisplay = document.getElementById('easyorders-webhook-url');
+  if (eoDisplay) {
+    eoDisplay.value = `${window.location.protocol}//${window.location.host}/webhook/easyorders`;
+  }
+}
+
+function copyWebhookUrl() {
+  const url = document.getElementById('webhook-url-display')?.value;
+  if (url) {
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('📋 تم نسخ الرابط', 'success');
+    });
+  }
+}
+
+function updateWebhookHint() {
+  const hint = document.getElementById('shopify-webhook-hint');
+  if (hint) {
+    const host = window.location.host;
+    hint.textContent = `http://${host}/webhook/shopify`;
+  }
+}
+
+// ─── Test WhatsApp ────────────────────────
+async function testWhatsApp() {
+  const phone = document.getElementById('test-wa-phone').value.trim();
+  if (!phone) {
+    showToast('⚠️ أدخل رقم هاتف للاختبار', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('test-wa-btn');
+  const result = document.getElementById('wa-test-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ الإرسال...';
+  result.className = 'test-result visible';
+  result.textContent = 'جارٍ الإرسال...';
+
+  try {
+    const res = await fetch('/api/test/whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone,
+        message: `🧪 رسالة اختبار من DopaConfirm\n\nالوقت: ${new Date().toLocaleString('ar-EG')}\n\nهذه رسالة اختبار لتأكيد عمل الاتصال ✅`
+      })
+    });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    result.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      showToast('✅ تم إرسال رسالة الاختبار بنجاح', 'success');
+    } else {
+      showToast('❌ فشل الإرسال: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    result.textContent = 'خطأ: ' + err.message;
+    result.className = 'test-result visible error';
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💬 إرسال اختبار';
+  }
+}
+
+// ─── Shipping Mode Selector ─────────────────────────────────────────
+// updateUI=true means call is from user click (save not triggered here)
+function setShippingMode(mode, updateUI = true) {
+  // Update hidden input
+  const input = document.getElementById('SHIPPING_MODE');
+  if (input) input.value = mode;
+
+  // Update button active states
+  document.querySelectorAll('.ship-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+
+  // Update hint text
+  const hint = document.getElementById('shipping-mode-hint');
+  if (hint) {
+    const hints = {
+      manual:       '⚪ الأوردر هيتأكد بس — بتبعت لشركة الشحن يدوي',
+      speedaf_auto: '🟠 عند التأكيد يبعت تلقائيًا لـ Speedaf عبر Shopify App',
+      starlink_auto:'🟢 عند التأكيد يبعت تلقائيًا لـ Starlink عبر API',
+    };
+    hint.textContent = hints[mode] || '';
+  }
+
+  // Show/hide Starlink fields
+  const showStarlink = mode === 'starlink_auto';
+  const urlGroup  = document.getElementById('starlink-url-group');
+  const testGroup = document.getElementById('starlink-test-group');
+  if (urlGroup)  urlGroup.style.display  = showStarlink ? '' : 'none';
+  if (testGroup) testGroup.style.display = showStarlink ? '' : 'none';
+}
+
+// ─── Test Starlink ────────────────────────
+async function testStarlink() {
+  const btn = document.getElementById('test-starlink-btn');
+  const result = document.getElementById('starlink-test-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ الاتصال...';
+  result.className = 'test-result visible';
+  result.textContent = 'جارٍ إرسال بيانات الاختبار...';
+
+  try {
+    const res = await fetch('/api/test/starlink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    result.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      showToast('✅ تم الاتصال بـ Starlink بنجاح', 'success');
+    } else {
+      showToast('❌ فشل الاتصال: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    result.textContent = 'خطأ: ' + err.message;
+    result.className = 'test-result visible error';
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🧪 اختبار الاتصال بـ Starlink';
+  }
+}
+
+// ─── Register Green API Webhook ────────────
+async function registerGreenWebhook() {
+  const btn = document.getElementById('register-webhook-btn');
+  const result = document.getElementById('webhook-register-result');
+  
+  if (document.getElementById('WHATSAPP_PROVIDER').value === 'meta') {
+    return showToast('لا يمكن تسجيل Webhook من هنا لمزود Meta. الرجاء التوجه لـ Meta Developer Console.', 'warning');
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ التسجيل...';
+  result.className = 'test-result visible';
+  result.textContent = 'جارٍ إرسال طلب التسجيل...';
+
+  try {
+    const res = await fetch('/api/settings/register-webhook', { method: 'POST' });
+    const data = await res.json();
+    
+    result.textContent = JSON.stringify(data, null, 2);
+    result.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      showToast('✅ تم تسجيل Webhook بنجاح', 'success');
+    } else {
+      showToast('❌ فشل التسجيل: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    result.textContent = 'خطأ: ' + err.message;
+    result.className = 'test-result visible error';
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔗 تسجيل Webhook الآن';
+  }
+}
+
+// ─── Sidebar Toggle ─────────────────────────
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const mainContent = document.querySelector('.main-content');
+  sidebar.classList.toggle('collapsed');
+  mainContent.classList.toggle('expanded');
+}
+
+// ─── Toast ────────────────────────────────
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span><span>${escapeHtml(message)}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'toast-out 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+<!-- ─── Suggestions Modal ─────────────────── -->
+<div id="suggestions-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-surface);border-radius:14px;padding:24px;max-width:520px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.2);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 id="suggestions-title" style="margin:0;font-size:17px"></h3>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('suggestions-modal').style.display='none'">✕</button>
+    </div>
+    <div id="suggestions-list"></div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,2599 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <link rel="icon" href="/favicon.ico">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DopaConfirm — لوحة تحكم الطلبات</title>
+  <meta name="description" content="نظام تأكيد الطلبات عبر واتساب لمتجر Shopify — لوحة التحكم الرئيسية" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    /* Status Tabs */
+    .status-tab {
+      padding: 7px 14px;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .status-tab:hover { border-color: var(--primary-color); color: var(--primary-color); }
+    .badge-follow-up {
+      background: #fff3cd;
+      color: #856404;
+      border: 1.5px solid #ffc107;
+      animation: pulse-follow 2s infinite;
+    }
+    @keyframes pulse-follow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .status-tab.active {
+      background: var(--primary-color);
+      color: #fff;
+      border-color: var(--primary-color);
+    }
+
+    /* RTL overrides for this page */
+    th, td { text-align: right; }
+    .search-icon { right: 14px; left: auto; }
+    .search-input { padding: 9px 42px 9px 14px; }
+    .nav-item.active::before { right: -12px; left: auto; border-radius: 4px 0 0 4px; }
+    .filter-select {
+      background-position: left 12px center;
+      padding: 9px 14px 9px 36px;
+    }
+    .toast-container { right: auto; left: 24px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- ─── Sidebar ─────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <a href="/" class="logo-mark">
+        <div class="logo-icon">📦</div>
+        <div class="logo-text">
+          <span class="logo-name">DopaConfirm</span>
+          <span class="logo-sub">نظام تأكيد الطلبات</span>
+        </div>
+      </a>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">القائمة الرئيسية</div>
+
+      <a href="/" class="nav-item active" id="nav-orders">
+        <span class="nav-icon">📋</span>
+        <span>الطلبات</span>
+        <span class="nav-badge" id="pending-badge" style="display:none">0</span>
+      </a>
+
+      <a href="/settings" class="nav-item" id="nav-settings">
+        <span class="nav-icon">⚙️</span>
+        <span>الإعدادات</span>
+      </a>
+
+      <a href="/whatsapp.html" class="nav-item" id="nav-whatsapp">
+        <span class="nav-icon">💬</span>
+        <span>ربط الواتساب</span>
+      </a>
+
+      <div class="nav-section-title" style="margin-top:16px">أدوات</div>
+
+      <a href="#" class="nav-item" id="btn-simulate" onclick="openSimulate();return false;">
+        <span class="nav-icon">🧪</span>
+        <span>محاكاة طلب</span>
+      </a>
+
+      <a href="#" class="nav-item" id="btn-import" onclick="importFromShopify();return false;">
+        <span class="nav-icon">🛍️</span>
+        <span>استيراد من Shopify</span>
+      </a>
+
+      <a href="#" class="nav-item" id="btn-import-eo" onclick="importFromEasyOrders();return false;">
+        <span class="nav-icon">⚡</span>
+        <span>استيراد Easy Orders</span>
+      </a>
+
+      <a href="/health" class="nav-item" target="_blank">
+        <span class="nav-icon">❤️</span>
+        <span>فحص الخادم</span>
+      </a>
+
+      <a href="/workspace" class="nav-item">
+        <span class="nav-icon">🗂️</span>
+        <span>مساحة العمل</span>
+      </a>
+      <a href="/notes" class="nav-item">
+        <span class="nav-icon">📝</span>
+        <span>الملاحظات</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="server-status">
+        <div class="status-dot" id="status-dot"></div>
+        <div class="status-info">
+          <span class="status-label" id="status-label">الخادم يعمل</span>
+          <span class="status-sub" id="status-sub">آخر تحديث: الآن</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─── Main Content ─────────────────────── -->
+  <main class="main-content">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left" style="display: flex; align-items: center; gap: 12px;">
+        <button class="btn btn-ghost" onclick="toggleSidebar()" style="padding: 8px; font-size: 20px;">☰</button>
+        <div>
+          <h1 class="page-title">📋 الطلبات</h1>
+          <p class="page-subtitle">إدارة وتتبع طلبات العملاء في الوقت الفعلي</p>
+        </div>
+      </div>
+      <div class="topbar-right" style="display: flex; gap: 10px; align-items: center;">
+        <div class="auto-refresh-badge" id="refresh-badge">
+          <div class="refresh-spinner"></div>
+          <span>تحديث تلقائي كل 15 ثانية</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="logout()" style="color: var(--error); border: 1px solid var(--error);">🚪 تسجيل الخروج</button>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <div class="page-content">
+
+      <!-- Revenue KPIs Section -->
+      <div class="kpis-section" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px;">
+        <div class="card" style="background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-right: 4px solid var(--success);">
+          <div style="color: var(--text-muted); font-size: 14px; font-weight: 600; margin-bottom: 8px;">إجمالي المبيعات (مؤكد ومتسلم)</div>
+          <div style="font-size: 28px; font-weight: 700; color: var(--text-dark);" id="kpi-confirmed">0</div>
+        </div>
+        <div class="card" style="background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-right: 4px solid var(--warning);">
+          <div style="color: var(--text-muted); font-size: 14px; font-weight: 600; margin-bottom: 8px;">مبيعات قيد الانتظار</div>
+          <div style="font-size: 28px; font-weight: 700; color: var(--text-dark);" id="kpi-pending">0</div>
+        </div>
+        <div class="card" style="background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-right: 4px solid var(--error);">
+          <div style="color: var(--text-muted); font-size: 14px; font-weight: 600; margin-bottom: 8px;">مبيعات ملغية</div>
+          <div style="font-size: 28px; font-weight: 700; color: var(--text-dark);" id="kpi-cancelled">0</div>
+        </div>
+      </div>
+
+      <!-- Quick Stats Grid -->
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card" style="--stat-color:#5C6AC4;--stat-bg:rgba(92,106,196,0.1)">
+          <div class="stat-icon">📦</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-total">—</span>
+            <span class="stat-label">إجمالي الطلبات</span>
+          </div>
+        </div>
+        <div class="stat-card" style="--stat-color:#F49342;--stat-bg:rgba(244,147,66,0.1)">
+          <div class="stat-icon">⏳</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-pending">—</span>
+            <span class="stat-label">في الانتظار</span>
+          </div>
+        </div>
+        <div class="stat-card" style="--stat-color:#00A650;--stat-bg:rgba(0,166,80,0.1)">
+          <div class="stat-icon">✅</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-confirmed">—</span>
+            <span class="stat-label">مؤكد</span>
+          </div>
+        </div>
+        <div class="stat-card" style="--stat-color:#6D7175;--stat-bg:rgba(109,113,117,0.1)">
+          <div class="stat-icon">❌</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-cancelled">—</span>
+            <span class="stat-label">ملغي</span>
+          </div>
+        </div>
+        <div class="stat-card" style="--stat-color:#00A650;--stat-bg:rgba(0,166,80,0.08)">
+          <div class="stat-icon">🚚</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-shipping">—</span>
+            <span class="stat-label">أُرسل للشحن</span>
+          </div>
+        </div>
+        <div class="stat-card" style="--stat-color:#DE3618;--stat-bg:rgba(222,54,24,0.08)">
+          <div class="stat-icon">⚠️</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-failed">—</span>
+            <span class="stat-label">فشل الإرسال</span>
+          </div>
+        </div>
+        <div class="stat-card" style="--stat-color:#008060;--stat-bg:rgba(0,128,96,0.1)">
+          <div class="stat-icon">📦</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-delivered">—</span>
+            <span class="stat-label">متسلم</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytics Section -->
+      <div class="analytics-section" style="margin-bottom: 24px;">
+        <div class="card" style="background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          <h3 style="margin-top: 0; color: var(--text-dark);">معدل تأكيد الطلبات</h3>
+          <div style="position: relative; height: 220px; width: 100%;">
+            <canvas id="conversionChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simulated / Experimental Orders Table -->
+      <div class="table-card" style="margin-bottom: 24px;">
+        <div class="table-header" onclick="toggleSimulatedOrders()" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <div class="table-title">
+            🧪 الطلبات التجريبية والمحاكاة
+            <span class="table-count" id="simulated-table-count"></span>
+          </div>
+          <span id="simulated-toggle-icon" style="transition: transform 0.3s; font-size: 20px;">▼</span>
+        </div>
+        <div class="table-wrapper" id="simulated-table-wrapper" style="display: none;">
+          <table id="simulated-orders-table">
+            <thead>
+              <tr>
+                <th style="width: 40px;"><input type="checkbox" onchange="toggleAllCheckboxes(this, 'simulated-orders-tbody')"></th>
+                <th>رقم الطلب</th>
+                <th>العميل</th>
+                <th>سير العمل</th>
+                <th>المنتجات</th>
+                <th>الإجمالي</th>
+                <th>الحالة</th>
+                <th>الوقت</th>
+                <th>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="simulated-orders-tbody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input
+            type="text"
+            class="search-input"
+            id="search-input"
+            placeholder="البحث بالاسم أو الهاتف أو رقم الطلب..."
+            oninput="debounceSearch()"
+          />
+        </div>
+
+        <!-- Status Tabs -->
+        <div id="status-tabs" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:4px;">
+          <button class="status-tab active" data-statuses="" onclick="setStatusTab(this)">📋 الكل</button>
+          <button class="status-tab" data-statuses="pending_confirmation,whatsapp_sent" onclick="setStatusTab(this)">💬 مؤكد واتساب</button>
+          <button class="status-tab" data-statuses="whatsapp_failed" onclick="setStatusTab(this)">❌ فشل واتساب</button>
+          <button class="status-tab" data-statuses="shipping_sent" onclick="setStatusTab(this)">🚚 تم تبليغ الشحن</button>
+          <button class="status-tab" data-statuses="handed_to_courier" onclick="setStatusTab(this)">📦 مع المندوب</button>
+          <button class="status-tab" data-statuses="confirmed,shipping_failed" onclick="setStatusTab(this)">⏳ لم يُشحن بعد</button>
+          <button class="status-tab" data-statuses="delivered" onclick="setStatusTab(this)">📦 تم التسليم</button>
+          <button class="status-tab" data-statuses="delivered" data-review="sent" onclick="setStatusTab(this)">⭐ طُلب تقييمه</button>
+          <button class="status-tab" data-statuses="delivered" data-review="not_sent" onclick="setStatusTab(this)">🔴 لم يُطلب تقييمه</button>
+          <button class="status-tab" data-statuses="cancelled" onclick="setStatusTab(this)">🚫 ملغي</button>
+        </div>
+
+        <select class="filter-select" id="date-filter" onchange="loadOrders()">
+          <option value="all">التاريخ (الكل)</option>
+          <option value="today">اليوم</option>
+          <option value="last_1">آخر يوم</option>
+          <option value="last_2">آخر يومين</option>
+          <option value="last_5">آخر 5 أيام</option>
+          <option value="last_7">آخر أسبوع</option>
+          <option value="last_30">آخر شهر</option>
+          <option value="last_180">آخر 6 شهور</option>
+        </select>
+
+        <select class="filter-select" id="sort-filter" onchange="loadOrders()">
+          <option value="desc">الأحدث أولاً</option>
+          <option value="asc">الأقدم أولاً</option>
+        </select>
+
+        <button class="btn-refresh" onclick="loadOrders(true)">
+          🔄 تحديث
+        </button>
+        <button class="btn btn-primary" onclick="syncStarlink()" style="padding: 9px 14px; margin-right: 8px;">
+          🤖 مزامنة الحالات آلياً
+        </button>
+
+        <button class="btn btn-success" onclick="exportToCSV()" style="padding: 9px 14px; margin-right: 8px;" title="تحميل الطلبات كملف إكسيل">
+          📥 تحميل CSV
+        </button>
+
+        <!-- Sound toggle -->
+        <button class="btn btn-ghost" onclick="toggleSound()" id="sound-toggle-btn" style="padding: 9px 14px; margin-right: 8px;" title="تشغيل/إيقاف إشعارات الصوت">
+          🔊 التنبيهات
+        </button>
+      </div>
+
+      <!-- Bulk Action Bar -->
+      <div id="bulk-action-bar" style="display:none; background:var(--bg-surface); padding:12px 20px; border-radius:var(--radius-md); box-shadow:0 2px 8px rgba(0,0,0,0.1); margin-bottom:16px; gap:12px; flex-wrap:wrap; align-items:center; border:1.5px solid var(--primary-light);">
+        <div style="font-weight:700; color:var(--primary-color); font-size:15px; min-width:120px;">
+          ✅ تم تحديد <span id="bulk-count">0</span> طلب
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;flex:1;">
+          <button id="bulk-btn-shipping" class="btn btn-success btn-sm" onclick="executeBulkAction('confirm_shipping')" title="إرسال المحددين للشحن">🚚 إرسال للشحن</button>
+          <button id="bulk-btn-review" class="btn btn-warning btn-sm" onclick="executeBulkAction('request_review')" title="إرسال طلب تقييم للمحددين">⭐ طلب تقييم</button>
+          <button id="bulk-btn-whatsapp" class="btn btn-primary btn-sm" onclick="executeBulkAction('resend_whatsapp')" title="إعادة إرسال واتساب للمحددين">💬 إعادة واتساب</button>
+          <button id="bulk-btn-delete" class="btn btn-danger btn-sm" onclick="executeBulkAction('delete')" title="حذف المحددين">🗑 حذف</button>
+          <button id="bulk-btn-tag" class="btn btn-ghost btn-sm" onclick="openBulkTagModal()" title="إضافة تاج للمحددين">🏷️ تاج جماعي</button>
+          <button id="bulk-btn-export" class="btn btn-ghost btn-sm" onclick="openExportModal()" title="تصدير بيانات مخصصة PDF">📄 تصدير مخصص</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearBulkSelection()">✕ إلغاء التحديد</button>
+        </div>
+      </div>
+
+
+      <!-- Shopify Real Orders Table -->
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">
+            🛍️ طلبات متجر شوبيفاي
+            <span class="table-count" id="shopify-table-count"></span>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="shopify-orders-table">
+            <thead>
+              <tr>
+                <th style="width: 40px;"><input type="checkbox" onchange="toggleAllCheckboxes(this, 'shopify-orders-tbody')"></th>
+                <th>رقم الطلب</th>
+                <th>العميل</th>
+                <th>سير العمل</th>
+                <th>المنتجات</th>
+                <th>الإجمالي</th>
+                <th>الحالة</th>
+                <th>الوقت</th>
+                <th>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="shopify-orders-tbody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /page-content -->
+  </main>
+</div>
+
+<!-- ─── Order Detail Modal ─────────────────── -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal" style="max-width:600px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 class="modal-title" style="margin-bottom:0" id="modal-order-num">تفاصيل الطلب</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('detail-modal')">✕ إغلاق</button>
+    </div>
+    <div id="modal-body" class="modal-body" style="max-height:60vh;overflow-y:auto"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<!-- ─── Simulate Webhook Modal ─────────────── -->
+<div class="modal-overlay" id="simulate-modal">
+  <div class="modal" style="max-width:460px">
+    <h2 class="modal-title">🧪 محاكاة طلب Shopify</h2>
+    <p class="modal-body" style="margin-bottom:16px">
+      سيقوم النظام بمحاكاة استقبال طلب جديد من Shopify وإرسال رسالة واتساب للعميل.
+    </p>
+    <div class="form-group">
+      <label class="form-label">رقم هاتف العميل (اختياري)</label>
+      <input type="text" class="form-input" id="sim-phone" placeholder="+201012345678" />
+      <p class="form-hint">اتركه فارغاً لاستخدام الرقم الافتراضي</p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">اسم العميل (اختياري)</label>
+      <input type="text" class="form-input" id="sim-name" placeholder="أحمد محمد" />
+    </div>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button class="btn btn-ghost" onclick="closeModal('simulate-modal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="runSimulate()" id="simulate-btn">
+        🚀 تشغيل المحاكاة
+      </button>
+    </div>
+    <div class="test-result" id="simulate-result"></div>
+  </div>
+</div>
+
+<!-- ─── Confirm Dialog ─────────────────────── -->
+<div class="modal-overlay" id="confirm-dialog">
+  <div class="modal" style="max-width:400px">
+    <h2 class="modal-title" id="confirm-title">تأكيد الإجراء</h2>
+    <p class="modal-body" id="confirm-body">هل أنت متأكد؟</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('confirm-dialog')">إلغاء</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">تأكيد</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Toast Container ────────────────────── -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ─── Notes Modal ─────────────────── -->
+<div class="modal-overlay" id="notes-modal">
+  <div class="modal" style="max-width:500px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 class="modal-title" style="margin-bottom:0">📝 ملاحظات الطلب <span id="notes-order-num"></span></h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notes-modal')">✕ إغلاق</button>
+    </div>
+    <textarea id="notes-textarea" class="form-input" style="min-height:120px;margin-bottom:15px;resize:vertical;" placeholder="اكتب ملاحظاتك هنا... (لن تظهر للعميل)"></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn btn-ghost" onclick="closeModal('notes-modal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveNotes()" id="save-notes-btn">💾 حفظ الملاحظات</button>
+    </div>
+    <input type="hidden" id="notes-order-id">
+  </div>
+</div>
+
+<!-- ─── Edit Order Modal ───────────────── -->
+<div class="modal-overlay" id="edit-order-modal">
+  <div class="modal" style="max-width:560px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 class="modal-title" style="margin-bottom:0">✏️ تعديل الطلب <span id="edit-order-num"></span></h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('edit-order-modal')">✕ إغلاق</button>
+    </div>
+
+    <div style="font-size:12px;color:var(--text-muted);background:var(--bg-base);padding:10px 14px;border-radius:8px;margin-bottom:18px">
+      💡 أي تعديل هنا بيتزامن مباشرة مع نفس الأوردر في Shopify.
+    </div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:10px">📍 بيانات العميل والعنوان</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted)">الاسم الأول</label>
+        <input type="text" id="edit-first-name" class="form-input">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted)">اسم العائلة</label>
+        <input type="text" id="edit-last-name" class="form-input">
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:var(--text-muted)">رقم التليفون</label>
+      <input type="text" id="edit-phone" class="form-input" dir="ltr">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:var(--text-muted)">العنوان (سطر 1)</label>
+      <input type="text" id="edit-address1" class="form-input">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:var(--text-muted)">العنوان (سطر 2 — اختياري)</label>
+      <input type="text" id="edit-address2" class="form-input">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted)">المدينة</label>
+        <input type="text" id="edit-city" class="form-input">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted)">المحافظة</label>
+        <input type="text" id="edit-province" class="form-input">
+      </div>
+    </div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:10px">📦 المنتجات والكميات</div>
+    <div id="edit-items-list" style="margin-bottom:20px"></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:20px">
+      لتغيير المنتج نفسه (مش الكمية بس)، عدّله من Shopify مباشرة دلوقتي.
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn btn-ghost" onclick="closeModal('edit-order-modal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveOrderEdit()" id="save-edit-order-btn">💾 حفظ ومزامنة مع Shopify</button>
+    </div>
+    <input type="hidden" id="edit-order-id">
+  </div>
+</div>
+
+<!-- ─── Export Custom Modal ───────────────── -->
+<div class="modal-overlay" id="export-modal">
+  <div class="modal" style="max-width:420px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 class="modal-title" style="margin-bottom:0">📄 تصدير بيانات مخصصة</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('export-modal')">✕ إغلاق</button>
+    </div>
+
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+      اختار الحقول اللي عايزها تظهر لكل طلب — هتتفتح صفحة منسّقة تقدر تطبعها أو تحفظها PDF من نافذة الطباعة.
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer">
+        <input type="checkbox" class="export-field" value="order_number" checked> رقم الطلب
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer">
+        <input type="checkbox" class="export-field" value="customer_name" checked> اسم العميل
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer">
+        <input type="checkbox" class="export-field" value="customer_phone" checked> رقم الهاتف
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer">
+        <input type="checkbox" class="export-field" value="address" checked> العنوان
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer">
+        <input type="checkbox" class="export-field" value="total" checked> الإجمالي
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer">
+        <input type="checkbox" class="export-field" value="items"> المنتجات
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer">
+        <input type="checkbox" class="export-field" value="status"> الحالة
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer">
+        <input type="checkbox" class="export-field" value="created_at"> التاريخ
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+        <input type="checkbox" id="export-show-labels" checked> إظهار عناوين الخانات (مثل "الاسم: فارس")
+      </label>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn btn-ghost" onclick="closeModal('export-modal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="generateExportPage()">📄 عرض وتحضير للطباعة</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Quick Links Modal ───────────────── -->
+<div class="modal-overlay" id="quicklinks-modal">
+  <div class="modal" style="max-width:560px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 class="modal-title" style="margin-bottom:0">🔗 لينكات سريعة</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('quicklinks-modal')">✕ إغلاق</button>
+    </div>
+    <div id="quicklinks-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:350px;overflow-y:auto;"></div>
+    <div style="border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">إضافة لينك جديد</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="ql-name" type="text" placeholder="الاسم (مثل: داشبورد Shopify)" class="form-input" style="flex:1;min-width:140px;padding:7px 10px;font-size:13px">
+        <input id="ql-url" type="url" placeholder="https://..." class="form-input" style="flex:2;min-width:200px;padding:7px 10px;font-size:13px;direction:ltr">
+        <button class="btn btn-primary btn-sm" onclick="addQuickLink()" style="white-space:nowrap">+ إضافة</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Bulk Tag Modal ──────────────────── -->
+<div class="modal-overlay" id="bulktag-modal">
+  <div class="modal" style="max-width:420px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 class="modal-title" style="margin-bottom:0">🏷️ تاج جماعي</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('bulktag-modal')">✕</button>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">سيتم إضافة التاج لـ <strong id="bulk-tag-count">0</strong> أوردر محدد</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <span class="bulk-tag-preset" onclick="selectBulkTagPreset(this,'⭐ تم التقييم')" style="cursor:pointer;background:var(--bg-base);border:1.5px solid var(--border);padding:4px 12px;border-radius:20px;font-size:13px">⭐ تم التقييم</span>
+      <span class="bulk-tag-preset" onclick="selectBulkTagPreset(this,'👑 VIP')" style="cursor:pointer;background:var(--bg-base);border:1.5px solid var(--border);padding:4px 12px;border-radius:20px;font-size:13px">👑 VIP</span>
+      <span class="bulk-tag-preset" onclick="selectBulkTagPreset(this,'🔄 طلب إعادة')" style="cursor:pointer;background:var(--bg-base);border:1.5px solid var(--border);padding:4px 12px;border-radius:20px;font-size:13px">🔄 طلب إعادة</span>
+      <span class="bulk-tag-preset" onclick="selectBulkTagPreset(this,'⚠️ مشكلة توصيل')" style="cursor:pointer;background:var(--bg-base);border:1.5px solid var(--border);padding:4px 12px;border-radius:20px;font-size:13px">⚠️ مشكلة توصيل</span>
+      <span class="bulk-tag-preset" onclick="selectBulkTagPreset(this,'🚫 بلاك ليست')" style="cursor:pointer;background:var(--bg-base);border:1.5px solid var(--border);padding:4px 12px;border-radius:20px;font-size:13px">🚫 بلاك ليست</span>
+      <span class="bulk-tag-preset" onclick="selectBulkTagPreset(this,'🔁 عميل مكرر')" style="cursor:pointer;background:var(--bg-base);border:1.5px solid var(--border);padding:4px 12px;border-radius:20px;font-size:13px">🔁 عميل مكرر</span>
+    </div>
+    <input id="bulk-tag-input" type="text" placeholder="أو اكتب تاج مخصص..." class="form-input" style="width:100%;margin-bottom:16px;padding:8px 12px;font-size:14px">
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('bulktag-modal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="executeBulkTag()">✅ تطبيق على المحددين</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Order Timeline Modal ────────────── -->
+<div class="modal-overlay" id="timeline-modal">
+  <div class="modal" style="max-width:500px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 class="modal-title" style="margin-bottom:0">📜 سجل الطلب <span id="timeline-order-num"></span></h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('timeline-modal')">✕ إغلاق</button>
+    </div>
+    <div id="timeline-content" style="display: flex; flex-direction: column; gap: 15px; text-align: right; padding: 10px 0;">
+      <!-- Timeline items injected here -->
+    </div>
+  </div>
+</div>
+
+<!-- ─── Custom Message Modal ────────────── -->
+<div class="modal-overlay" id="custom-msg-modal">
+  <div class="modal" style="max-width:500px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 class="modal-title" style="margin-bottom:0">💬 إرسال رسالة حرة <span id="custom-msg-order-num"></span></h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('custom-msg-modal')">✕ إغلاق</button>
+    </div>
+    <textarea id="custom-msg-textarea" class="form-input" style="min-height:120px;margin-bottom:15px;resize:vertical;" placeholder="اكتب الرسالة التي تريد إرسالها للعميل على واتساب..."></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn btn-ghost" onclick="closeModal('custom-msg-modal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="sendCustomMessage()" id="send-custom-msg-btn">إرسال عبر واتساب 📤</button>
+    </div>
+    <input type="hidden" id="custom-msg-order-id">
+  </div>
+</div>
+
+<!-- ─── Speedaf Shipping Modal ────────────── -->
+<div class="modal-overlay" id="speedaf-modal">
+  <div class="modal" style="max-width:520px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 class="modal-title" style="margin-bottom:0">📦 إرسال الشحنة لـ Speedaf</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('speedaf-modal')">✕</button>
+    </div>
+    
+    <input type="hidden" id="speedaf-modal-order-id">
+    
+    <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="font-weight:700" id="speedaf-modal-order-num">#1234</span>
+        <span style="font-weight:700;color:var(--primary-color)" id="speedaf-modal-total">0 EGP</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary)" id="speedaf-modal-customer">العميل: —</div>
+      <div style="font-size:13px;color:var(--text-primary);margin-top:4px;font-weight:600" id="speedaf-modal-address">العنوان: —</div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label" style="font-weight:600">المحافظة (Governorate / Province)</label>
+      <select id="speedaf-modal-province" class="form-input" onchange="onSpeedafModalProvinceChange()" style="padding:8px 12px;font-size:14px">
+        <option value="">-- اختار المحافظة --</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label" style="font-weight:600">المدينة / المركز (City)</label>
+      <input type="text" id="speedaf-modal-city" class="form-input" placeholder="اسم المدينة (مثال: المنصورة)" style="padding:8px 12px;font-size:14px">
+    </div>
+
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label" style="font-weight:600">الحي / المنطقة (District / Area)</label>
+      <input type="text" id="speedaf-modal-district" class="form-input" placeholder="اسم الحي أو القرية (مثال: شارع المشاية / حي الجامعة)" style="padding:8px 12px;font-size:14px">
+    </div>
+
+    <div class="test-result" id="speedaf-modal-result" style="margin-bottom:14px"></div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn btn-ghost" onclick="closeModal('speedaf-modal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="executeSendToSpeedaf()" id="speedaf-modal-submit-btn" style="background:#f97316;border-color:#f97316">
+        📦 إنشاء بوليصة Speedaf الآن
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Audio for notifications -->
+<audio id="notification-sound" src="https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3?filename=success-1-6297.mp3" preload="auto"></audio>
+
+<script>
+// ═══════════════════════════════════════════
+//  DopaConfirm Dashboard JavaScript
+// ═══════════════════════════════════════════
+
+let allOrders = [];
+let searchTimeout = null;
+let autoRefreshInterval = null;
+let lastOrderCount = 0;
+
+// ─── Init ────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadOrders();
+  startAutoRefresh();
+  setupSSE();
+  preloadDashboardSettings();
+});
+
+// بيحمّل الإعدادات المهمة عشان تبقى متاحة حتى لو فتحت من جهاز تاني
+async function preloadDashboardSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) return;
+    const settings = await res.json();
+    // حفظ الإعدادات في memory للاستخدام عند الحاجة
+    window._dopaSettings = settings;
+  } catch {}
+}
+
+// ─── Auto Refresh ─────────────────────────
+function startAutoRefresh() {
+  // تم إيقاف التحديث التلقائي بناءً على طلب المستخدم
+  // الاعتماد الآن سيكون على الـ SSE (Real-time events) فقط
+}
+
+// ─── SSE for real-time updates ────────────
+function setupSSE() {
+  try {
+    const es = new EventSource('/api/events');
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        // Handle all event types from backend
+          const refreshTypes = [
+            'order_update',   // old name
+            'order_updated',  // webhook cancel/delete
+            'order_deleted',  // webhook delete
+            'status_update',  // whatsapp confirm/cancel
+            'new_order',      // new order arrived
+          ];
+        if (refreshTypes.includes(data.type)) {
+          playNotificationSound();
+          loadOrders(false, true);
+          loadAnalytics();
+        }
+      } catch {}
+    };
+    es.onerror = () => {
+      // SSE reconnects automatically
+    };
+  } catch (e) {}
+}
+
+// ─── Filter Logic (Tabs) ────────────────────
+let activeStatuses = [];
+let activeReviewFilter = ''; // 'sent' | 'not_sent' | ''
+
+function setStatusTab(el) {
+  document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const statuses = el.dataset.statuses || '';
+  activeStatuses = statuses ? statuses.split(',') : [];
+  activeReviewFilter = el.dataset.review || '';
+  loadOrders(true);
+}
+
+// Close dropdown when clicking outside (kept for safety)
+window.addEventListener('click', function(e) {
+  if (!e.target.closest('.multi-select-container')) {
+    const dropdown = document.getElementById('status-dropdown');
+    if (dropdown) dropdown.classList.remove('show');
+  }
+});
+
+// ─── Load Orders ──────────────────────────
+async function loadOrders(showLoader = false, silent = false) {
+  try {
+    const search = document.getElementById('search-input').value.trim();
+    const date = document.getElementById('date-filter').value;
+    const sort = document.getElementById('sort-filter').value;
+    const statusParam = activeStatuses.length > 0 ? activeStatuses.join(',') : 'all';
+    const params = new URLSearchParams();
+    if (statusParam && statusParam !== 'all') params.set('status', statusParam);
+    if (search) params.set('search', search);
+    if (date && date !== 'all') params.set('date', date);
+    if (sort) params.set('sort', sort);
+    if (activeReviewFilter) params.set('review', activeReviewFilter);
+
+    if (showLoader) showTableLoader();
+
+    const response = await fetch(`/api/orders?${params}`);
+
+    // If session expired or not logged in, redirect to login
+    if (response.status === 401) {
+      window.location.href = '/login.html';
+      return;
+    }
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+
+    allOrders = data.orders || [];
+    updateStats(data.stats || {});
+    calculateKPIs(allOrders);
+    renderOrders(allOrders, !silent && lastOrderCount !== allOrders.length);
+    lastOrderCount = allOrders.length;
+
+    updateStatusDot(true);
+    updateLastRefreshTime();
+  } catch (err) {
+    console.error('Failed to load orders:', err);
+    updateStatusDot(false);
+    if (!silent) showError('فشل تحميل الطلبات: ' + err.message);
+  }
+}
+
+function showTableLoader() {
+  const loaderHtml = `
+    <tr class="loading-row">
+      <td colspan="9">
+        <div style="text-align:center;padding:32px;color:var(--text-muted);">⏳ جارٍ التحميل...</div>
+      </td>
+    </tr>`;
+  const simTbody = document.getElementById('simulated-orders-tbody');
+  const shopTbody = document.getElementById('shopify-orders-tbody');
+  if (simTbody) simTbody.innerHTML = loaderHtml;
+  if (shopTbody) shopTbody.innerHTML = loaderHtml;
+}
+
+// ─── Render Orders Table ───────────────────
+function renderOrders(orders, highlightNew = false) {
+  const simulatedOrders = orders.filter(o => 
+    String(o.order_number).startsWith('#SIM-') || 
+    String(o.shopify_order_id).startsWith('SIM-')
+  );
+  const shopifyOrders = orders.filter(o => 
+    !String(o.order_number).startsWith('#SIM-') && 
+    !String(o.shopify_order_id).startsWith('SIM-')
+  );
+
+  renderSingleTable('simulated-orders-tbody', 'simulated-table-count', simulatedOrders, highlightNew);
+  renderSingleTable('shopify-orders-tbody', 'shopify-table-count', shopifyOrders, highlightNew);
+}
+
+function renderSingleTable(tbodyId, countId, orders, highlightNew = false) {
+  const tbody = document.getElementById(tbodyId);
+  const count = document.getElementById(countId);
+
+  if (!tbody || !count) return;
+
+  count.textContent = `(${orders.length} طلب)`;
+
+  if (orders.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9">
+          <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <div class="empty-title">لا توجد طلبات</div>
+            <div class="empty-sub">لم يتم استقبال أي طلبات بعد، أو لا توجد نتائج للمعايير المحددة</div>
+          </div>
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = orders.map((order, index) => {
+    const isNew = highlightNew && index === 0;
+    const hasNotes = !!order.notes;
+    
+    return `
+    <tr class="${isNew ? 'row-new' : ''}" id="row-${order.id}">
+      <td><input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateBulkSelection()"></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="order-number">${escapeHtml(order.order_number)}</span>
+          <span style="cursor:pointer;opacity:0.6;font-size:12px" title="نسخ رقم الطلب" onclick="copyToClipboard('${escapeHtml(order.order_number)}')">📋</span>
+        </div>
+        <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">
+          ${order.source === 'easyorders' ? '<span class="badge" style="background:#e0f2fe;color:#0284c7;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700">⚡ Easy Orders</span>' : '<span class="badge" style="background:#f0fdf4;color:#16a34a;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700">🛍️ Shopify</span>'}
+          ${order.speedaf_waybill ? `<span class="badge" style="background:#fff7ed;color:#ea580c;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700" title="بوليصة Speedaf">📦 ${escapeHtml(order.speedaf_waybill)}${order.speedaf_status ? ` (${escapeHtml(order.speedaf_status)})` : ''}</span>` : ''}
+        </div>
+      </td>
+      <td>
+        <div class="customer-name" dir="auto">${escapeHtml(order.customer_name || '—')}</div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="toggleOrderPrepared(${order.id}, '${escapeHtml(order.order_number)}')"
+            title="${order.prepared_at ? 'اضغط لإلغاء علامة التجهيز' : 'اضغط لما تجهّز الأوردر'}"
+            style="background:${order.prepared_at ? '#00a650' : 'transparent'};color:${order.prepared_at ? '#fff' : '#00a650'};font-weight:700;padding:5px 10px;border:1.5px solid #00a650;font-size:12px;white-space:nowrap;">
+            ${order.prepared_at ? '✅ مُجهّز' : '📋 تجهيز'}
+          </button>
+          ${order.status === 'shipping_sent' ? `
+          <button class="btn btn-sm" onclick="markHandedToCourier(${order.id}, '${escapeHtml(order.order_number)}')"
+            title="اضغط لما تسلّم الطرد فعلياً لمندوب الشحن"
+            style="background:#5C6AC4;color:#fff;font-weight:700;padding:5px 10px;border:none;font-size:12px;white-space:nowrap;">
+            📦 تسليم للمندوب
+          </button>` : ''}
+        </div>
+      </td>
+      <td>
+        <div class="items-summary" title="${getItemsSummaryFull(order.items)}">${getItemsSummary(order.items)}</div>
+      </td>
+      <td><span class="total-badge">${escapeHtml(order.total || '—')}</span></td>
+      <td>${renderStatusBadge(order.status)}${order.status === 'delivered' ? renderReviewBadge(order) : ''}</td>
+      <td><div class="time-col">${formatTime(order.created_at)}</div></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="toggleOrderActions(${order.id})" title="عرض الإجراءات" style="display: flex; align-items: center; gap: 4px;">
+          ⚙️ الإجراءات <span id="action-icon-${order.id}" style="font-size: 10px;">▼</span>
+        </button>
+      </td>
+    </tr>
+    <tr id="actions-row-${order.id}" style="display: none; background: rgba(92,106,196,0.03);">
+      <td colspan="9" style="padding: 12px 16px; border-bottom: 2px solid var(--border);">
+        <div class="actions" style="justify-content: flex-end; flex-wrap: wrap;">
+          ${renderActionButtons(order, hasNotes)}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function getItemsSummary(itemsJson) {
+  try {
+    const items = JSON.parse(itemsJson || '[]');
+    if (!items.length) return '—';
+    const first = items[0];
+    const more = items.length > 1 ? ` +${items.length - 1}` : '';
+    return escapeHtml(`${first.name} ×${first.quantity}${more}`);
+  } catch { return '—'; }
+}
+
+function getItemsSummaryFull(itemsJson) {
+  try {
+    const items = JSON.parse(itemsJson || '[]');
+    return items.map(i => `${i.name} ×${i.quantity}`).join(', ');
+  } catch { return ''; }
+}
+
+function renderStatusBadge(status) {
+  const statusMap = {
+    'pending_confirmation': ['badge-pending', '⏳', 'في انتظار رد العميل'],
+    'whatsapp_sent':        ['badge-whatsapp-sent', '💬', 'تم إرسال واتساب'],
+    'whatsapp_failed':      ['badge-whatsapp-failed', '❌', 'فشل إرسال واتساب'],
+    'confirmed':            ['badge-confirmed', '✅', 'تم التأكيد'],
+    'cancelled':            ['badge-cancelled', '🚫', 'ملغي'],
+    'shipping_sent':        ['badge-shipping-sent', '🚚', 'تم تبليغ شركة الشحن'],
+    'shipping_failed':      ['badge-shipping-failed', '⚠️', 'فشل إرسال للشحن'],
+    'handed_to_courier':    ['badge-handed-courier', '📦', 'تم التسليم لمندوب الشحن'],
+    'delivered':            ['badge-success', '📦', 'تم التسليم'],
+    'needs_follow_up':      ['badge-follow-up', '🔔', 'يحتاج متابعة'],
+  };
+  const [cls, icon, label] = statusMap[status] || ['badge-pending', '❓', status];
+  return `<span class="badge ${cls}">${icon} ${label}</span>`;
+}
+
+// ─── Manual Tags ─────────────────────────────────────────────────────────────
+function renderManualTags(order) {
+  let tags = [];
+  try {
+    const notes = JSON.parse(order.notes || '{}');
+    tags = notes.manual_tags || [];
+  } catch {}
+
+  if (tags.length === 0) {
+    return `<span style="color:var(--text-muted);font-size:13px">لا توجد تاجز بعد</span>`;
+  }
+  return tags.map((tag, i) => `
+    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--primary-light);color:var(--primary-color);border:1px solid var(--primary-color);padding:3px 10px;border-radius:20px;font-size:13px;font-weight:600;">
+      ${escapeHtml(tag)}
+      <span onclick="removeManualTag(${order.id}, ${i})" style="cursor:pointer;opacity:0.7;font-size:15px;line-height:1" title="حذف التاج">×</span>
+    </span>`).join('');
+}
+
+async function addManualTag(orderId) {
+  const select = document.getElementById('manual-tag-select');
+  const custom = document.getElementById('manual-tag-custom');
+  const tag = (custom.value.trim() || select.value || '').trim();
+  if (!tag) return showToast('اكتب أو اختر تاج الأول', 'error');
+
+  try {
+    const res = await fetch(`/api/orders/${orderId}/manual-tag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add', tag })
+    });
+    const data = await res.json();
+    if (data.success) {
+      custom.value = '';
+      select.value = '';
+      // Refresh the tags display
+      const order = allOrders.find(o => o.id === orderId) || {};
+      try {
+        const notes = JSON.parse(order.notes || '{}');
+        notes.manual_tags = data.tags;
+        order.notes = JSON.stringify(notes);
+      } catch {}
+      document.getElementById('manual-tags-container').innerHTML = renderManualTags({ ...order, id: orderId });
+      showToast(`✅ تم إضافة "${tag}"`, 'success');
+      loadOrders(false, true);
+    } else {
+      showToast('❌ ' + (data.error || 'فشل'), 'error');
+    }
+  } catch (e) {
+    showToast('❌ خطأ في الاتصال', 'error');
+  }
+}
+
+function toggleTagDropdown(e, orderId) {
+  e.stopPropagation();
+  // أغلق أي dropdown تانية
+  document.querySelectorAll('[id^="tag-drop-"]').forEach(d => {
+    if (d.id !== `tag-drop-${orderId}`) d.style.display = 'none';
+  });
+  const drop = document.getElementById(`tag-drop-${orderId}`);
+  if (drop) drop.style.display = drop.style.display === 'none' ? 'block' : 'none';
+}
+
+// أغلق الـ dropdowns لو ضغط برا
+document.addEventListener('click', () => {
+  document.querySelectorAll('[id^="tag-drop-"]').forEach(d => d.style.display = 'none');
+});
+
+async function quickAddTag(orderId, presetTag) {
+  const tag = presetTag || (document.getElementById(`tag-input-${orderId}`)?.value?.trim() || '');
+  if (!tag) return showToast('اكتب تاج الأول', 'error');
+  try {
+    const res = await fetch(`/api/orders/${orderId}/manual-tag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add', tag })
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById(`tag-drop-${orderId}`).style.display = 'none';
+      showToast(`✅ تم إضافة "${tag}"`, 'success');
+      loadOrders(false, true);
+    } else {
+      showToast('❌ ' + (data.error || 'فشل'), 'error');
+    }
+  } catch { showToast('❌ خطأ في الاتصال', 'error'); }
+}
+
+async function removeReviewTag(orderId) {
+  // ابحث عن index تاج التقييم واحذفه
+  const order = allOrders.find(o => String(o.id) === String(orderId));
+  if (!order) return;
+  let tags = [];
+  try { tags = JSON.parse(order.notes || '{}').manual_tags || []; } catch {}
+  const idx = tags.findIndex(t => t.includes('تقييم'));
+  if (idx === -1) {
+    // مفيش تاج — بس كمان امسح review_sent_at
+    await fetch(`/api/orders/${orderId}/manual-tag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'remove_review_only' })
+    });
+  } else {
+    await fetch(`/api/orders/${orderId}/manual-tag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'remove', index: idx })
+    });
+  }
+  document.getElementById(`tag-drop-${orderId}`).style.display = 'none';
+  showToast('🔴 تم تغيير حالة التقييم', 'success');
+  loadOrders(false, true);
+}
+
+async function removeManualTag(orderId, index) {
+  try {
+    const res = await fetch(`/api/orders/${orderId}/manual-tag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'remove', index })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('🗑 تم حذف التاج', 'success');
+      loadOrders(false, true);
+    }
+  } catch (e) {
+    showToast('❌ خطأ في الاتصال', 'error');
+  }
+}
+
+function renderReviewBadge(order) {
+  if (order.review_sent_at) {
+    return ` <span class="badge" style="background:#e6f9f0;color:#00a650;font-size:11px;padding:2px 7px;border-radius:20px;" title="تم إرسال طلب التقييم">⭐ طُلب تقييمه</span>`;
+  }
+  return ` <span class="badge" style="background:#fff0f0;color:#de3618;font-size:11px;padding:2px 7px;border-radius:20px;" title="لم يُرسل طلب التقييم بعد">🔴 لم يُطلب</span>`;
+}
+
+function renderActionButtons(order, hasNotes) {
+  const btns = [];
+  const cleanPhone = (order.customer_phone || '').replace(/[^0-9]/g, '');
+
+  // Phone / WhatsApp — moved here from the main row to save space
+  btns.push(`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px" dir="ltr">
+    <span>${escapeHtml(order.customer_phone || '—')}</span>
+    <span style="cursor:pointer;opacity:0.6" title="نسخ رقم الهاتف" onclick="copyToClipboard('${escapeHtml(order.customer_phone || '')}')">📋</span>
+    ${cleanPhone ? `<a href="https://wa.me/${cleanPhone}" target="_blank" title="مراسلة عبر واتساب" style="text-decoration:none">💬</a>` : ''}
+  </span>`);
+
+  // Edit Order
+  btns.push(`<button class="btn btn-ghost btn-sm" onclick="openEditOrderModal(${order.id})" title="تعديل العنوان أو الكمية وتزامنه مع Shopify">
+    ✏️ تعديل الأوردر
+  </button>`);
+
+  // Internal Notes
+  btns.push(`<button class="btn btn-ghost btn-sm" onclick="openNotesModal(${order.id}, '${escapeHtml(order.order_number)}')" title="إضافة/تعديل ملاحظة داخلية">
+    ${hasNotes ? '📝 ملاحظة (موجودة)' : '📝 ملاحظة'}
+  </button>`);
+
+  // Custom Message
+  btns.push(`<button class="btn btn-ghost btn-sm" onclick="openCustomMessageModal(${order.id}, '${escapeHtml(order.order_number)}')" title="إرسال رسالة واتساب مخصصة للعميل">
+    💬 رسالة حرة
+  </button>`);
+
+  // Order Timeline
+  btns.push(`<button class="btn btn-ghost btn-sm" onclick="openTimelineModal(${order.id}, '${escapeHtml(order.order_number)}')" title="عرض السجل الزمني للطلب">
+    📜 سجل الطلب
+  </button>`);
+
+  // Resend WhatsApp
+  if (['pending_confirmation', 'whatsapp_failed', 'whatsapp_sent'].includes(order.status)) {
+    btns.push(`<button class="btn btn-primary btn-sm" onclick="resendWhatsApp(${order.id})" title="إعادة إرسال واتساب">
+      💬 إعادة إرسال
+    </button>`);
+  }
+
+  // Manual confirm
+  if (!['confirmed', 'shipping_sent', 'delivered', 'cancelled'].includes(order.status)) {
+    btns.push(`<button class="btn btn-success btn-sm" onclick="confirmOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="تأكيد يدوي وإرسال للشحن">
+      ✅ تأكيد
+    </button>`);
+  }
+
+  // Retry shipping if failed
+  if (order.status === 'shipping_failed') {
+    btns.push(`<button class="btn btn-warning btn-sm" onclick="confirmOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="إعادة إرسال للشحن">
+      🔄 إعادة الشحن
+    </button>`);
+  }
+
+  // Speedaf Action
+  if (!['cancelled', 'delivered'].includes(order.status)) {
+    btns.push(`<button class="btn btn-sm" style="background:#f97316;color:#fff" onclick="openSpeedafModal(${order.id})" title="إرسال لـ Speedaf وتتبع">
+      📦 ${order.speedaf_waybill ? 'تتبع Speedaf' : 'تحويل لـ Speedaf'}
+    </button>`);
+  }
+
+  // Cancel
+  if (!['cancelled', 'shipping_sent', 'handed_to_courier', 'delivered'].includes(order.status)) {
+    btns.push(`<button class="btn btn-danger btn-sm" onclick="cancelOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="إلغاء الطلب">
+      🚫 إلغاء
+    </button>`);
+  }
+
+  // Delete from DB
+  btns.push(`<button class="btn btn-delete btn-sm" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف من الداشبورد (لا يؤثر على Shopify)">
+    🗑 حذف
+  </button>`);
+
+  // Request Review (only if delivered)
+  if (order.status === 'delivered') {
+    btns.push(`<button class="btn btn-primary btn-sm" onclick="requestReview(${order.id}, '${escapeHtml(order.order_number)}')" title="إرسال طلب تقييم على الواتساب">
+      ⭐ طلب تقييم
+    </button>`);
+  }
+
+  // Change Status Manually
+  btns.push(`<button class="btn btn-ghost btn-sm" onclick="promptChangeStatus(${order.id}, '${order.status}', '${escapeHtml(order.order_number)}')" title="تغيير الحالة يدوياً">
+    ✏️ تغيير الحالة
+  </button>`);
+
+  // Tags inline — dropdown في الصف نفسه
+  const orderTags = (() => {
+    try { return JSON.parse(order.notes || '{}').manual_tags || []; } catch { return []; }
+  })();
+  const tagsHtml = orderTags.map((t, i) =>
+    `<span style="background:var(--primary-light);color:var(--primary-color);border:1px solid var(--primary-color);padding:1px 7px;border-radius:12px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;">
+      ${escapeHtml(t)}<span onclick="removeManualTag(${order.id},${i})" style="cursor:pointer;opacity:0.7">×</span>
+    </span>`
+  ).join('');
+  btns.push(`<span class="tag-inline-group" style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;">
+    ${tagsHtml}
+    <span style="position:relative;display:inline-block;">
+      <button class="btn btn-ghost btn-sm" onclick="toggleTagDropdown(event,${order.id})" title="تغيير حالة التقييم" style="font-size:12px;padding:3px 8px;">${(() => { try { const n = JSON.parse(order.notes||'{}'); return (n.manual_tags||[]).some(t=>t.includes('تقييم')) ? '⭐ تقييم ▾' : '🔴 تقييم ▾'; } catch { return '🏷️ ▾'; } })()}</button>
+      <div id="tag-drop-${order.id}" style="display:none;position:absolute;bottom:110%;right:0;background:var(--bg-surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.15);padding:8px;z-index:9999;min-width:180px;">
+        <div onclick="quickAddTag(${order.id},'⭐ تم التقييم')" style="cursor:pointer;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:600;color:#00a650;" onmouseover="this.style.background='#e6f9f0'" onmouseout="this.style.background='transparent'">⭐ تم طلب التقييم</div>
+        <div onclick="removeReviewTag(${order.id})" style="cursor:pointer;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:600;color:#de3618;" onmouseover="this.style.background='#fff0f0'" onmouseout="this.style.background='transparent'">🔴 لم يتم طلب التقييم</div>
+      </div>
+    </span>
+  </span>`);
+
+  // Details
+  btns.push(`<button class="btn btn-ghost btn-sm" onclick="showOrderDetail(${order.id})" title="عرض التفاصيل">
+    👁 تفاصيل
+  </button>`);
+
+  return btns.join('');
+}
+
+// ─── Stats ────────────────────────────────
+function updateStats(stats) {
+  document.getElementById('stat-total').textContent = stats.total || 0;
+  document.getElementById('stat-pending').textContent = stats.pending || 0;
+  document.getElementById('stat-confirmed').textContent = stats.confirmed || 0;
+  document.getElementById('stat-cancelled').textContent = stats.cancelled || 0;
+  document.getElementById('stat-shipping').textContent = stats.shipping_sent || 0;
+  document.getElementById('stat-delivered').textContent = stats.delivered || 0;
+  document.getElementById('stat-failed').textContent = (stats.whatsapp_failed || 0) + (stats.shipping_failed || 0);
+
+  const pending = stats.pending || 0;
+  const badge = document.getElementById('pending-badge');
+  if (pending > 0) {
+    badge.textContent = pending;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  // Load analytics charts
+  loadAnalytics();
+}
+
+let conversionChartInstance = null;
+
+async function loadAnalytics() {
+  try {
+    const res = await fetch('/api/orders/analytics');
+    const data = await res.json();
+    
+    // 1. Conversion Chart
+    const convCtx = document.getElementById('conversionChart');
+    if (convCtx) {
+      if (conversionChartInstance) conversionChartInstance.destroy();
+      conversionChartInstance = new Chart(convCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['مؤكد', 'في الانتظار', 'ملغي'],
+          datasets: [{
+            data: [
+              data.statusDistribution.confirmed || 0,
+              data.statusDistribution.pending || 0,
+              data.statusDistribution.cancelled || 0
+            ],
+            backgroundColor: ['#00A650', '#F49342', '#DE3618'],
+            borderWidth: 0
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } , animation: { duration: 400 } }
+      });
+    }
+
+  } catch (err) {
+    console.error('Failed to load analytics:', err);
+  }
+}
+
+// ─── Order Actions ─────────────────────────
+async function resendWhatsApp(orderId) {
+  try {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ جارٍ الإرسال...';
+
+    const res = await fetch(`/api/orders/${orderId}/resend`, { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success) {
+      showToast('✅ تم إرسال رسالة واتساب بنجاح', 'success');
+    } else {
+      showToast('❌ فشل إرسال واتساب: ' + (data.error || 'خطأ غير معروف'), 'error');
+    }
+    loadOrders();
+  } catch (err) {
+    showToast('❌ خطأ: ' + err.message, 'error');
+  }
+}
+
+async function importFromShopify() {
+  const btn = document.getElementById('btn-import');
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = '<span class="nav-icon">⏳</span><span>جارٍ الاستيراد...</span>';
+  btn.style.pointerEvents = 'none';
+
+  try {
+    const res = await fetch('/api/orders/import-from-shopify', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success) {
+      if (data.imported > 0) {
+        showToast(`✅ تم استيراد ${data.imported} طلب جديد من Shopify`, 'success');
+        loadOrders();
+      } else {
+        showToast(`ℹ️ لا توجد طلبات جديدة (${data.total} طلب موجود بالفعل)`, 'info');
+      }
+    } else {
+      showToast('❌ فشل الاستيراد: ' + (data.details || data.error || 'خطأ غير معروف'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاستيراد: ' + err.message, 'error');
+  } finally {
+    btn.innerHTML = originalHtml;
+    btn.style.pointerEvents = '';
+  }
+}
+
+function confirmOrder(orderId, orderNumber) {
+  openConfirmDialog(
+    `✅ تأكيد الطلب ${orderNumber}`,
+    `هل تريد تأكيد هذا الطلب؟ سيتم إرساله لشركة الشحن تلقائياً لو الإعدادات مفعّلة.`,
+    async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/confirm`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          const modeMsg = {
+            speedaf_auto: '📦 تم إرسال الطلب لـ Speedaf بنجاح',
+            starlink_auto: '🚚 تم إرسال الطلب لـ Starlink بنجاح',
+            manual: '✅ تم تأكيد الطلب (يدوي)',
+          };
+          showToast(modeMsg[data.shippingMode] || '✅ تم التأكيد', 'success');
+        } else {
+          showToast('❌ فشل: ' + (data.shipping?.error || data.error || 'خطأ'), 'error');
+        }
+        loadOrders();
+      } catch (err) {
+        showToast('❌ خطأ: ' + err.message, 'error');
+      }
+    }
+  );
+}
+
+async function sendToSpeedaf(orderId, orderNumber) {
+  if (!confirm(`📦 إرسال الطلب ${orderNumber} لـ Speedaf؟\n\nالطلب سيُرسل لشركة Speedaf عبر Shopify App مباشرةً.`)) return;
+  try {
+    showToast('⏳ جارٍ الإرسال لـ Speedaf...', 'info');
+    const res = await fetch(`/api/orders/${orderId}/send-to-speedaf`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('📦 تم إرسال الطلب لـ Speedaf بنجاح', 'success');
+      loadOrders();
+    } else {
+      showToast('❌ فشل الإرسال لـ Speedaf: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ: ' + err.message, 'error');
+  }
+}
+
+function toggleOrderPrepared(orderId, orderNumber) {
+  fetch(`/api/orders/${orderId}/toggle-prepared`, { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        showToast(data.prepared ? `✅ تم تعليم "${orderNumber}" كمُجهّز` : `📋 اتشالت علامة التجهيز عن "${orderNumber}"`, 'success');
+      } else {
+        showToast('❌ فشل: ' + (data.error || 'خطأ'), 'error');
+      }
+      loadOrders();
+    })
+    .catch(err => showToast('❌ خطأ: ' + err.message, 'error'));
+}
+
+function markHandedToCourier(orderId, orderNumber) {
+  openConfirmDialog(
+    `📦 تم التسليم لمندوب الشحن — ${orderNumber}`,
+    `تأكد إنك سلّمت الطرد فعلياً لمندوب شركة الشحن قبل ما تأكد.`,
+    async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/handed-to-courier`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('📦 تم تسجيل التسليم لمندوب الشحن', 'success');
+        } else {
+          showToast('❌ فشل: ' + (data.error || 'خطأ'), 'error');
+        }
+        loadOrders();
+      } catch (err) {
+        showToast('❌ خطأ: ' + err.message, 'error');
+      }
+    }
+  );
+}
+
+function cancelOrder(orderId, orderNumber) {
+  openConfirmDialog(
+    `🚫 إلغاء الطلب ${orderNumber}`,
+    `هل تريد إلغاء هذا الطلب على Shopify؟ سيتم تحديث حالة الطلب فوراً.`,
+    async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/cancel`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('✅ تم إلغاء الطلب بنجاح', 'success');
+        } else {
+          showToast('⚠️ تم تحديث الحالة محلياً، لكن فشل الإلغاء على Shopify', 'warning');
+        }
+        loadOrders();
+      } catch (err) {
+        showToast('❌ خطأ: ' + err.message, 'error');
+      }
+    }
+  );
+}
+
+function deleteOrder(orderId, orderNumber) {
+  openConfirmDialog(
+    `🗑 حذف الطلب ${orderNumber}`,
+    `سيتم حذف هذا الطلب من الداشبورد فقط. لن يتأثر الطلب على Shopify. هل أنت متأكد؟`,
+    async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`🗑 تم حذف الطلب ${data.order_number} بنجاح`, 'success');
+          loadOrders();
+        } else {
+          showToast('❌ فشل الحذف: ' + data.error, 'error');
+        }
+      } catch (err) {
+        showToast('❌ خطأ: ' + err.message, 'error');
+      }
+    }
+  );
+}
+
+function requestReview(orderId, orderNumber) {
+  openConfirmDialog(
+    `⭐ طلب تقييم - ${orderNumber}`,
+    `هل أنت متأكد من رغبتك في إرسال رسالة طلب التقييم للعميل على الواتساب؟`,
+    async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/review`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('✅ تم إرسال رسالة التقييم بنجاح', 'success');
+        } else {
+          showToast('❌ فشل الإرسال: ' + (data.error || 'خطأ غير معروف'), 'error');
+        }
+      } catch (err) {
+        showToast('❌ خطأ: ' + err.message, 'error');
+      }
+    }
+  );
+}
+
+function syncStarlink() {
+  openConfirmDialog(
+    `🤖 مزامنة حالات الشحن آلياً`,
+    `سيقوم البوت بالاتصال بشركة الشحن وسحب أحدث الحالات لجميع الطلبات وتحديث الداشبورد و شوبيفاي. هل تريد البدء؟`,
+    async () => {
+      showToast('🤖 جاري المزامنة... يرجى الانتظار (قد يستغرق بعض الوقت)', 'info');
+      try {
+        const res = await fetch('/api/orders/sync/starlink', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: '01068093260', password: '100100' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`✅ اكتملت المزامنة بنجاح! تم فحص ${data.totalScraped} شحنة وتحديث ${data.count} طلب.`, 'success');
+          loadOrders();
+        } else {
+          showToast('❌ فشل المزامنة: ' + data.error, 'error');
+        }
+      } catch (err) {
+        showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+      }
+    }
+  );
+}
+
+function promptChangeStatus(orderId, currentStatus, orderNumber) {
+  const statuses = [
+    { value: 'pending_confirmation', label: 'في انتظار التأكيد' },
+    { value: 'whatsapp_sent', label: 'تم إرسال واتساب' },
+    { value: 'confirmed', label: 'مؤكد' },
+    { value: 'shipping_sent', label: 'أُرسل للشحن' },
+    { value: 'delivered', label: 'متسلم (Delivered)' },
+    { value: 'cancelled', label: 'ملغي' },
+  ];
+  
+  let optionsHtml = statuses.map(s => 
+    `<option value="${s.value}" ${s.value === currentStatus ? 'selected' : ''}>${s.label}</option>`
+  ).join('');
+
+  const html = `
+    <div style="margin-bottom:15px;">
+      <p style="margin-bottom:10px;">اختر الحالة الجديدة للطلب <b>${orderNumber}</b>:</p>
+      <select id="manual-status-select" class="form-input">
+        ${optionsHtml}
+      </select>
+    </div>
+  `;
+
+  openConfirmDialog(
+    `✏️ تغيير حالة الطلب يدوياً`,
+    html,
+    async () => {
+      const newStatus = document.getElementById('manual-status-select').value;
+      if (!newStatus || newStatus === currentStatus) return;
+      
+      try {
+        const res = await fetch(`/api/orders/${orderId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('✅ تم تحديث الحالة بنجاح', 'success');
+          loadOrders();
+        } else {
+          showToast('❌ فشل التحديث: ' + data.error, 'error');
+        }
+      } catch (err) {
+        showToast('❌ خطأ: ' + err.message, 'error');
+      }
+    }
+  );
+}
+
+
+// ─── Order Detail ─────────────────────────
+async function showOrderDetail(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  document.getElementById('modal-order-num').textContent = `📦 ${order.order_number}`;
+
+  let items = [];
+  try { items = JSON.parse(order.items || '[]'); } catch {}
+
+  const itemsHtml = items.map(i => `
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span dir="auto">${escapeHtml(i.name)} × ${i.quantity}</span>
+      <span style="font-weight:600">${escapeHtml(i.price)}</span>
+    </div>`).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">العميل</div>
+        <div style="font-weight:600" dir="auto">${escapeHtml(order.customer_name || '—')}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">الهاتف</div>
+        <div dir="ltr" style="font-family:monospace">${escapeHtml(order.customer_phone || '—')}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">الإجمالي</div>
+        <div style="font-weight:700;font-size:18px;color:var(--primary)">${escapeHtml(order.total || '—')}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">الحالة</div>
+        <div>${renderStatusBadge(order.status)}</div>
+      </div>
+      <div style="grid-column:1/-1">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">العنوان</div>
+        <div dir="auto">${escapeHtml(order.address || '—')}</div>
+      </div>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">المنتجات</div>
+    <div style="margin-bottom:20px">${itemsHtml || '<div style="color:var(--text-muted)">لا توجد منتجات</div>'}</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;color:var(--text-muted)">
+      ${order.whatsapp_sent_at ? `<div>💬 واتساب أُرسل: <strong>${formatTime(order.whatsapp_sent_at)}</strong></div>` : ''}
+      ${order.customer_reply ? `<div>💬 رد العميل: <strong dir="auto">${escapeHtml(order.customer_reply)}</strong></div>` : ''}
+      ${order.replied_at ? `<div>⏰ وقت الرد: <strong>${formatTime(order.replied_at)}</strong></div>` : ''}
+      ${order.shipping_sent_at ? `<div>🚚 أُرسل للشحن: <strong>${formatTime(order.shipping_sent_at)}</strong></div>` : ''}
+      <div>🕐 الطلب: <strong>${formatTime(order.created_at)}</strong></div>
+      <div>🆔 Shopify ID: <strong class="font-mono">${escapeHtml(order.shopify_order_id)}</strong></div>
+    </div>
+
+  `;
+
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="btn btn-ghost" onclick="closeModal('detail-modal')">إغلاق</button>
+    ${!['cancelled','shipping_sent'].includes(order.status) ? `
+      <button class="btn btn-primary btn-sm" onclick="closeModal('detail-modal');resendWhatsApp(${order.id})">💬 إعادة إرسال واتساب</button>
+      <button class="btn btn-success btn-sm" onclick="closeModal('detail-modal');confirmOrder(${order.id},'${escapeHtml(order.order_number)}')">✅ تأكيد يدوي</button>
+      <button class="btn btn-danger btn-sm" onclick="closeModal('detail-modal');cancelOrder(${order.id},'${escapeHtml(order.order_number)}')">🚫 إلغاء</button>
+    ` : ''}
+  `;
+
+  openModal('detail-modal');
+}
+
+// ─── Simulate Webhook ─────────────────────
+function openSimulate() {
+  document.getElementById('sim-phone').value = '';
+  document.getElementById('sim-name').value = '';
+  document.getElementById('simulate-result').className = 'test-result';
+  document.getElementById('simulate-result').textContent = '';
+  openModal('simulate-modal');
+}
+
+async function runSimulate() {
+  const btn = document.getElementById('simulate-btn');
+  const result = document.getElementById('simulate-result');
+  const phone = document.getElementById('sim-phone').value.trim();
+  const name = document.getElementById('sim-name').value.trim();
+
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ المحاكاة...';
+  result.className = 'test-result';
+  result.textContent = '';
+
+  try {
+    const body = {};
+    if (phone || name) {
+      const ts = Date.now();
+      body.order = {
+        id: ts,
+        name: `#SIM-${Math.floor(Math.random() * 9000) + 1000}`,
+        order_number: Math.floor(Math.random() * 9000) + 1000,
+        created_at: new Date().toISOString(),
+        total_price: '199.00',
+        currency: 'EGP',
+        customer: {
+          id: ts,
+          first_name: name ? name.split(' ')[0] : 'أحمد',
+          last_name: name ? (name.split(' ')[1] || '') : 'محمد',
+          phone: phone || '+201012345678',
+        },
+        billing_address: { phone: phone || '+201012345678', address1: '123 شارع التحرير', city: 'القاهرة', country: 'Egypt' },
+        shipping_address: { phone: phone || '+201012345678', address1: '123 شارع التحرير', city: 'القاهرة', country: 'Egypt' },
+        line_items: [
+          { id: 1, name: 'منتج تجريبي', quantity: 1, price: '199.00', sku: 'TEST' }
+        ]
+      };
+    }
+
+    const res = await fetch('/api/test/shopify-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+
+    result.textContent = JSON.stringify(data, null, 2);
+    result.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      showToast(`✅ تمت المحاكاة بنجاح — ${data.order_number}`, 'success');
+      loadOrders();
+    } else {
+      showToast('❌ فشل: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    result.textContent = 'خطأ: ' + err.message;
+    result.className = 'test-result visible error';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚀 تشغيل المحاكاة';
+  }
+}
+
+// ─── Debounce Search ──────────────────────
+function debounceSearch() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => loadOrders(), 400);
+}
+
+// ─── Modal Helpers ────────────────────────
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+function openConfirmDialog(title, body, onConfirm) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-body').innerHTML = body;
+  const btn = document.getElementById('confirm-ok-btn');
+  btn.onclick = () => { closeModal('confirm-dialog'); onConfirm(); };
+  openModal('confirm-dialog');
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('active');
+  });
+});
+
+// ─── Toast ────────────────────────────────
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span><span>${escapeHtml(message)}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'toast-out 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+function showError(msg) { showToast(msg, 'error'); }
+
+// ─── Status Dot ───────────────────────────
+function updateStatusDot(online) {
+  const dot = document.getElementById('status-dot');
+  const label = document.getElementById('status-label');
+  dot.className = 'status-dot' + (online ? '' : ' offline');
+  label.textContent = online ? 'الخادم يعمل' : 'مشكلة في الاتصال';
+}
+
+function updateLastRefreshTime() {
+  const sub = document.getElementById('status-sub');
+  sub.textContent = `آخر تحديث: ${new Date().toLocaleTimeString('ar-EG')}`;
+}
+
+// ─── Time Formatting ──────────────────────
+function formatTime(isoStr) {
+  if (!isoStr) return '—';
+  try {
+    const d = new Date(isoStr);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return 'منذ لحظات';
+    if (diff < 3600000) return `منذ ${Math.floor(diff/60000)} دقيقة`;
+    if (diff < 86400000) return `منذ ${Math.floor(diff/3600000)} ساعة`;
+    return d.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch { return isoStr; }
+}
+
+// ─── XSS Protection ───────────────────────
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+// ─── UX/UI Enhancements Logic ───────────────
+
+// 1. Copy to Clipboard
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('📋 تم النسخ: ' + text, 'success');
+  }).catch(() => {
+    showToast('❌ فشل النسخ', 'error');
+  });
+}
+
+// 2. Sound Alerts
+let soundEnabled = true;
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  const btn = document.getElementById('sound-toggle-btn');
+  if (soundEnabled) {
+    btn.innerHTML = '🔊 التنبيهات';
+    btn.classList.remove('btn-ghost');
+    showToast('🔊 تم تفعيل التنبيهات الصوتية', 'success');
+  } else {
+    btn.innerHTML = '🔇 التنبيهات';
+    btn.classList.add('btn-ghost');
+    showToast('🔇 تم إيقاف التنبيهات الصوتية', 'success');
+  }
+}
+function playNotificationSound() {
+  if (soundEnabled) {
+    const audio = document.getElementById('notification-sound');
+    if (audio) {
+      audio.currentTime = 0;
+      audio.play().catch(e => { /* Ignore autoplay blocks */ });
+    }
+  }
+}
+
+// 3. Notes Modal
+function openEditOrderModal(orderId) {
+  const order = allOrders.find(o => String(o.id) === String(orderId));
+  if (!order) return;
+
+  document.getElementById('edit-order-num').textContent = order.order_number;
+  document.getElementById('edit-order-id').value = orderId;
+
+  ['edit-first-name','edit-last-name','edit-phone','edit-address1','edit-address2','edit-city','edit-province'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('edit-phone').placeholder = order.customer_phone || '';
+  document.getElementById('edit-address1').placeholder = order.address || 'العنوان الحالي';
+
+  let items = [];
+  try { items = JSON.parse(order.items || '[]'); } catch (e) {}
+
+  const list = document.getElementById('edit-items-list');
+  if (!items.length) {
+    list.innerHTML = `<div style="color:var(--text-muted);font-size:13px">لا توجد منتجات مسجّلة لهذا الطلب</div>`;
+  } else {
+    list.innerHTML = items.map((item, idx) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:13px">${escapeHtml(item.name)} <span style="color:var(--text-muted)">(${escapeHtml(item.price||'')})</span></span>
+        <label style="font-size:12px;color:var(--text-muted)">الكمية:</label>
+        <input type="number" min="0" value="${item.quantity}" id="edit-item-qty-${idx}"
+          style="width:70px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;text-align:center"
+          data-line-item-id="${item.line_item_id || ''}" data-original-qty="${item.quantity}">
+      </div>`).join('');
+  }
+
+  openModal('edit-order-modal');
+}
+
+async function saveOrderEdit() {
+  const orderId = document.getElementById('edit-order-id').value;
+  const btn = document.getElementById('save-edit-order-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري الحفظ...';
+
+  const body = {};
+  const fieldMap = {
+    'edit-first-name': 'firstName', 'edit-last-name': 'lastName', 'edit-phone': 'phone',
+    'edit-address1': 'address1', 'edit-address2': 'address2', 'edit-city': 'city', 'edit-province': 'province',
+  };
+  for (const [inputId, key] of Object.entries(fieldMap)) {
+    const val = document.getElementById(inputId).value.trim();
+    if (val) body[key] = val;
+  }
+
+  const quantityChanges = [];
+  document.querySelectorAll('[id^="edit-item-qty-"]').forEach(input => {
+    const newQty = parseInt(input.value);
+    const originalQty = parseInt(input.dataset.originalQty);
+    const lineItemId = input.dataset.lineItemId;
+    if (newQty !== originalQty) {
+      quantityChanges.push({ line_item_id: lineItemId || null, quantity: newQty });
+    }
+  });
+  if (quantityChanges.length > 0) body.quantityChanges = quantityChanges;
+
+  if (Object.keys(body).length === 0) {
+    showToast('محدّتش أي حاجة عشان تتحفظ', 'error');
+    btn.disabled = false;
+    btn.textContent = '💾 حفظ ومزامنة مع Shopify';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/orders/${orderId}/edit`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) {
+      showToast('❌ ' + data.error, 'error');
+    } else if (data.warnings && data.warnings.length > 0) {
+      showToast('⚠️ تم الحفظ مع تحذيرات: ' + data.warnings.join(' | '), 'error');
+    } else {
+      showToast('✅ تم تعديل الطلب ومزامنته مع Shopify', 'success');
+    }
+    closeModal('edit-order-modal');
+    loadOrders();
+  } catch (err) {
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 حفظ ومزامنة مع Shopify';
+  }
+}
+
+function openNotesModal(orderId, orderNum) {
+  document.getElementById('notes-order-num').textContent = orderNum;
+  document.getElementById('notes-order-id').value = orderId;
+
+  // اجيب الأوردر من allOrders المحملة بدل ما أعمل fetch جديد
+  const order = allOrders.find(o => String(o.id) === String(orderId));
+  let textNote = '';
+  if (order && order.notes) {
+    try {
+      const parsed = JSON.parse(order.notes);
+      // لو الـ notes JSON، اجيب حقل text_note منه
+      textNote = parsed.text_note || '';
+    } catch {
+      // لو مش JSON قديم، اعرضه كما هو
+      textNote = order.notes;
+    }
+  }
+  document.getElementById('notes-textarea').value = textNote;
+  openModal('notes-modal');
+}
+async function saveNotes() {
+  const orderId = document.getElementById('notes-order-id').value;
+  const textNote = document.getElementById('notes-textarea').value;
+  const btn = document.getElementById('save-notes-btn');
+  btn.textContent = '⏳ جاري الحفظ...';
+  btn.disabled = true;
+
+  // حافظ على manual_tags الموجودة
+  const order = allOrders.find(o => String(o.id) === String(orderId));
+  let existingNotes = {};
+  if (order && order.notes) {
+    try { existingNotes = JSON.parse(order.notes); } catch {}
+  }
+  existingNotes.text_note = textNote;
+  const notes = JSON.stringify(existingNotes);
+
+  try {
+    const res = await fetch(`/api/orders/${orderId}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ تم حفظ الملاحظات', 'success');
+      closeModal('notes-modal');
+      loadOrders(false, true);
+    } else {
+      showToast('❌ خطأ: ' + data.error, 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال', 'error');
+  } finally {
+    btn.textContent = '💾 حفظ الملاحظات';
+    btn.disabled = false;
+  }
+}
+
+// 4. Bulk Actions
+let selectedOrders = new Set();
+
+function toggleAllCheckboxes(source, tbodyId) {
+  const checkboxes = document.querySelectorAll(`#${tbodyId} .order-checkbox`);
+  checkboxes.forEach(cb => {
+    cb.checked = source.checked;
+    if (source.checked) selectedOrders.add(cb.value);
+    else selectedOrders.delete(cb.value);
+  });
+  updateBulkActionBar();
+}
+
+function updateBulkSelection() {
+  const checkboxes = document.querySelectorAll('.order-checkbox');
+  selectedOrders.clear();
+  checkboxes.forEach(cb => {
+    if (cb.checked) selectedOrders.add(cb.value);
+  });
+  updateBulkActionBar();
+}
+
+function updateBulkActionBar() {
+  const bar = document.getElementById('bulk-action-bar');
+  const countSpan = document.getElementById('bulk-count');
+  countSpan.textContent = selectedOrders.size;
+  if (selectedOrders.size > 0) {
+    bar.style.display = 'flex';
+    // Determine which buttons to enable based on selected orders' statuses
+    const selectedData = allOrders.filter(o => selectedOrders.has(String(o.id)));
+    const statuses = new Set(selectedData.map(o => o.status));
+    const allConfirmed = selectedData.every(o => o.status === 'confirmed');
+    const allDelivered = selectedData.every(o => o.status === 'delivered');
+    const allFailed = selectedData.every(o => o.status === 'whatsapp_failed');
+    const reviewPending = selectedData.every(o => o.status === 'delivered' && !o.review_sent_at);
+
+    setBtn('bulk-btn-shipping', allConfirmed, 'إرسال للشحن — يتطلب أوردرات بحالة مؤكد فقط');
+    setBtn('bulk-btn-review', allDelivered, 'طلب تقييم — يتطلب أوردرات تم تسليمها فقط');
+    setBtn('bulk-btn-whatsapp', allFailed, 'إعادة واتساب — يتطلب أوردرات فشل الإرسال فقط');
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function setBtn(id, enabled, tooltip) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.style.opacity = enabled ? '1' : '0.4';
+  btn.title = enabled ? '' : tooltip;
+}
+
+function clearBulkSelection() {
+  const checkboxes = document.querySelectorAll('.order-checkbox, th input[type="checkbox"]');
+  checkboxes.forEach(cb => cb.checked = false);
+  selectedOrders.clear();
+  updateBulkActionBar();
+}
+
+const ACTION_LABELS = {
+  confirm_shipping: '🚚 إرسال للشحن',
+  request_review:   '⭐ طلب تقييم',
+  resend_whatsapp:  '💬 إعادة إرسال واتساب',
+  delete:           '🗑 حذف',
+};
+
+function executeBulkAction(actionType) {
+  if (selectedOrders.size === 0) return;
+  const label = ACTION_LABELS[actionType] || actionType;
+  openConfirmDialog(
+    `⚡ إجراء جماعي: ${label}`,
+    `سيتم تنفيذ هذا الإجراء على ${selectedOrders.size} طلب. هل أنت متأكد؟`,
+    async () => {
+      try {
+        const orderIds = Array.from(selectedOrders);
+        const res = await fetch('/api/orders/bulk-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: actionType, orderIds })
+        });
+        const data = await res.json();
+
+        if (data.success !== false) {
+          const ok = data.successCount ?? 0;
+          const fail = data.failCount ?? 0;
+          // Show partial failure modal if any failed
+          if (fail > 0) {
+            showBulkResultModal(ok, fail, data.failedIds || [], actionType);
+          } else {
+            showToast(`✅ تم تنفيذ ${label} على ${ok} طلب بنجاح`, 'success');
+          }
+          clearBulkSelection();
+          loadOrders(true);
+        } else {
+          showToast('❌ خطأ: ' + (data.error || 'حدث خطأ غير متوقع'), 'error');
+        }
+      } catch (err) {
+        showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
+      }
+    }
+  );
+}
+
+function showBulkResultModal(ok, fail, failedIds, actionType) {
+  const label = ACTION_LABELS[actionType] || actionType;
+  const body = `
+    <div style="text-align:center;padding:8px 0 16px">
+      <div style="font-size:32px;margin-bottom:8px">⚠️</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:16px">نتيجة الإجراء الجماعي</div>
+      <div style="display:flex;gap:16px;justify-content:center;margin-bottom:20px">
+        <div style="background:#e6f9f0;border-radius:10px;padding:12px 24px;">
+          <div style="font-size:28px;font-weight:800;color:#00a650">${ok}</div>
+          <div style="color:#555;font-size:13px">تم بنجاح</div>
+        </div>
+        <div style="background:#fff0f0;border-radius:10px;padding:12px 24px;">
+          <div style="font-size:28px;font-weight:800;color:#de3618">${fail}</div>
+          <div style="color:#555;font-size:13px">فشل</div>
+        </div>
+      </div>
+      ${failedIds.length > 0 ? `
+      <button class="btn btn-primary btn-sm" onclick="retryFailedBulk(${JSON.stringify(failedIds).replace(/"/g,'&quot;')}, '${actionType}');closeModal('bulk-result-modal')">
+        🔁 إعادة المحاولة على الفاشلين فقط
+      </button>` : ''}
+    </div>`;
+  document.getElementById('modal-order-num').textContent = label;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-actions').innerHTML = `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">إغلاق</button>`;
+  openModal('detail-modal');
+}
+
+function retryFailedBulk(failedIds, actionType) {
+  failedIds.forEach(id => selectedOrders.add(String(id)));
+  updateBulkActionBar();
+  executeBulkAction(actionType);
+}
+
+// 5. Custom WhatsApp Messages
+function openCustomMessageModal(orderId, orderNum) {
+  document.getElementById('custom-msg-order-num').textContent = orderNum;
+  document.getElementById('custom-msg-order-id').value = orderId;
+  document.getElementById('custom-msg-textarea').value = '';
+  openModal('custom-msg-modal');
+}
+async function sendCustomMessage() {
+  const orderId = document.getElementById('custom-msg-order-id').value;
+  const message = document.getElementById('custom-msg-textarea').value.trim();
+  const btn = document.getElementById('send-custom-msg-btn');
+  
+  if (!message) {
+    showToast('❌ لا يمكن إرسال رسالة فارغة', 'error');
+    return;
+  }
+  
+  btn.textContent = '⏳ جارٍ الإرسال...';
+  btn.disabled = true;
+  
+  try {
+    const res = await fetch(`/api/orders/${orderId}/custom-message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ تم إرسال الرسالة بنجاح', 'success');
+      closeModal('custom-msg-modal');
+    } else {
+      showToast('❌ خطأ: ' + data.error, 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال', 'error');
+  } finally {
+    btn.textContent = 'إرسال عبر واتساب 📤';
+    btn.disabled = false;
+  }
+}
+
+// 6. Export to CSV
+function exportToCSV() {
+  const search = document.getElementById('search-input').value.trim();
+  const date = document.getElementById('date-filter').value;
+  const sort = document.getElementById('sort-filter').value;
+  const statusParam = activeStatuses.length > 0 ? activeStatuses.join(',') : 'all';
+
+  const params = new URLSearchParams();
+  if (statusParam && statusParam !== 'all') params.set('status', statusParam);
+  if (search) params.set('search', search);
+  if (date && date !== 'all') params.set('date', date);
+  if (sort) params.set('sort', sort);
+
+  window.location.href = `/api/orders/export?${params.toString()}`;
+}
+
+// ─── Bulk Tag ────────────────────────────────────────────────────────────────
+// ─── Custom Export (print-to-PDF) ────────────────────────────────────────────
+const EXPORT_FIELD_LABELS = {
+  order_number: 'رقم الطلب',
+  customer_name: 'اسم العميل',
+  customer_phone: 'رقم الهاتف',
+  address: 'العنوان',
+  total: 'الإجمالي',
+  items: 'المنتجات',
+  status: 'الحالة',
+  created_at: 'التاريخ',
+};
+
+function openExportModal() {
+  if (selectedOrders.size === 0) return showToast('حدد أوردرات الأول', 'error');
+  openModal('export-modal');
+}
+
+function generateExportPage() {
+  const checkedFields = Array.from(document.querySelectorAll('.export-field:checked')).map(el => el.value);
+  if (checkedFields.length === 0) return showToast('اختار حقل واحد على الأقل', 'error');
+  
+  const showLabelsElement = document.getElementById('export-show-labels');
+  const showLabels = showLabelsElement ? showLabelsElement.checked : true;
+
+  const orders = allOrders.filter(o => selectedOrders.has(String(o.id)));
+
+  const cardsHtml = orders.map(order => {
+    const rows = checkedFields.map(field => {
+      let value = '';
+      if (field === 'items') {
+        value = getItemsSummaryFull(order.items);
+      } else if (field === 'status') {
+        value = STATUS_LABEL_TEXT[order.status] || order.status;
+      } else if (field === 'created_at') {
+        value = formatTime(order.created_at);
+      } else {
+        value = order[field] || '—';
+      }
+      const labelHtml = showLabels ? `<span class="export-label">${EXPORT_FIELD_LABELS[field]}:</span>` : '';
+      return `<div class="export-row">${labelHtml}<span class="export-value">${escapeHtml(String(value))}</span></div>`;
+    }).join('');
+    return `<div class="export-card">${rows}</div>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>تصدير الطلبات</title>
+  <style>
+    body { font-family: 'Cairo', Tahoma, Arial, sans-serif; padding: 24px; direction: rtl; }
+    h1 { text-align: center; margin-bottom: 24px; font-size: 20px; }
+    .export-card {
+      border: 1.5px solid #ccc; border-radius: 10px; padding: 14px 18px;
+      margin-bottom: 14px; break-inside: avoid; page-break-inside: avoid;
+    }
+    .export-row { display: flex; gap: 8px; padding: 4px 0; font-size: 14px; border-bottom: 1px solid #eee; }
+    .export-row:last-child { border-bottom: none; }
+    .export-label { font-weight: 700; min-width: 100px; color: #444; }
+    .export-value { flex: 1; }
+    .print-btn {
+      display: block; margin: 0 auto 24px; padding: 10px 24px; font-size: 15px;
+      background: #5C6AC4; color: #fff; border: none; border-radius: 8px; cursor: pointer;
+    }
+    @media print { .print-btn { display: none; } }
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+  <h1>تصدير الطلبات — ${orders.length} طلب</h1>
+  ${cardsHtml}
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  closeModal('export-modal');
+}
+
+const STATUS_LABEL_TEXT = {
+  pending_confirmation: 'في انتظار التأكيد',
+  whatsapp_sent: 'تم إرسال واتساب',
+  whatsapp_failed: 'فشل إرسال واتساب',
+  confirmed: 'مؤكد',
+  shipping_sent: 'تم تبليغ شركة الشحن',
+  shipping_failed: 'فشل إرسال للشحن',
+  handed_to_courier: 'تم التسليم لمندوب الشحن',
+  delivered: 'تم التسليم',
+  cancelled: 'ملغي',
+};
+
+function openBulkTagModal() {
+  if (selectedOrders.size === 0) return;
+  document.getElementById('bulk-tag-count').textContent = selectedOrders.size;
+  document.getElementById('bulk-tag-input').value = '';
+  document.querySelectorAll('.bulk-tag-preset').forEach(el => {
+    el.style.background = 'var(--bg-base)';
+    el.style.borderColor = 'var(--border)';
+    el.style.color = 'inherit';
+  });
+  openModal('bulktag-modal');
+}
+
+function selectBulkTagPreset(el, tag) {
+  document.querySelectorAll('.bulk-tag-preset').forEach(e => {
+    e.style.background = 'var(--bg-base)';
+    e.style.borderColor = 'var(--border)';
+    e.style.color = 'inherit';
+  });
+  el.style.background = 'var(--primary-color)';
+  el.style.borderColor = 'var(--primary-color)';
+  el.style.color = '#fff';
+  document.getElementById('bulk-tag-input').value = tag;
+}
+
+async function executeBulkTag() {
+  const tag = document.getElementById('bulk-tag-input').value.trim();
+  if (!tag) return showToast('اختر أو اكتب تاج الأول', 'error');
+
+  const ids = Array.from(selectedOrders);
+  let ok = 0, fail = 0;
+
+  for (const id of ids) {
+    try {
+      const res = await fetch(`/api/orders/${id}/manual-tag`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', tag })
+      });
+      const data = await res.json();
+      data.success ? ok++ : fail++;
+    } catch { fail++; }
+  }
+
+  closeModal('bulktag-modal');
+  clearBulkSelection();
+  loadOrders(false, true);
+
+  if (fail === 0) {
+    showToast(`✅ تم إضافة "${tag}" لـ ${ok} أوردر`, 'success');
+  } else {
+    showToast(`✅ ${ok} نجح | ❌ ${fail} فشل`, 'error');
+  }
+}
+
+// ─── Quick Links (Server-side) ───────────────────────────────────────────────
+async function openQuickLinks() {
+  // حمّل البيانات الأول — بعدين افتح الـ modal
+  const container = document.getElementById('quicklinks-list');
+  container.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">⏳ جاري التحميل...</div>`;
+  try {
+    const res = await fetch('/api/orders/quick-links');
+    const data = await res.json();
+    renderQuickLinksList(data.links || []);
+  } catch {
+    container.innerHTML = `<div style="color:var(--error);padding:12px;font-size:13px">❌ فشل التحميل</div>`;
+  }
+  openModal('quicklinks-modal');
+}
+
+async function fetchAndRenderQuickLinks() {
+  const container = document.getElementById('quicklinks-list');
+  try {
+    const res = await fetch('/api/orders/quick-links');
+    const data = await res.json();
+    renderQuickLinksList(data.links || []);
+  } catch {
+    container.innerHTML = `<div style="color:var(--error);padding:12px;font-size:13px">❌ فشل التحميل</div>`;
+  }
+}
+
+function renderQuickLinksList(links) {
+  const container = document.getElementById('quicklinks-list');
+  if (!links || links.length === 0) {
+    container.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:14px">لا توجد لينكات بعد — أضف أول لينك من الأسفل 👇</div>`;
+    return;
+  }
+  container.innerHTML = links.map(l => `
+    <div style="display:flex;align-items:center;gap:10px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+      <a href="${escapeHtml(l.url)}" target="_blank" rel="noopener"
+         style="flex:1;font-weight:600;color:var(--primary-color);text-decoration:none;font-size:14px;overflow:hidden;">
+        🔗 ${escapeHtml(l.name)}
+        <span style="display:block;font-size:11px;color:var(--text-muted);font-weight:400;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(l.url)}</span>
+      </a>
+      <button class="btn btn-ghost btn-sm" onclick="removeQuickLink(${l.id})" title="حذف" style="flex-shrink:0">🗑</button>
+    </div>`).join('');
+}
+
+async function addQuickLink() {
+  const name = document.getElementById('ql-name').value.trim();
+  const url  = document.getElementById('ql-url').value.trim();
+  if (!name || !url) return showToast('اكتب اسم ولينك الأول', 'error');
+  if (!url.startsWith('http')) return showToast('اللينك لازم يبدأ بـ https://', 'error');
+  try {
+    const res = await fetch('/api/orders/quick-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, url })
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('ql-name').value = '';
+      document.getElementById('ql-url').value = '';
+      renderQuickLinksList(data.links);
+      showToast(`✅ تم إضافة "${name}"`, 'success');
+    } else {
+      showToast('❌ ' + (data.error || 'فشل'), 'error');
+    }
+  } catch { showToast('❌ خطأ في الاتصال', 'error'); }
+}
+
+async function removeQuickLink(id) {
+  try {
+    const res = await fetch(`/api/orders/quick-links/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      renderQuickLinksList(data.links);
+      showToast('🗑 تم الحذف', 'success');
+    }
+  } catch { showToast('❌ خطأ في الاتصال', 'error'); }
+}
+
+// 7. Sidebar Toggle
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const mainContent = document.querySelector('.main-content');
+  sidebar.classList.toggle('collapsed');
+  mainContent.classList.toggle('expanded');
+}
+
+// 8. Logout
+async function logout() {
+  try {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// 8. Calculate KPIs
+function calculateKPIs(ordersArray) {
+  let confirmedTotal = 0;
+  let pendingTotal = 0;
+  let cancelledTotal = 0;
+
+  ordersArray.forEach(o => {
+    let numStr = (o.total || '0').replace(/[^0-9.]/g, '');
+    let val = parseFloat(numStr) || 0;
+    
+    if (['confirmed', 'shipping_sent', 'delivered'].includes(o.status)) {
+      confirmedTotal += val;
+    } else if (['pending_confirmation', 'whatsapp_sent', 'whatsapp_failed'].includes(o.status)) {
+      pendingTotal += val;
+    } else if (['cancelled'].includes(o.status)) {
+      cancelledTotal += val;
+    }
+  });
+
+  document.getElementById('kpi-confirmed').textContent = confirmedTotal.toLocaleString() + ' EGP';
+  document.getElementById('kpi-pending').textContent = pendingTotal.toLocaleString() + ' EGP';
+  document.getElementById('kpi-cancelled').textContent = cancelledTotal.toLocaleString() + ' EGP';
+}
+
+// 9. Order Timeline
+function openTimelineModal(orderId, orderNum) {
+  document.getElementById('timeline-order-num').textContent = orderNum;
+  const content = document.getElementById('timeline-content');
+  
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  const timelineHTML = [];
+  
+  function addStep(title, timeStr, icon, color) {
+    if (!timeStr) return;
+    timelineHTML.push(`
+      <div style="display: flex; gap: 15px; align-items: flex-start; padding: 10px; background: #f9fafb; border-radius: 8px; border-right: 4px solid ${color};">
+        <div style="font-size: 24px; line-height: 1;">${icon}</div>
+        <div>
+          <div style="font-weight: 700; color: #111827; margin-bottom: 4px;">${title}</div>
+          <div style="font-size: 13px; color: #6b7280;" dir="ltr">${new Date(timeStr).toLocaleString('ar-EG')}</div>
+        </div>
+      </div>
+    `);
+  }
+
+  addStep('تم استلام الطلب من شوبيفاي', order.created_at, '📥', '#6b7280');
+  
+  // Try to parse raw_payload for real shopify created_at if created_at is just DB insert time
+  try {
+    const raw = JSON.parse(order.raw_payload || '{}');
+    if (raw.created_at && raw.created_at !== order.created_at) {
+       addStep('تم تسجيل الطلب في شوبيفاي', raw.created_at, '🛒', '#9ca3af');
+    }
+  } catch(e){}
+
+  if (order.status === 'cancelled') {
+    addStep('تم إلغاء الطلب', order.replied_at || order.updated_at, '🚫', '#ef4444');
+  } else {
+    // We don't have whatsapp_sent_at in DB schema initially, but we can guess it's near created_at.
+    // If you have `replied_at`, use it for customer reply
+    if (order.replied_at) {
+      addStep('تم رد العميل وتأكيد الطلب', order.replied_at, '✅', '#10b981');
+    }
+    
+    // If shipping
+    if (order.status === 'shipping_sent' || order.status === 'delivered') {
+      // we fallback to updated_at if we don't have a specific shipping_sent_at column
+      addStep('تم إرسال الطلب لشركة الشحن', order.updated_at, '🚚', '#3b82f6');
+    }
+    
+    if (order.status === 'delivered') {
+      addStep('تم توصيل الطلب بنجاح', order.updated_at, '📦', '#059669');
+    }
+  }
+
+  content.innerHTML = timelineHTML.join('');
+  openModal('timeline-modal');
+}
+
+// ─── UI Toggles ─────────────────────────────
+function toggleSimulatedOrders() {
+  const wrapper = document.getElementById('simulated-table-wrapper');
+  const icon = document.getElementById('simulated-toggle-icon');
+  if (wrapper.style.display === 'none') {
+    wrapper.style.display = 'block';
+    icon.style.transform = 'rotate(180deg)';
+  } else {
+    wrapper.style.display = 'none';
+    icon.style.transform = 'rotate(0deg)';
+  }
+}
+
+function toggleOrderActions(orderId) {
+  const row = document.getElementById(`actions-row-${orderId}`);
+  const icon = document.getElementById(`action-icon-${orderId}`);
+  if (!row) return;
+  if (row.style.display === 'none') {
+    row.style.display = 'table-row';
+    icon.style.transform = 'rotate(180deg)';
+  } else {
+    row.style.display = 'none';
+    icon.style.transform = 'rotate(0deg)';
+  }
+}
+
+// ─── Import from Easy Orders ───────────────────────────────────────────────
+async function importFromEasyOrders() {
+  showToast('⏳ جاري استيراد الطلبات من Easy Orders...', 'info');
+  try {
+    const res = await fetch('/api/orders/import-from-easyorders', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ تم استيراد ${data.imported || 0} طلب جديد (تحديث: ${data.updated || 0})`, 'success');
+      loadOrders();
+    } else {
+      showToast('❌ فشل الاستيراد: ' + (data.error || data.details || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+  }
+}
+
+// ─── Speedaf Modal & Dispatch ──────────────────────────────────────────────
+let cachedProvinces = [];
+
+async function loadSpeedafProvinces() {
+  if (cachedProvinces.length > 0) return cachedProvinces;
+  try {
+    const res = await fetch('/api/orders/speedaf/areas/EG');
+    const data = await res.json();
+    if (data.success && Array.isArray(data.areas)) {
+      cachedProvinces = data.areas;
+      return cachedProvinces;
+    }
+  } catch (e) {
+    console.error('Failed to load Speedaf provinces:', e);
+  }
+  return [];
+}
+
+async function openSpeedafModal(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  document.getElementById('speedaf-modal-order-id').value = order.id;
+  document.getElementById('speedaf-modal-order-num').textContent = order.order_number;
+  document.getElementById('speedaf-modal-total').textContent = order.total || '0 EGP';
+  document.getElementById('speedaf-modal-customer').textContent = `العميل: ${order.customer_name || '—'} (${order.customer_phone || '—'})`;
+  document.getElementById('speedaf-modal-address').textContent = `العنوان: ${order.address || '—'}`;
+  
+  const resultEl = document.getElementById('speedaf-modal-result');
+  resultEl.className = 'test-result';
+  resultEl.textContent = '';
+
+  const provSelect = document.getElementById('speedaf-modal-province');
+  provSelect.innerHTML = '<option value="">-- اختار المحافظة --</option>';
+
+  const provinces = await loadSpeedafProvinces();
+  provinces.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.code;
+    opt.textContent = p.name_ar || p.nameLocal || p.name;
+    opt.dataset.name = p.name_ar || p.nameLocal || p.name;
+    provSelect.appendChild(opt);
+  });
+
+  // Auto-match governorate from order address
+  if (order.address) {
+    const addr = order.address.toLowerCase();
+    for (const p of provinces) {
+      const pName = (p.name_ar || p.nameLocal || p.name || '').toLowerCase();
+      if (pName && addr.includes(pName)) {
+        provSelect.value = p.code;
+        break;
+      }
+    }
+  }
+
+  // Pre-fill city / district if extracted from address
+  const addrParts = (order.address || '').split(/[-–,،]/).map(s => s.trim()).filter(Boolean);
+  document.getElementById('speedaf-modal-city').value = addrParts[1] || addrParts[0] || '';
+  document.getElementById('speedaf-modal-district').value = addrParts[2] || addrParts[1] || '';
+
+  openModal('speedaf-modal');
+}
+
+function onSpeedafModalProvinceChange() {
+  // Can be extended to load cities dynamically
+}
+
+async function executeSendToSpeedaf() {
+  const orderId = document.getElementById('speedaf-modal-order-id').value;
+  const provSelect = document.getElementById('speedaf-modal-province');
+  const provinceCode = provSelect.value;
+  const provinceName = provSelect.options[provSelect.selectedIndex]?.dataset?.name || provSelect.options[provSelect.selectedIndex]?.text || '';
+  const cityName = document.getElementById('speedaf-modal-city').value.trim();
+  const districtName = document.getElementById('speedaf-modal-district').value.trim();
+
+  if (!provinceCode) {
+    showToast('⚠️ اختار المحافظة أولاً', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('speedaf-modal-submit-btn');
+  const resultEl = document.getElementById('speedaf-modal-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري إرسال الشحنة...';
+
+  try {
+    const locationCodes = {
+      provinceCode,
+      provinceName,
+      cityName,
+      districtName,
+    };
+
+    const res = await fetch(`/api/orders/${orderId}/send-to-speedaf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locationCodes })
+    });
+
+    const data = await res.json();
+    resultEl.textContent = JSON.stringify(data, null, 2);
+    resultEl.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      showToast('✅ تم إنشاء شحنة Speedaf بنجاح!' + (data.waybillNo ? ` رقم البوليصة: ${data.waybillNo}` : ''), 'success');
+      setTimeout(() => {
+        closeModal('speedaf-modal');
+        loadOrders();
+      }, 1500);
+    } else {
+      showToast('❌ فشل إرسال الشحنة لـ Speedaf: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    resultEl.textContent = 'خطأ: ' + err.message;
+    resultEl.className = 'test-result visible error';
+    showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📦 إنشاء بوليصة Speedaf الآن';
+  }
+}
+</script>
+</body>
+</html>

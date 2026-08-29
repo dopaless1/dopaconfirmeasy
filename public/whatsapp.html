@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <link rel="icon" href="/favicon.ico">
+  <meta charset="UTF-8">
+  <title>DopaConfirm - ربط الواتساب</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --border:    rgba(255,255,255,0.08);
+      --text:      #e8eaf0;
+      --muted:     #8b8fa8;
+      --primary:   #6c63ff;
+      --primary-g: linear-gradient(135deg,#6c63ff,#a78bfa);
+      --green:     #25d366;
+      --green-g:   linear-gradient(135deg,#25d366,#128c7e);
+      --red:       #ff5b5b;
+      --yellow:    #f59e0b;
+      --radius:    16px;
+    }
+    body { font-family:'Cairo',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+
+    .card {
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:40px;
+      width:100%;
+      max-width:480px;
+      text-align:center;
+      box-shadow:0 24px 80px rgba(0,0,0,0.4);
+      animation: fadeIn .4s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+
+    .logo { font-size:36px; margin-bottom:10px; }
+    h1 { font-size:22px; font-weight:800; margin-bottom:6px; }
+    .subtitle { font-size:13px; color:var(--muted); margin-bottom:28px; }
+
+    /* ── Status Badge ── */
+    .status-badge {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 18px;
+      border-radius:50px;
+      font-size:13px;
+      font-weight:700;
+      margin-bottom:24px;
+      border:1.5px solid transparent;
+      transition:all .3s;
+    }
+    .status-badge.connected  { background:rgba(37,211,102,.12); border-color:rgba(37,211,102,.3); color:var(--green); }
+    .status-badge.qr         { background:rgba(108,99,255,.12); border-color:rgba(108,99,255,.3); color:#a78bfa; }
+    .status-badge.connecting { background:rgba(245,158,11,.12); border-color:rgba(245,158,11,.3); color:var(--yellow); }
+    .status-badge.error      { background:rgba(255,91,91,.12); border-color:rgba(255,91,91,.3); color:var(--red); }
+
+    .dot { width:9px; height:9px; border-radius:50%; }
+    .dot.green  { background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.5s infinite; }
+    .dot.purple { background:#a78bfa; animation:pulse 1.5s infinite; }
+    .dot.yellow { background:var(--yellow); animation:pulse 1.5s infinite; }
+    .dot.red    { background:var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── QR ── */
+    .qr-box {
+      background:#fff;
+      border-radius:12px;
+      padding:16px;
+      display:inline-block;
+      margin:0 auto 20px;
+      box-shadow:0 4px 24px rgba(0,0,0,0.3);
+    }
+    .qr-box img { width:240px; height:240px; display:block; }
+    .qr-hint { font-size:12px; color:var(--muted); line-height:1.8; margin-bottom:20px; }
+    .qr-hint strong { color:var(--text); }
+
+    /* ── Spinner ── */
+    .spinner {
+      width:48px; height:48px;
+      border:4px solid rgba(255,255,255,.1);
+      border-top-color:var(--primary);
+      border-radius:50%;
+      animation:spin 0.9s linear infinite;
+      margin:0 auto 20px;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── Connected Info ── */
+    .connected-info {
+      background:rgba(37,211,102,.06);
+      border:1px solid rgba(37,211,102,.2);
+      border-radius:12px;
+      padding:18px;
+      margin-bottom:20px;
+    }
+    .connected-info .phone {
+      font-size:22px;
+      font-weight:800;
+      color:var(--green);
+      direction:ltr;
+      margin-top:6px;
+      letter-spacing:1px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      width:100%;
+      padding:13px 20px;
+      border:none;
+      border-radius:10px;
+      font-family:'Cairo',sans-serif;
+      font-size:15px;
+      font-weight:700;
+      cursor:pointer;
+      transition:all .2s;
+      margin-bottom:10px;
+    }
+    .btn:hover { transform:translateY(-1px); filter:brightness(1.1); }
+    .btn:active { transform:translateY(0); }
+    .btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+
+    .btn-primary  { background:var(--primary-g); color:#fff; }
+    .btn-danger   { background:linear-gradient(135deg,#ff5b5b,#c0392b); color:#fff; }
+    .btn-ghost    { background:rgba(255,255,255,.06); color:var(--text); border:1px solid var(--border); }
+
+    .back-link {
+      display:inline-block;
+      margin-top:10px;
+      color:var(--muted);
+      font-size:13px;
+      text-decoration:none;
+      transition:color .2s;
+    }
+    .back-link:hover { color:var(--text); }
+
+    /* ── Error Detail ── */
+    .error-box {
+      background:rgba(255,91,91,.08);
+      border:1px solid rgba(255,91,91,.2);
+      border-radius:10px;
+      padding:14px;
+      font-size:13px;
+      color:#ff9090;
+      margin-bottom:16px;
+      text-align:right;
+      line-height:1.7;
+    }
+
+    /* ── Timer ── */
+    .qr-timer { font-size:12px; color:var(--muted); margin-bottom:16px; }
+    .qr-timer span { color:var(--yellow); font-weight:700; }
+  </style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <div class="logo">💬</div>
+  <h1>ربط الواتساب</h1>
+  <p class="subtitle">اربط رقمك مباشرةً بالسيرفر — مجاناً وبدون خدمات وسيطة</p>
+
+  <!-- Status badge -->
+  <div id="status-badge" class="status-badge connecting">
+    <div class="dot yellow"></div>
+    <span id="status-label">جارٍ التحقق…</span>
+  </div>
+
+  <!-- Dynamic body -->
+  <div id="body">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Actions -->
+  <div id="actions"></div>
+
+  <a href="/" class="back-link">← العودة للوحة التحكم</a>
+</div>
+
+<script>
+  let _qrSrc = null;
+  let _qrTimer = null;
+  let _qrSeconds = 60;
+  const POLL_INTERVAL = 3000;
+
+  // ── UI helpers ──────────────────────────────────────────────────────────────
+  function setBadge(state) {
+    const badge = document.getElementById('status-badge');
+    const dot = badge.querySelector('.dot');
+    const label = document.getElementById('status-label');
+
+    badge.className = 'status-badge ' + state;
+    dot.className = 'dot';
+
+    const map = {
+      connected:  { dot:'green',  text:'✅ متصل بنجاح' },
+      qr:         { dot:'purple', text:'📷 انتظار مسح QR' },
+      connecting: { dot:'yellow', text:'🔄 جارٍ الاتصال…' },
+      reconnecting:{ dot:'yellow',text:'🔄 إعادة الاتصال…' },
+      disconnected:{ dot:'red',   text:'⚠️ غير متصل' },
+      error:      { dot:'red',    text:'❌ خطأ في الاتصال' },
+    };
+    const m = map[state] || map.disconnected;
+    dot.classList.add(m.dot);
+    label.textContent = m.text;
+  }
+
+  function renderSpinner(msg) {
+    document.getElementById('body').innerHTML = `
+      <div class="spinner"></div>
+      <p style="color:var(--muted);font-size:14px;margin-bottom:20px">${msg}</p>`;
+  }
+
+  function renderQR(qrSrc) {
+    clearQRTimer();
+    _qrSeconds = 60;
+    document.getElementById('body').innerHTML = `
+      <div class="qr-box"><img src="${qrSrc}" alt="QR Code"></div>
+      <p class="qr-timer">يصلح لمدة <span id="qr-countdown">60</span> ثانية</p>
+      <p class="qr-hint">
+        1️⃣ افتح تطبيق واتساب على هاتفك<br>
+        2️⃣ اضغط <strong>الأجهزة المرتبطة ← ربط جهاز</strong><br>
+        3️⃣ امسح الكود أعلاه
+      </p>`;
+    _qrTimer = setInterval(() => {
+      _qrSeconds--;
+      const el = document.getElementById('qr-countdown');
+      if (el) el.textContent = _qrSeconds;
+      if (_qrSeconds <= 0) {
+        clearQRTimer();
+        renderSpinner('انتهت صلاحية الكود — جارٍ تحديثه…');
+      }
+    }, 1000);
+  }
+
+  function clearQRTimer() {
+    if (_qrTimer) { clearInterval(_qrTimer); _qrTimer = null; }
+  }
+
+  function renderConnected(user) {
+    clearQRTimer();
+    document.getElementById('body').innerHTML = `
+      <div class="connected-info">
+        <div style="font-size:13px;color:var(--muted)">الرقم المتصل حالياً</div>
+        <div class="phone">+${user}</div>
+      </div>`;
+    document.getElementById('actions').innerHTML = `
+      <button class="btn btn-danger" onclick="doLogout()">🔌 قطع الاتصال وربط رقم جديد</button>
+      <a href="/" style="display:block"><button class="btn btn-ghost" type="button">← العودة للوحة التحكم</button></a>`;
+  }
+
+  function renderWaiting(msg) {
+    clearQRTimer();
+    document.getElementById('body').innerHTML = `
+      <div class="spinner"></div>
+      <p style="color:var(--muted);font-size:14px;margin-bottom:20px">${msg}</p>`;
+    document.getElementById('actions').innerHTML = `
+      <button class="btn btn-ghost" onclick="doForceReset()">🔄 إعادة تعيين وإظهار الكود</button>`;
+  }
+
+  function renderError(msg) {
+    clearQRTimer();
+    document.getElementById('body').innerHTML = `
+      <div class="error-box">${msg}</div>`;
+    document.getElementById('actions').innerHTML = `
+      <button class="btn btn-primary" onclick="doForceReset()">🔄 إعادة المحاولة</button>`;
+  }
+
+  // ── Status polling ──────────────────────────────────────────────────────────
+  let _pollPaused = false;
+
+  async function checkStatus() {
+    if (_pollPaused) return;
+    try {
+      const res = await fetch('/api/whatsapp/status');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      setBadge(data.state);
+
+      if (data.state === 'connected') {
+        renderConnected(data.user);
+
+      } else if (data.state === 'qr') {
+        // Only re-render if QR changed
+        if (data.qr !== _qrSrc) {
+          _qrSrc = data.qr;
+          renderQR(data.qr);
+        }
+        document.getElementById('actions').innerHTML = `
+          <button class="btn btn-ghost" style="font-size:13px" onclick="doLogout()">↩ استخدام رقم مختلف</button>`;
+
+      } else if (data.state === 'connecting' || data.state === 'reconnecting') {
+        if (!document.querySelector('.spinner')) {
+          renderWaiting('جارٍ الاتصال بواتساب…');
+        }
+
+      } else {
+        renderWaiting('الاتصال منقطع — يمكنك إعادة الربط');
+      }
+
+    } catch (e) {
+      setBadge('error');
+      renderError(`⚠️ تعذّر الوصول للسيرفر<br><small style="opacity:.7">${e.message}</small>`);
+    }
+  }
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
+  async function doLogout() {
+    if (!confirm('هل تريد قطع الاتصال الحالي؟\nسيظهر كود QR جديد لربط رقم آخر.')) return;
+    _pollPaused = true;
+    _qrSrc = null;
+    setBadge('connecting');
+    renderSpinner('جارٍ قطع الاتصال…');
+    document.getElementById('actions').innerHTML = '';
+
+    try {
+      const res = await fetch('/api/whatsapp/logout', { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      console.warn('Logout error (may be harmless):', e.message);
+    }
+
+    // Give server 2s to start, then resume polling
+    setTimeout(() => { _pollPaused = false; checkStatus(); }, 2000);
+  }
+
+  async function doForceReset() {
+    _pollPaused = true;
+    _qrSrc = null;
+    setBadge('connecting');
+    renderSpinner('جارٍ حذف الجلسة القديمة وإنشاء كود جديد…');
+    document.getElementById('actions').innerHTML = '';
+
+    try {
+      await fetch('/api/whatsapp/reset', { method: 'POST' });
+    } catch {}
+
+    setTimeout(() => { _pollPaused = false; checkStatus(); }, 3000);
+  }
+
+  // ── Start ────────────────────────────────────────────────────────────────────
+  checkStatus();
+  setInterval(checkStatus, POLL_INTERVAL);
+</script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <link rel="icon" href="/favicon.ico">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>إنشاء حساب - DopaConfirm</title>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-hover: #4338CA;
+      --bg: #F3F4F6;
+      --surface: #FFFFFF;
+      --text: #1F2937;
+      --text-muted: #6B7280;
+      --error: #EF4444;
+      --success: #059669;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Tajawal', sans-serif;
+      background-color: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: var(--text);
+    }
+    .login-container {
+      background: var(--surface);
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+    .login-icon { font-size: 48px; margin-bottom: 16px; }
+    h1 { font-size: 24px; margin-bottom: 8px; font-weight: 700; }
+    p { color: var(--text-muted); margin-bottom: 24px; font-size: 14px; }
+    .form-group { text-align: right; margin-bottom: 16px; }
+    label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; }
+    input {
+      width: 100%; padding: 12px 16px; border: 1px solid #D1D5DB; border-radius: 8px;
+      font-family: inherit; font-size: 16px; outline: none; transition: border-color 0.2s;
+      direction: ltr; text-align: left;
+    }
+    input:focus { border-color: var(--primary); }
+    .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; text-align: right; }
+    .btn {
+      width: 100%; padding: 12px; background: var(--primary); color: white; border: none;
+      border-radius: 8px; font-size: 16px; font-weight: 700; font-family: inherit; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: var(--primary-hover); }
+    .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+    .error-msg { color: var(--error); font-size: 14px; margin-bottom: 16px; display: none; }
+    .success-box {
+      display: none; background: #ECFDF5; border: 1.5px solid var(--success);
+      border-radius: 10px; padding: 20px; margin-bottom: 16px; color: var(--success); font-size: 14px;
+    }
+    .back-link { margin-top: 18px; font-size: 13px; }
+    .back-link a { color: var(--primary); text-decoration: none; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <div class="login-container">
+    <div class="login-icon">📝</div>
+    <h1>إنشاء حساب جديد</h1>
+    <p>هيتفعل الحساب لما الأدمن يوافق عليه</p>
+
+    <div class="error-msg" id="error-msg"></div>
+    <div class="success-box" id="success-box">
+      ✅ تم إرسال طلبك بنجاح! استنى موافقة الأدمن عشان تقدر تسجل دخول.
+    </div>
+
+    <form id="signup-form">
+      <div class="form-group">
+        <label>اسم المستخدم</label>
+        <input type="text" id="username" required autofocus placeholder="اسم المستخدم">
+      </div>
+      <div class="form-group">
+        <label>كلمة المرور</label>
+        <input type="password" id="password" required placeholder="••••••••">
+        <div class="hint">6 حروف/أرقام على الأقل</div>
+      </div>
+      <div class="form-group">
+        <label>تأكيد كلمة المرور</label>
+        <input type="password" id="password-confirm" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn" id="submit-btn">إرسال طلب الحساب</button>
+    </form>
+
+    <div class="back-link"><a href="/login.html">رجوع لتسجيل الدخول</a></div>
+  </div>
+
+  <script>
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const confirm  = document.getElementById('password-confirm').value;
+      const btn = document.getElementById('submit-btn');
+      const err = document.getElementById('error-msg');
+      err.style.display = 'none';
+
+      if (password !== confirm) {
+        err.textContent = 'كلمة المرور والتأكيد مش متطابقين';
+        err.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'جاري الإرسال...';
+
+      try {
+        const res = await fetch('/api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('signup-form').style.display = 'none';
+          document.getElementById('success-box').style.display = 'block';
+        } else {
+          err.textContent = data.error || 'حدث خطأ';
+          err.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'إرسال طلب الحساب';
+        }
+      } catch (e) {
+        err.textContent = 'حدث خطأ في الاتصال';
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'إرسال طلب الحساب';
+      }
+    });
+  </script>
+</body>
+</html>
