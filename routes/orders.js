@@ -635,6 +635,28 @@ router.get('/:id/speedaf-track', async (req, res) => {
   }
 });
 
+// POST /api/orders/speedaf/auto-login — تسجيل دخول تلقائي وحل الكابتشا عبر Gemini
+router.post('/speedaf/auto-login', async (req, res) => {
+  try {
+    const { autoLoginSpeedaf } = require('../services/speedaf');
+    const result = await autoLoginSpeedaf();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/orders/speedaf/test — فحص الاتصال بـ Speedaf
+router.get('/speedaf/test', async (req, res) => {
+  try {
+    const { testSpeedafConnection } = require('../services/speedaf');
+    const result = await testSpeedafConnection();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/orders/:id/handed-to-courier — merchant manually confirms the
 // physical package was handed over to the delivery rep. This does NOT
 // fulfill the order in Shopify — fulfillment still only happens when

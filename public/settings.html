@@ -274,10 +274,36 @@
             <!-- Speedaf Direct Settings -->
             <div id="speedaf-direct-fields" style="margin-top:16px;padding:16px;background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.2);border-radius:var(--radius-md);">
               <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:8px">📦 إعدادات تكامل Speedaf Direct API</div>
+              
+              <!-- Gemini AI Captcha Solver Integration -->
+              <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius-md);padding:12px;margin-bottom:14px">
+                <div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#4f46e5;margin-bottom:6px">
+                  <span>✨</span> حل الكابتشا وتجديد التوكن التلقائي عبر الذكاء الاصطناعي (Gemini AI)
+                </div>
+                <div class="form-group" style="margin-bottom:8px">
+                  <label class="form-label">Google Gemini API Key</label>
+                  <input type="password" class="form-input code-font" id="GEMINI_API_KEY" placeholder="AIzaSy..." />
+                  <span class="form-hint">احصل على مفتاح مجاني من <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#4f46e5;font-weight:600">Google AI Studio</a> لحل كابتشا Speedaf ذاتياً</span>
+                </div>
+                <div class="form-row" style="margin-bottom:8px">
+                  <div class="form-group">
+                    <label class="form-label">اسم حساب Speedaf</label>
+                    <input type="text" class="form-input code-font" id="SPEEDAF_ACCOUNT" placeholder="EG004774001" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">كلمة مرور Speedaf</label>
+                    <input type="password" class="form-input code-font" id="SPEEDAF_PASSWORD" placeholder="DAP786786" />
+                  </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" onclick="autoLoginSpeedafFromSettings()" id="autologin-speedaf-btn" style="background:#4f46e5;border-color:#4f46e5">
+                  🤖 تسجيل دخول وتحديث التوكن تلقائياً (Gemini Captcha)
+                </button>
+              </div>
+
               <div class="form-group">
-                <label class="form-label">Speedaf Session Token (التوكن)</label>
-                <input type="password" class="form-input code-font" id="SPEEDAF_TOKEN" placeholder="أدخل توكن جلسة الداشبورد" />
-                <span class="form-hint">من المتصفح بعد تسجيل الدخول في csp.speedaf.com (F12 > Application > Cookies > token)</span>
+                <label class="form-label">Speedaf Session Token (التوكن الحالي)</label>
+                <input type="password" class="form-input code-font" id="SPEEDAF_TOKEN" placeholder="يتم تحديثه تلقائياً أو أدخله يدوياً" />
+                <span class="form-hint">يتم تحديث التوكن تلقائياً في الخلفية عند انتهائه بواسطة Gemini، أو يمكنك وضعه يدوياً</span>
               </div>
               <div class="form-row">
                 <div class="form-group">
@@ -760,7 +786,8 @@ async function loadSettings() {
       'STARLINK_API_URL', 'SHIPPING_MODE', 'WHATSAPP_DELAY_HOURS', 'WHATSAPP_MESSAGE_TEMPLATE', 'PORT', 'PUBLIC_URL',
       'WHATSAPP_PROVIDER', 'META_PHONE_NUMBER_ID', 'META_ACCESS_TOKEN', 'META_WEBHOOK_VERIFY_TOKEN', 'WHATSAPP_REVIEW_TEMPLATE', 'WHATSAPP_MESSAGE_IMAGE_BASE64',
       'ORDER_SOURCE', 'EASYORDERS_API_KEY', 'EASYORDERS_BASE_URL',
-      'SPEEDAF_TOKEN', 'SPEEDAF_SENDER_NAME', 'SPEEDAF_SENDER_PHONE', 'SPEEDAF_SENDER_ADDRESS', 'SPEEDAF_SENDER_PROVINCE_NAME'
+      'SPEEDAF_TOKEN', 'SPEEDAF_SENDER_NAME', 'SPEEDAF_SENDER_PHONE', 'SPEEDAF_SENDER_ADDRESS', 'SPEEDAF_SENDER_PROVINCE_NAME',
+      'GEMINI_API_KEY', 'SPEEDAF_ACCOUNT', 'SPEEDAF_PASSWORD'
     ];
 
     for (const key of fields) {
@@ -908,7 +935,42 @@ async function testEasyOrders() {
   }
 }
 
-// ─── Speedaf Direct Test & Sync ──────────
+// ─── Speedaf Direct Auto-Login, Test & Sync ──────────
+async function autoLoginSpeedafFromSettings() {
+  const btn = document.getElementById('autologin-speedaf-btn');
+  const result = document.getElementById('speedaf-test-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ حل الكابتشا وتسجيل الدخول...';
+  result.className = 'test-result visible';
+  result.textContent = 'جارٍ جلب الكابتشا من Speedaf وتحليلها عبر Google Gemini AI...';
+
+  try {
+    // Save current settings first so server uses newly typed key/creds
+    await saveAllSettings(true);
+
+    const res = await fetch('/api/orders/speedaf/auto-login', { method: 'POST' });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    result.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      if (data.token && document.getElementById('SPEEDAF_TOKEN')) {
+        document.getElementById('SPEEDAF_TOKEN').value = data.token;
+      }
+      showToast('🎉 ' + (data.message || 'تم تسجيل الدخول وتحديث التوكن تلقائياً بنجاح!'), 'success');
+    } else {
+      showToast('❌ فشل تسجيل الدخول التلقائي: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    result.textContent = 'خطأ: ' + err.message;
+    result.className = 'test-result visible error';
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🤖 تسجيل دخول وتحديث التوكن تلقائياً (Gemini Captcha)';
+  }
+}
+
 async function testSpeedaf() {
   const btn = document.getElementById('test-speedaf-btn');
   const result = document.getElementById('speedaf-test-result');
@@ -983,7 +1045,8 @@ async function saveAllSettings() {
     'WHATSAPP_REVIEW_IMAGE_BASE64',
     'FEATURE_TIMEOUT_REMIND_HRS', 'FEATURE_TIMEOUT_FINAL_HRS', 'OWNER_ALERT_PHONE',
     'ORDER_SOURCE', 'EASYORDERS_API_KEY', 'EASYORDERS_BASE_URL',
-    'SPEEDAF_TOKEN', 'SPEEDAF_SENDER_NAME', 'SPEEDAF_SENDER_PHONE', 'SPEEDAF_SENDER_ADDRESS', 'SPEEDAF_SENDER_PROVINCE_NAME'
+    'SPEEDAF_TOKEN', 'SPEEDAF_SENDER_NAME', 'SPEEDAF_SENDER_PHONE', 'SPEEDAF_SENDER_ADDRESS', 'SPEEDAF_SENDER_PROVINCE_NAME',
+    'GEMINI_API_KEY', 'SPEEDAF_ACCOUNT', 'SPEEDAF_PASSWORD'
   ];
 
   for (const key of fields) {

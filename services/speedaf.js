@@ -55,16 +55,197 @@ async function getSetting(key) {
   return process.env[key] || '';
 }
 
-// ─── HTTP Client ──────────────────────────────────────────────────────────────
+// ─── HTTP Helpers ────────────────────────────────────────────────────────────
 
 const https = require('https');
 
-function speedafRequest(method, path, body = null) {
+function httpPost(url, data, headers = {}) {
+  return new Promise((resolve) => {
+    const u = new URL(url);
+    const postData = typeof data === 'string' ? data : JSON.stringify(data);
+    const req = https.request({
+      hostname: u.hostname,
+      port: 443,
+      path: u.pathname + u.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        ...headers,
+      },
+    }, (res) => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, data: JSON.parse(body), headers: res.headers }); }
+        catch { resolve({ status: res.statusCode, data: body, headers: res.headers }); }
+      });
+    });
+    req.on('error', (e) => resolve({ status: 0, error: e.message }));
+    req.write(postData);
+    req.end();
+  });
+}
+
+function httpGet(url, headers = {}) {
+  return new Promise((resolve) => {
+    const u = new URL(url);
+    https.get({
+      hostname: u.hostname,
+      port: 443,
+      path: u.pathname + u.search,
+      headers: { 'User-Agent': 'Mozilla/5.0', ...headers },
+    }, (res) => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, data: JSON.parse(body), headers: res.headers }); }
+        catch { resolve({ status: res.statusCode, data: body, headers: res.headers }); }
+      });
+    }).on('error', (e) => resolve({ status: 0, error: e.message }));
+  });
+}
+
+// ─── Captcha & Gemini Vision Auto-Login ──────────────────────────────────────
+
+async function fetchSpeedafCaptcha() {
+  const res = await httpGet('https://csp.speedaf.com/v1/api/common/verify/code/getImageVerifyCode');
+  if (res.status === 200 && res.data?.success && res.data?.data) {
+    const { uuid, base64Code } = res.data.data;
+    const cleanBase64 = (base64Code || '').replace(/^data:image\/\w+;base64,/, '');
+    return { uuid, cleanBase64 };
+  }
+  return null;
+}
+
+async function solveCaptchaWithGemini(base64Image, geminiApiKey) {
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
+      const payload = {
+        contents: [
+          {
+            parts: [
+              {
+                text: 'Read the exact 4-character alphanumeric captcha code in this image. Return ONLY the 4 characters, uppercase letters and digits, no extra text, no spaces.'
+              },
+              {
+                inline_data: {
+                  mime_type: 'image/jpeg',
+                  data: base64Image
+                }
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 10,
+        }
+      };
+
+      const res = await httpPost(url, payload);
+      if (res.status === 200 && res.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        const text = res.data.candidates[0].content.parts[0].text.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        if (text.length >= 4) return text.substring(0, 4);
+      }
+    } catch (e) {
+      console.warn(`[Speedaf/Gemini] Model ${model} failed:`, e.message);
+    }
+  }
+  return null;
+}
+
+async function loginSpeedafWithCaptcha(account, password, verifyCode, uuid) {
+  const encryptedPassword = encryptPassword(password);
+  const res = await httpPost('https://csp.speedaf.com/v1/api/security/login/doLogin', {
+    account,
+    password: encryptedPassword,
+    verifyCode,
+    uuid,
+  }, {
+    'Origin': 'https://csp.speedaf.com',
+    'Referer': 'https://csp.speedaf.com/login',
+  });
+  return res;
+}
+
+/**
+ * تسجيل الدخول التلقائي لـ Speedaf وحل الكابتشا عبر Gemini
+ */
+async function autoLoginSpeedaf(maxRetries = 3) {
+  const geminiKey = await getSetting('GEMINI_API_KEY');
+  const account = (await getSetting('SPEEDAF_ACCOUNT')) || 'EG004774001';
+  const password = (await getSetting('SPEEDAF_PASSWORD')) || 'DAP786786';
+
+  if (!geminiKey) {
+    return { success: false, error: 'GEMINI_API_KEY غير محدد في الإعدادات لحل الكابتشا تلقائياً' };
+  }
+
+  console.log(`[Speedaf/AutoLogin] Starting auto-login for account: ${account}...`);
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[Speedaf/AutoLogin] Attempt ${attempt}/${maxRetries}: Fetching captcha...`);
+      const captcha = await fetchSpeedafCaptcha();
+      if (!captcha) {
+        console.warn('[Speedaf/AutoLogin] Failed to fetch captcha from Speedaf');
+        continue;
+      }
+
+      console.log(`[Speedaf/AutoLogin] Solving captcha via Gemini AI...`);
+      const solvedCode = await solveCaptchaWithGemini(captcha.cleanBase64, geminiKey);
+      if (!solvedCode) {
+        console.warn('[Speedaf/AutoLogin] Gemini could not read captcha, retrying...');
+        continue;
+      }
+
+      console.log(`[Speedaf/AutoLogin] Gemini read captcha as: [${solvedCode}] — Submitting login...`);
+      const loginRes = await loginSpeedafWithCaptcha(account, password, solvedCode, captcha.uuid);
+
+      let token = loginRes.data?.data?.token || loginRes.data?.token;
+
+      // Also check set-cookie header if token was sent via cookie
+      if (!token && loginRes.headers?.['set-cookie']) {
+        const cookies = Array.isArray(loginRes.headers['set-cookie']) ? loginRes.headers['set-cookie'] : [loginRes.headers['set-cookie']];
+        for (const c of cookies) {
+          const m = c.match(/token=([^;]+)/);
+          if (m) { token = m[1]; break; }
+        }
+      }
+
+      if (token && (loginRes.data?.success !== false)) {
+        console.log(`[Speedaf/AutoLogin] ✅ Login successful! New token: ${token.substring(0, 8)}...`);
+        await db.setSetting('SPEEDAF_TOKEN', token);
+        process.env.SPEEDAF_TOKEN = token;
+        return { success: true, token, message: 'تم تسجيل الدخول وتحديث التوكن بنجاح!' };
+      } else {
+        const errMsg = loginRes.data?.error?.message || loginRes.data?.message || 'فشل التحقق من الكود';
+        console.warn(`[Speedaf/AutoLogin] Attempt ${attempt} failed: ${errMsg}`);
+      }
+    } catch (err) {
+      console.error(`[Speedaf/AutoLogin] Error on attempt ${attempt}:`, err.message);
+    }
+  }
+
+  return { success: false, error: 'فشل تسجيل الدخول التلقائي بعد عدة محاولات (تأكد من صحة الحساب ومفتاح Gemini)' };
+}
+
+// ─── HTTP Client ──────────────────────────────────────────────────────────────
+
+function speedafRequest(method, path, body = null, retryCount = 0) {
   return new Promise(async (resolve) => {
-    const token = await getSetting('SPEEDAF_TOKEN');
+    let token = await getSetting('SPEEDAF_TOKEN');
     if (!token) {
-      resolve({ success: false, status: 0, data: null, error: 'SPEEDAF_TOKEN مش متحدد في الإعدادات' });
-      return;
+      // Try auto-login if token is missing
+      const loginRes = await autoLoginSpeedaf();
+      if (loginRes.success) {
+        token = loginRes.token;
+      } else {
+        resolve({ success: false, status: 0, data: null, error: 'SPEEDAF_TOKEN مش متحدد وفشل تسجيل الدخول التلقائي' });
+        return;
+      }
     }
 
     const url = `${BASE_URL}${path}`;
@@ -89,18 +270,23 @@ function speedafRequest(method, path, body = null) {
     const req = https.request(opts, (res) => {
       let rawData = '';
       res.on('data', c => rawData += c);
-      res.on('end', () => {
+      res.on('end', async () => {
         let data;
         try { data = JSON.parse(rawData); } catch { data = rawData; }
 
         const httpOk = res.statusCode >= 200 && res.statusCode < 300;
         const apiOk = data?.success === true;
 
-        // Token expired check
-        if (data?.error?.code === '911') {
-          console.error('[Speedaf] ❌ Token expired! Please update SPEEDAF_TOKEN.');
-          resolve({ success: false, status: res.statusCode, data, error: 'Token expired — سجل دخول من جديد وحدّث التوكن' });
-          return;
+        // Token expired check (911 or 401) — auto refresh token and retry
+        if ((data?.error?.code === '911' || res.statusCode === 401) && retryCount === 0) {
+          console.warn('[Speedaf] ⚠️ Token expired! Attempting auto-login via Gemini...');
+          const loginRes = await autoLoginSpeedaf();
+          if (loginRes.success) {
+            console.log('[Speedaf] 🔄 Retrying original request with fresh token...');
+            const retryRes = await speedafRequest(method, path, body, retryCount + 1);
+            resolve(retryRes);
+            return;
+          }
         }
 
         console.log(`[Speedaf] ← HTTP ${res.statusCode} | success: ${apiOk} | ${JSON.stringify(data).substring(0, 200)}`);
@@ -521,6 +707,11 @@ module.exports = {
   getOrderList,
   // Stats
   getSpeedafStats,
+  // Auto-Login & Captcha
+  autoLoginSpeedaf,
+  fetchSpeedafCaptcha,
+  solveCaptchaWithGemini,
+  loginSpeedafWithCaptcha,
   // Utils
   encryptPassword,
   getSenderDefaults,
