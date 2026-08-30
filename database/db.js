@@ -1026,6 +1026,24 @@ async function clearAreas() {
   await client.execute({ sql: 'DELETE FROM speedaf_area_codes', args: [] });
 }
 
+async function getSpeedafProvinces() {
+  const client = await ready();
+  const res = await client.execute({
+    sql: "SELECT code, name, name_ar FROM speedaf_area_codes WHERE level = 'province' ORDER BY name_ar ASC",
+    args: [],
+  });
+  return res.rows;
+}
+
+async function getSpeedafAreasByProvince(provinceCode) {
+  const client = await ready();
+  const res = await client.execute({
+    sql: "SELECT code, name, name_ar, parent_code FROM speedaf_area_codes WHERE parent_code = ? AND level = 'area' ORDER BY name_ar ASC",
+    args: [provinceCode],
+  });
+  return res.rows;
+}
+
 // ─── Speedaf Order Tracking ───────────────────────────────────────────────────
 
 async function updateSpeedafWaybill(orderId, waybillNo) {
@@ -1141,6 +1159,8 @@ module.exports = {
   searchAreas,
   getAreaCount,
   clearAreas,
+  getSpeedafProvinces,
+  getSpeedafAreasByProvince,
   // Speedaf tracking
   updateSpeedafWaybill,
   updateSpeedafStatus,

@@ -600,12 +600,17 @@ router.post('/:id/send-to-speedaf', async (req, res) => {
       return res.json({ success: true, message: 'Simulated — skipped Speedaf call' });
     }
 
-    // locationCodes comes from the frontend Modal (province/city/district selection)
-    const { locationCodes } = req.body;
+    // locationCodes contains { provinceCode, provinceName, districtCode, districtName }
+    const { locationCodes, customAddress } = req.body;
     if (!locationCodes || !locationCodes.provinceCode) {
-      return res.status(400).json({ success: false, error: 'اختار المحافظة والمدينة والحي الأول' });
+      return res.status(400).json({ success: false, error: 'اختار المحافظة والمنطقة أولاً' });
     }
 
+    if (customAddress) {
+      order.address = customAddress;
+    }
+
+    const { sendOrderToSpeedaf } = require('../services/speedaf');
     const result = await sendOrderToSpeedaf(order, locationCodes);
     if (result.success) {
       const now = new Date().toISOString();
@@ -621,6 +626,62 @@ router.post('/:id/send-to-speedaf', async (req, res) => {
   }
 });
 
+// GET /api/orders/speedaf/provinces — جلب كل المحافظات
+router.get('/speedaf/provinces', async (req, res) => {
+  try {
+    let provinces = await db.getSpeedafProvinces();
+    if (!provinces || provinces.length === 0) {
+      const { syncAllAreas } = require('../services/speedaf');
+      await syncAllAreas();
+      provinces = await db.getSpeedafProvinces();
+    }
+    res.json({ success: true, provinces });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/orders/speedaf/areas — جلب المناطق التابعة لمحافظة
+router.get('/speedaf/areas', async (req, res) => {
+  try {
+    const { provinceCode } = req.query;
+    if (!provinceCode) return res.status(400).json({ success: false, error: 'provinceCode مطلوب' });
+    const areas = await db.getSpeedafAreasByProvince(provinceCode);
+    res.json({ success: true, areas });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/orders/speedaf/sync-areas — مزامنة أكواد المناطق والمحافظات
+router.post('/speedaf/sync-areas', async (req, res) => {
+  try {
+    const { syncAllAreas } = require('../services/speedaf');
+    const result = await syncAllAreas();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/orders/speedaf/smart-match — مطابقة ذكية للمنطقة بالذكاء الاصطناعي
+router.post('/speedaf/smart-match', async (req, res) => {
+  try {
+    const { address, provinceCode, provinceName } = req.body || {};
+    if (!address || !provinceCode) {
+      return res.status(400).json({ success: false, error: 'address و provinceCode مطلوبان' });
+    }
+    const { matchAreaWithGemini } = require('../services/speedaf');
+    const result = await matchAreaWithGemini({ address, provinceCode, provinceName });
+    if (result && result.matched) {
+      return res.json({ success: true, area: result.matched, method: result.method });
+    }
+    res.json({ success: false, error: 'لم يتم العثور على مطابقة مؤكدة' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/orders/:id/speedaf-track — تتبع شحنة واحدة
 router.get('/:id/speedaf-track', async (req, res) => {
   try {
@@ -628,6 +689,7 @@ router.get('/:id/speedaf-track', async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (!order.speedaf_waybill) return res.status(400).json({ error: 'لا يوجد رقم بوليصة Speedaf لهذا الطلب' });
     
+    const { trackOrder } = require('../services/speedaf');
     const result = await trackOrder(order.speedaf_waybill);
     res.json(result);
   } catch (err) {

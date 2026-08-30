@@ -352,120 +352,208 @@ async function fetchSpeedafAreas(parentCode, type = 1) {
   return { success: false, areas: [], error: result.error || 'No areas returned' };
 }
 
-// ─── Egyptian Governorate Fallback ────────────────────────────────────────────
-// أكواد المحافظات المصرية المعروفة من بيانات Speedaf الحقيقية
-// بتتستخدم لو الـ API مرجعش بيانات (حساب العميل ممكن مالوش صلاحية)
 const EGYPT_GOVERNORATES_FALLBACK = [
   { code: 'EGR00160', name: 'Alexandria', nameAr: 'الإسكندرية' },
+  { code: 'EGR00161', name: 'Aswan', nameAr: 'أسوان' },
+  { code: 'EGR00162', name: 'Asyut', nameAr: 'أسيوط' },
+  { code: 'EGR00163', name: 'Behira', nameAr: 'البحيرة' },
+  { code: 'EGR00164', name: 'Beni sueif', nameAr: 'بني سويف' },
+  { code: 'EGR00165', name: 'Cairo', nameAr: 'القاهرة' },
   { code: 'EGR00166', name: 'Dakahlia', nameAr: 'الدقهلية' },
-  { code: 'EGR00161', name: 'Cairo', nameAr: 'القاهرة' },
-  { code: 'EGR00162', name: 'Giza', nameAr: 'الجيزة' },
-  { code: 'EGR00163', name: 'Qalyubia', nameAr: 'القليوبية' },
-  { code: 'EGR00164', name: 'Sharqia', nameAr: 'الشرقية' },
-  { code: 'EGR00165', name: 'Gharbia', nameAr: 'الغربية' },
-  { code: 'EGR00167', name: 'Beheira', nameAr: 'البحيرة' },
-  { code: 'EGR00168', name: 'Menoufia', nameAr: 'المنوفية' },
-  { code: 'EGR00169', name: 'Kafr El Sheikh', nameAr: 'كفر الشيخ' },
-  { code: 'EGR00170', name: 'Damietta', nameAr: 'دمياط' },
-  { code: 'EGR00171', name: 'Port Said', nameAr: 'بورسعيد' },
+  { code: 'EGR00167', name: 'Damietta', nameAr: 'دمياط' },
+  { code: 'EGR00168', name: 'Faiyum', nameAr: 'الفيوم' },
+  { code: 'EGR00169', name: 'Gharbia', nameAr: 'الغربية' },
+  { code: 'EGR00170', name: 'Giza', nameAr: 'الجيزة' },
+  { code: 'EGR00171', name: 'Hurghada', nameAr: 'البحر الأحمر' },
   { code: 'EGR00172', name: 'Ismailia', nameAr: 'الإسماعيلية' },
-  { code: 'EGR00173', name: 'Suez', nameAr: 'السويس' },
-  { code: 'EGR00174', name: 'Fayoum', nameAr: 'الفيوم' },
-  { code: 'EGR00175', name: 'Beni Suef', nameAr: 'بني سويف' },
-  { code: 'EGR00176', name: 'Minya', nameAr: 'المنيا' },
-  { code: 'EGR00177', name: 'Asyut', nameAr: 'أسيوط' },
-  { code: 'EGR00178', name: 'Sohag', nameAr: 'سوهاج' },
-  { code: 'EGR00179', name: 'Qena', nameAr: 'قنا' },
-  { code: 'EGR00180', name: 'Luxor', nameAr: 'الأقصر' },
-  { code: 'EGR00181', name: 'Aswan', nameAr: 'أسوان' },
-  { code: 'EGR00182', name: 'Red Sea', nameAr: 'البحر الأحمر' },
-  { code: 'EGR00183', name: 'New Valley', nameAr: 'الوادي الجديد' },
-  { code: 'EGR00184', name: 'Matruh', nameAr: 'مطروح' },
-  { code: 'EGR00185', name: 'North Sinai', nameAr: 'شمال سيناء' },
-  { code: 'EGR00186', name: 'South Sinai', nameAr: 'جنوب سيناء' },
+  { code: 'EGR00173', name: 'Kafer El Shikh', nameAr: 'كفر الشيخ' },
+  { code: 'EGR00174', name: 'Luxor', nameAr: 'الأقصر' },
+  { code: 'EGR00175', name: 'Matrouh', nameAr: 'مطروح' },
+  { code: 'EGR00176', name: 'Menya', nameAr: 'المنيا' },
+  { code: 'EGR00177', name: 'Monufia', nameAr: 'المنوفية' },
+  { code: 'EGR00178', name: 'New Valley', nameAr: 'الوادي الجديد' },
+  { code: 'EGR00179', name: 'Port said', nameAr: 'بورسعيد' },
+  { code: 'EGR00180', name: 'Qalyubiyya', nameAr: 'القليوبية' },
+  { code: 'EGR00181', name: 'Qena', nameAr: 'قنا' },
+  { code: 'EGR00182', name: 'Sharqia', nameAr: 'الشرقية' },
+  { code: 'EGR00183', name: 'Sohag', nameAr: 'سوهاج' },
+  { code: 'EGR00184', name: 'South Sinai', nameAr: 'جنوب سيناء' },
+  { code: 'EGR00185', name: 'Suez', nameAr: 'السويس' },
 ];
 
+const GOV_AR_NAMES = {
+  'EGR00160': 'الإسكندرية',
+  'EGR00161': 'أسوان',
+  'EGR00162': 'أسيوط',
+  'EGR00163': 'البحيرة',
+  'EGR00164': 'بني سويف',
+  'EGR00165': 'القاهرة',
+  'EGR00166': 'الدقهلية',
+  'EGR00167': 'دمياط',
+  'EGR00168': 'الفيوم',
+  'EGR00169': 'الغربية',
+  'EGR00170': 'الجيزة',
+  'EGR00171': 'البحر الأحمر',
+  'EGR00172': 'الإسماعيلية',
+  'EGR00173': 'كفر الشيخ',
+  'EGR00174': 'الأقصر',
+  'EGR00175': 'مطروح',
+  'EGR00176': 'المنيا',
+  'EGR00177': 'المنوفية',
+  'EGR00178': 'الوادي الجديد',
+  'EGR00179': 'بورسعيد',
+  'EGR00180': 'القليوبية',
+  'EGR00181': 'قنا',
+  'EGR00182': 'الشرقية',
+  'EGR00183': 'سوهاج',
+  'EGR00184': 'جنوب سيناء',
+  'EGR00185': 'السويس',
+};
+
+async function fetchSpeedafAreas(parentCode = 'EG', type = 1) {
+  const result = await speedafRequest('GET', '/common/area/listAreaByCountryCode?countryCode=EG');
+  if (result.success && Array.isArray(result.data?.data) && result.data.data.length > 0) {
+    return { success: true, areas: result.data.data };
+  }
+  return { success: false, areas: [], error: result.error || 'No areas returned' };
+}
+
 /**
- * مزامنة كل أكواد المناطق من Speedaf وتخزينها في DB
- * المستويات: country → province → city → district
+ * مزامنة كل أكواد المحافظات والمناطق من Speedaf وتخزينها في DB
  */
 async function syncAllAreas() {
-  console.log('[Speedaf] 🔄 Starting full area sync...');
+  console.log('[Speedaf] 🔄 Starting full area sync from Speedaf Direct API...');
   let totalSynced = 0;
 
-  // Level 1: Provinces (محافظات) — children of EG
-  let provinces = [];
-  const provResult = await fetchSpeedafAreas('EG', 1);
-  
-  if (provResult.success && provResult.areas.length > 0) {
-    provinces = provResult.areas;
-    console.log(`[Speedaf] ✅ Got ${provinces.length} provinces from API`);
-  } else {
-    // Fallback: use hardcoded Egyptian governorates
-    console.log('[Speedaf] ⚠️ API returned no provinces — using fallback data');
-    provinces = EGYPT_GOVERNORATES_FALLBACK.map(g => ({
-      code: g.code, name: g.name, nameLocal: g.nameAr
-    }));
-  }
+  const result = await speedafRequest('GET', '/common/area/listAreaByCountryCode?countryCode=EG');
+  const allAreas = result.success && Array.isArray(result.data?.data) ? result.data.data : [];
 
-  for (const prov of provinces) {
+  // Clear existing
+  await db.clearAreas().catch(() => {});
+
+  // 1. Save all 27 provinces
+  for (const g of EGYPT_GOVERNORATES_FALLBACK) {
     await db.upsertAreaCode({
-      code: prov.code,
-      name: prov.name,
-      nameAr: prov.nameLocal || prov.nameAr || prov.name,
+      code: g.code,
+      name: g.name,
+      nameAr: g.nameAr,
       parentCode: 'EG',
       level: 'province',
-      fullPath: prov.nameLocal || prov.nameAr || prov.name,
+      fullPath: g.nameAr,
     });
     totalSynced++;
-
-    // Level 2: Cities — children of province
-    const cityResult = await fetchSpeedafAreas(prov.code, 2);
-    if (cityResult.success) {
-      for (const city of cityResult.areas) {
-        const provName = prov.nameLocal || prov.nameAr || prov.name;
-        const cityName = city.nameLocal || city.name;
-        await db.upsertAreaCode({
-          code: city.code,
-          name: city.name,
-          nameAr: city.nameLocal || city.name,
-          parentCode: prov.code,
-          level: 'city',
-          fullPath: `${provName} > ${cityName}`,
-        });
-        totalSynced++;
-
-        // Level 3: Districts — children of city
-        const distResult = await fetchSpeedafAreas(city.code, 3);
-        if (distResult.success) {
-          for (const dist of distResult.areas) {
-            await db.upsertAreaCode({
-              code: dist.code,
-              name: dist.name,
-              nameAr: dist.nameLocal || dist.name,
-              parentCode: city.code,
-              level: 'district',
-              fullPath: `${provName} > ${cityName} > ${dist.nameLocal || dist.name}`,
-            });
-            totalSynced++;
-          }
-        }
-      }
-    }
-    console.log(`[Speedaf] ✅ Province "${prov.nameLocal || prov.name}" synced (total: ${totalSynced})`);
   }
 
-  console.log(`[Speedaf] 🎉 Area sync complete — ${totalSynced} areas synced`);
+  // 2. Save all individual areas/districts
+  if (allAreas.length > 0) {
+    for (const item of allAreas) {
+      const pCode = item.provinceCode;
+      const pNameAr = GOV_AR_NAMES[pCode] || item.provinceName || 'مصر';
+      const areaAr = item.arName || item.name;
+
+      await db.upsertAreaCode({
+        code: item.code,
+        name: item.name || item.enName || item.arName,
+        nameAr: areaAr,
+        parentCode: pCode,
+        level: 'area',
+        fullPath: `${pNameAr} > ${areaAr}`,
+      });
+      totalSynced++;
+    }
+    console.log(`[Speedaf] 🎉 Synced ${totalSynced} Egyptian provinces & areas successfully!`);
+  } else {
+    console.log(`[Speedaf] ⚠️ Using fallback governorates list (synced ${totalSynced})`);
+  }
+
   return { success: true, synced: totalSynced };
 }
 
 /**
- * مطابقة اسم المحافظة (من الأوردر) مع كود Speedaf
+ * مطابقة اسم المحافظة أو المنطقة من العنوان مع كود Speedaf
  */
-async function matchGovernorateToSpeedafCode(governorateName) {
-  if (!governorateName) return null;
-  const areas = await db.searchAreas(governorateName.trim(), 'province');
-  return areas.length > 0 ? areas[0] : null;
+async function matchGovernorateToSpeedafCode(addressText) {
+  if (!addressText) return null;
+  const clean = addressText.trim();
+
+  // Try exact match on province
+  const provinces = await db.searchAreas(clean, 'province');
+  if (provinces.length > 0) return provinces[0];
+
+  // Try matching any known governorate in text
+  for (const g of EGYPT_GOVERNORATES_FALLBACK) {
+    if (clean.includes(g.nameAr) || clean.toLowerCase().includes(g.name.toLowerCase())) {
+      return { code: g.code, name: g.name, name_ar: g.nameAr };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * مطابقة المنطقة الذكية بالذكاء الاصطناعي (Gemini)
+ * تحلل العنوان وتطابقه مع القائمة الرسمية لمناطق المحافظة في Speedaf
+ */
+async function matchAreaWithGemini({ address, provinceCode, provinceName = '' }) {
+  if (!address || !provinceCode) return null;
+  const cleanAddr = address.trim();
+
+  // 1. Get official areas for this province
+  const areas = await db.getSpeedafAreasByProvince(provinceCode);
+  if (!areas || areas.length === 0) return null;
+
+  // 2. Fast direct match (if customer wrote the exact area name)
+  for (const a of areas) {
+    const aName = a.name_ar || a.name;
+    if (aName && cleanAddr.includes(aName)) {
+      return { matched: a, method: 'direct' };
+    }
+  }
+
+  // 3. Smart Gemini AI Matching
+  const geminiKey = await db.getSetting('GEMINI_API_KEY');
+  if (!geminiKey) return null;
+
+  const areaNames = areas.map(a => a.name_ar || a.name);
+  const pName = provinceName || (await db.getAreaByCode(provinceCode))?.name_ar || 'المحافظة';
+
+  const prompt = `أنت خبير في الجغرافيا والمناطق والمراكز والأحياء المصرية.
+لدينا عنوان عميل مصري في محافظة "${pName}":
+"${cleanAddr}"
+
+اختر أدق منطقة أو مركز أو حي يتبع له هذا العنوان من القائمة الرسمية المعتمدة التالية فقط:
+[${areaNames.join(', ')}]
+
+أجب باسم المنطقة فقط تماماً كما هو مكتوب في القائمة، بدون أي كلمات إضافية أو علامات ترقيم.`;
+
+  const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash'];
+
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+      };
+
+      const res = await httpPost(url, payload, { 'x-goog-api-key': geminiKey });
+      if (res.status === 200 && res.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        const reply = res.data.candidates[0].content.parts[0].text.trim();
+        const found = areas.find(a => {
+          const aName = a.name_ar || a.name;
+          return aName === reply || reply.includes(aName) || aName.includes(reply);
+        });
+        if (found) {
+          console.log(`[Speedaf/SmartMatch] 🤖 Gemini (${model}) matched "${cleanAddr}" → "${found.name_ar}" (${found.code})`);
+          return { matched: found, method: 'gemini', model };
+        }
+      }
+    } catch (e) {
+      console.warn(`[Speedaf/SmartMatch] Model ${model} failed:`, e.message);
+    }
+  }
+
+  return null;
 }
 
 // ─── Sender Defaults ──────────────────────────────────────────────────────────
@@ -716,6 +804,7 @@ module.exports = {
   fetchSpeedafAreas,
   syncAllAreas,
   matchGovernorateToSpeedafCode,
+  matchAreaWithGemini,
   // Tracking
   trackOrder,
   trackAllActiveOrders,

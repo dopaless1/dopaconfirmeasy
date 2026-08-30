@@ -637,7 +637,7 @@
 
 <!-- ─── Speedaf Shipping Modal ────────────── -->
 <div class="modal-overlay" id="speedaf-modal">
-  <div class="modal" style="max-width:520px">
+  <div class="modal" style="max-width:540px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <h2 class="modal-title" style="margin-bottom:0">📦 إرسال الشحنة لـ Speedaf</h2>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('speedaf-modal')">✕</button>
@@ -651,31 +651,47 @@
         <span style="font-weight:700;color:var(--primary-color)" id="speedaf-modal-total">0 EGP</span>
       </div>
       <div style="font-size:13px;color:var(--text-secondary)" id="speedaf-modal-customer">العميل: —</div>
-      <div style="font-size:13px;color:var(--text-primary);margin-top:4px;font-weight:600" id="speedaf-modal-address">العنوان: —</div>
+      <div style="font-size:13px;color:var(--text-primary);margin-top:4px;font-weight:600" id="speedaf-modal-address">العنوان المسجل: —</div>
     </div>
 
+    <!-- Dropdown 1: المدينة / المحافظة -->
     <div class="form-group" style="margin-bottom:12px">
-      <label class="form-label" style="font-weight:600">المحافظة (Governorate / Province)</label>
-      <select id="speedaf-modal-province" class="form-input" onchange="onSpeedafModalProvinceChange()" style="padding:8px 12px;font-size:14px">
+      <label class="form-label" style="font-weight:600">
+        <span style="color:#ef4444">*</span> مدينة / محافظة (Province)
+      </label>
+      <select id="speedaf-modal-province" class="form-input" onchange="onSpeedafModalProvinceChange()" style="padding:10px 12px;font-size:14px;font-weight:500">
         <option value="">-- اختار المحافظة --</option>
       </select>
     </div>
 
+    <!-- Dropdown 2: المنطقة التابعة للمحافظة -->
     <div class="form-group" style="margin-bottom:12px">
-      <label class="form-label" style="font-weight:600">المدينة / المركز (City)</label>
-      <input type="text" id="speedaf-modal-city" class="form-input" placeholder="اسم المدينة (مثال: المنصورة)" style="padding:8px 12px;font-size:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <label class="form-label" style="font-weight:600;margin-bottom:0">
+          <span style="color:#ef4444">*</span> منطقة (Area inside Province)
+        </label>
+        <span id="speedaf-modal-ai-badge" style="display:none;font-size:12px;color:#8b5cf6;font-weight:600;background:rgba(139,92,246,0.1);padding:2px 8px;border-radius:12px">
+          ✨ تم التحديد عبر Gemini AI
+        </span>
+      </div>
+      <select id="speedaf-modal-area" class="form-input" style="padding:10px 12px;font-size:14px;font-weight:500">
+        <option value="">-- يرجى اختيار المحافظة أولاً --</option>
+      </select>
     </div>
 
+    <!-- Input 3: عنوان المرسل إليه التفصيلي -->
     <div class="form-group" style="margin-bottom:16px">
-      <label class="form-label" style="font-weight:600">الحي / المنطقة (District / Area)</label>
-      <input type="text" id="speedaf-modal-district" class="form-input" placeholder="اسم الحي أو القرية (مثال: شارع المشاية / حي الجامعة)" style="padding:8px 12px;font-size:14px">
+      <label class="form-label" style="font-weight:600">
+        <span style="color:#ef4444">*</span> عنوان المرسل إليه التفصيلي (Street Address)
+      </label>
+      <textarea id="speedaf-modal-street" class="form-input" rows="2" placeholder="الشارع، رقم العمارة، الشقة، علامة مميزة..." style="padding:10px 12px;font-size:14px;resize:vertical"></textarea>
     </div>
 
     <div class="test-result" id="speedaf-modal-result" style="margin-bottom:14px"></div>
 
     <div style="display:flex;justify-content:flex-end;gap:10px">
       <button class="btn btn-ghost" onclick="closeModal('speedaf-modal')">إلغاء</button>
-      <button class="btn btn-primary" onclick="executeSendToSpeedaf()" id="speedaf-modal-submit-btn" style="background:#f97316;border-color:#f97316">
+      <button class="btn btn-primary" onclick="executeSendToSpeedaf()" id="speedaf-modal-submit-btn" style="background:#f97316;border-color:#f97316;padding:10px 20px;font-size:15px;font-weight:700">
         📦 إنشاء بوليصة Speedaf الآن
       </button>
     </div>
@@ -2550,21 +2566,105 @@ async function importFromEasyOrders() {
 }
 
 // ─── Speedaf Modal & Dispatch ──────────────────────────────────────────────
-let cachedProvinces = [];
+let cachedSpeedafProvinces = [];
+const cachedSpeedafAreasMap = {};
 
 async function loadSpeedafProvinces() {
-  if (cachedProvinces.length > 0) return cachedProvinces;
+  if (cachedSpeedafProvinces.length > 0) return cachedSpeedafProvinces;
   try {
-    const res = await fetch('/api/orders/speedaf/areas/EG');
+    const res = await fetch('/api/orders/speedaf/provinces');
     const data = await res.json();
-    if (data.success && Array.isArray(data.areas)) {
-      cachedProvinces = data.areas;
-      return cachedProvinces;
+    if (data.success && Array.isArray(data.provinces)) {
+      cachedSpeedafProvinces = data.provinces;
+      return cachedSpeedafProvinces;
     }
   } catch (e) {
     console.error('Failed to load Speedaf provinces:', e);
   }
   return [];
+}
+
+async function loadSpeedafAreas(provinceCode) {
+  if (!provinceCode) return [];
+  if (cachedSpeedafAreasMap[provinceCode]) return cachedSpeedafAreasMap[provinceCode];
+  try {
+    const res = await fetch(`/api/orders/speedaf/areas?provinceCode=${encodeURIComponent(provinceCode)}`);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.areas)) {
+      cachedSpeedafAreasMap[provinceCode] = data.areas;
+      return data.areas;
+    }
+  } catch (e) {
+    console.error('Failed to load Speedaf areas:', e);
+  }
+  return [];
+}
+
+async function onSpeedafModalProvinceChange(fullAddress = null) {
+  const provSelect = document.getElementById('speedaf-modal-province');
+  const areaSelect = document.getElementById('speedaf-modal-area');
+  const aiBadge = document.getElementById('speedaf-modal-ai-badge');
+  const provinceCode = provSelect.value;
+  const provinceName = provSelect.options[provSelect.selectedIndex]?.dataset?.name || '';
+
+  if (aiBadge) aiBadge.style.display = 'none';
+
+  if (!provinceCode) {
+    areaSelect.innerHTML = '<option value="">-- يرجى اختيار المحافظة أولاً --</option>';
+    return;
+  }
+
+  areaSelect.innerHTML = '<option value="">⏳ جارٍ تحميل المناطق...</option>';
+  areaSelect.disabled = true;
+
+  const areas = await loadSpeedafAreas(provinceCode);
+  areaSelect.innerHTML = '<option value="">-- اختار المنطقة / المركز --</option>';
+
+  let matched = false;
+  const addrClean = (fullAddress || document.getElementById('speedaf-modal-street')?.value || '').toLowerCase();
+
+  areas.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.code;
+    const aName = a.name_ar || a.name;
+    opt.textContent = aName;
+    opt.dataset.name = aName;
+
+    if (addrClean && (addrClean.includes(aName.toLowerCase()) || aName.toLowerCase().includes(addrClean))) {
+      opt.selected = true;
+      matched = true;
+    }
+    areaSelect.appendChild(opt);
+  });
+
+  areaSelect.disabled = false;
+
+  // If not directly matched by text and we have an address, ask Gemini AI in background
+  if (!matched && addrClean && addrClean.length > 5) {
+    if (aiBadge) {
+      aiBadge.style.display = 'inline-block';
+      aiBadge.textContent = '🤖 جارٍ المطابقة الذكية بالذكاء الاصطناعي...';
+    }
+    try {
+      const res = await fetch('/api/orders/speedaf/smart-match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: addrClean, provinceCode, provinceName })
+      });
+      const data = await res.json();
+      if (data.success && data.area?.code) {
+        areaSelect.value = data.area.code;
+        if (aiBadge) {
+          aiBadge.style.display = 'inline-block';
+          aiBadge.textContent = `✨ تم تحديد (${data.area.name_ar}) عبر Gemini AI`;
+        }
+      } else {
+        if (aiBadge) aiBadge.style.display = 'none';
+      }
+    } catch {
+      if (aiBadge) aiBadge.style.display = 'none';
+    }
+  }
 }
 
 async function openSpeedafModal(orderId) {
@@ -2575,78 +2675,96 @@ async function openSpeedafModal(orderId) {
   document.getElementById('speedaf-modal-order-num').textContent = order.order_number;
   document.getElementById('speedaf-modal-total').textContent = order.total || '0 EGP';
   document.getElementById('speedaf-modal-customer').textContent = `العميل: ${order.customer_name || '—'} (${order.customer_phone || '—'})`;
-  document.getElementById('speedaf-modal-address').textContent = `العنوان: ${order.address || '—'}`;
+  document.getElementById('speedaf-modal-address').textContent = `العنوان المسجل: ${order.address || '—'}`;
   
   const resultEl = document.getElementById('speedaf-modal-result');
   resultEl.className = 'test-result';
   resultEl.textContent = '';
 
   const provSelect = document.getElementById('speedaf-modal-province');
-  provSelect.innerHTML = '<option value="">-- اختار المحافظة --</option>';
+  const areaSelect = document.getElementById('speedaf-modal-area');
+  const streetInput = document.getElementById('speedaf-modal-street');
+
+  provSelect.innerHTML = '<option value="">⏳ جارٍ تحميل المحافظات...</option>';
+  areaSelect.innerHTML = '<option value="">-- يرجى اختيار المحافظة أولاً --</option>';
+  streetInput.value = order.address || '';
 
   const provinces = await loadSpeedafProvinces();
+  provSelect.innerHTML = '<option value="">-- اختار المحافظة --</option>';
+
+  let matchedProvinceCode = '';
+  const fullAddress = (order.address || '').toLowerCase();
+
   provinces.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.code;
-    opt.textContent = p.name_ar || p.nameLocal || p.name;
-    opt.dataset.name = p.name_ar || p.nameLocal || p.name;
+    const pName = p.name_ar || p.name;
+    opt.textContent = pName;
+    opt.dataset.name = pName;
+
+    if (!matchedProvinceCode && pName && fullAddress.includes(pName.toLowerCase())) {
+      matchedProvinceCode = p.code;
+    }
     provSelect.appendChild(opt);
   });
 
-  // Auto-match governorate from order address
-  if (order.address) {
-    const addr = order.address.toLowerCase();
-    for (const p of provinces) {
-      const pName = (p.name_ar || p.nameLocal || p.name || '').toLowerCase();
-      if (pName && addr.includes(pName)) {
-        provSelect.value = p.code;
-        break;
-      }
-    }
+  if (matchedProvinceCode) {
+    provSelect.value = matchedProvinceCode;
+    await onSpeedafModalProvinceChange(fullAddress);
   }
 
-  // Pre-fill city / district if extracted from address
-  const addrParts = (order.address || '').split(/[-–,،]/).map(s => s.trim()).filter(Boolean);
-  document.getElementById('speedaf-modal-city').value = addrParts[1] || addrParts[0] || '';
-  document.getElementById('speedaf-modal-district').value = addrParts[2] || addrParts[1] || '';
-
   openModal('speedaf-modal');
-}
-
-function onSpeedafModalProvinceChange() {
-  // Can be extended to load cities dynamically
 }
 
 async function executeSendToSpeedaf() {
   const orderId = document.getElementById('speedaf-modal-order-id').value;
   const provSelect = document.getElementById('speedaf-modal-province');
+  const areaSelect = document.getElementById('speedaf-modal-area');
+  const streetInput = document.getElementById('speedaf-modal-street');
+
   const provinceCode = provSelect.value;
   const provinceName = provSelect.options[provSelect.selectedIndex]?.dataset?.name || provSelect.options[provSelect.selectedIndex]?.text || '';
-  const cityName = document.getElementById('speedaf-modal-city').value.trim();
-  const districtName = document.getElementById('speedaf-modal-district').value.trim();
+  const districtCode = areaSelect.value;
+  const districtName = areaSelect.options[areaSelect.selectedIndex]?.dataset?.name || areaSelect.options[areaSelect.selectedIndex]?.text || '';
+  const customAddress = streetInput.value.trim();
 
   if (!provinceCode) {
-    showToast('⚠️ اختار المحافظة أولاً', 'warning');
+    showToast('⚠️ يرجى اختيار المحافظة', 'warning');
+    provSelect.focus();
+    return;
+  }
+
+  if (!districtCode) {
+    showToast('⚠️ يرجى اختيار المنطقة داخل المحافظة', 'warning');
+    areaSelect.focus();
+    return;
+  }
+
+  if (!customAddress) {
+    showToast('⚠️ يرجى كتابة عنوان الشارع التفصيلي', 'warning');
+    streetInput.focus();
     return;
   }
 
   const btn = document.getElementById('speedaf-modal-submit-btn');
   const resultEl = document.getElementById('speedaf-modal-result');
   btn.disabled = true;
-  btn.textContent = '⏳ جاري إرسال الشحنة...';
+  btn.textContent = '⏳ جارٍ إنشاء البوليصة في Speedaf...';
 
   try {
     const locationCodes = {
       provinceCode,
       provinceName,
-      cityName,
+      districtCode,
       districtName,
+      cityName: districtName,
+      cityCode: districtCode,
     };
 
     const res = await fetch(`/api/orders/${orderId}/send-to-speedaf`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ locationCodes })
+      body: JSON.stringify({ locationCodes, customAddress })
     });
 
     const data = await res.json();
@@ -2654,13 +2772,13 @@ async function executeSendToSpeedaf() {
     resultEl.className = 'test-result visible ' + (data.success ? '' : 'error');
 
     if (data.success) {
-      showToast('✅ تم إنشاء شحنة Speedaf بنجاح!' + (data.waybillNo ? ` رقم البوليصة: ${data.waybillNo}` : ''), 'success');
+      showToast('🎉 تم إنشاء بوليصة Speedaf بنجاح!' + (data.waybillNo ? ` رقم البوليصة: ${data.waybillNo}` : ''), 'success');
       setTimeout(() => {
         closeModal('speedaf-modal');
         loadOrders();
       }, 1500);
     } else {
-      showToast('❌ فشل إرسال الشحنة لـ Speedaf: ' + (data.error || 'خطأ'), 'error');
+      showToast('❌ فشل إرسال الشحنة: ' + (data.error || 'خطأ'), 'error');
     }
   } catch (err) {
     resultEl.textContent = 'خطأ: ' + err.message;
