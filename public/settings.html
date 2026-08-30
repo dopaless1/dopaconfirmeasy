@@ -939,16 +939,27 @@ async function testEasyOrders() {
 async function autoLoginSpeedafFromSettings() {
   const btn = document.getElementById('autologin-speedaf-btn');
   const result = document.getElementById('speedaf-test-result');
+  const geminiKey = document.getElementById('GEMINI_API_KEY')?.value?.trim();
+  const account = document.getElementById('SPEEDAF_ACCOUNT')?.value?.trim() || 'EG004774001';
+  const password = document.getElementById('SPEEDAF_PASSWORD')?.value?.trim() || 'DAP786786';
+
+  if (!geminiKey) {
+    showToast('⚠️ يرجى كتابة Google Gemini API Key أولاً (احصل عليه مجاناً من Google AI Studio)', 'warning');
+    document.getElementById('GEMINI_API_KEY')?.focus();
+    return;
+  }
+
   btn.disabled = true;
   btn.textContent = '⏳ جارٍ حل الكابتشا وتسجيل الدخول...';
   result.className = 'test-result visible';
-  result.textContent = 'جارٍ جلب الكابتشا من Speedaf وتحليلها عبر Google Gemini AI...';
+  result.textContent = 'جارٍ جلب الكابتشا من Speedaf وتحليلها بدقة عبر Google Gemini AI...';
 
   try {
-    // Save current settings first so server uses newly typed key/creds
-    await saveAllSettings(true);
-
-    const res = await fetch('/api/orders/speedaf/auto-login', { method: 'POST' });
+    const res = await fetch('/api/orders/speedaf/auto-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ geminiApiKey: geminiKey, account, password })
+    });
     const data = await res.json();
     result.textContent = JSON.stringify(data, null, 2);
     result.className = 'test-result visible ' + (data.success ? '' : 'error');

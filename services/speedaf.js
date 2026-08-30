@@ -81,6 +81,7 @@ function httpPost(url, data, headers = {}) {
         catch { resolve({ status: res.statusCode, data: body, headers: res.headers }); }
       });
     });
+    req.setTimeout(10000, () => { req.destroy(); resolve({ status: 0, error: 'Timeout' }); });
     req.on('error', (e) => resolve({ status: 0, error: e.message }));
     req.write(postData);
     req.end();
@@ -90,7 +91,7 @@ function httpPost(url, data, headers = {}) {
 function httpGet(url, headers = {}) {
   return new Promise((resolve) => {
     const u = new URL(url);
-    https.get({
+    const req = https.get({
       hostname: u.hostname,
       port: 443,
       path: u.pathname + u.search,
@@ -102,7 +103,9 @@ function httpGet(url, headers = {}) {
         try { resolve({ status: res.statusCode, data: JSON.parse(body), headers: res.headers }); }
         catch { resolve({ status: res.statusCode, data: body, headers: res.headers }); }
       });
-    }).on('error', (e) => resolve({ status: 0, error: e.message }));
+    });
+    req.setTimeout(10000, () => { req.destroy(); resolve({ status: 0, error: 'Timeout' }); });
+    req.on('error', (e) => resolve({ status: 0, error: e.message }));
   });
 }
 
@@ -119,16 +122,17 @@ async function fetchSpeedafCaptcha() {
 }
 
 async function solveCaptchaWithGemini(base64Image, geminiApiKey) {
-  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+  // Pool of distinct models each with their own separate RPM quotas
+  const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash'];
   for (const model of models) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const payload = {
         contents: [
           {
             parts: [
               {
-                text: 'Read the exact 4-character alphanumeric captcha code in this image. Return ONLY the 4 characters, uppercase letters and digits, no extra text, no spaces.'
+                text: 'Read the exact 4-character alphanumeric captcha code in this image. Return ONLY the 4 characters, uppercase letters and digits, no extra text, no spaces, no punctuation.'
               },
               {
                 inline_data: {
@@ -145,10 +149,12 @@ async function solveCaptchaWithGemini(base64Image, geminiApiKey) {
         }
       };
 
-      const res = await httpPost(url, payload);
+      const res = await httpPost(url, payload, { 'x-goog-api-key': geminiApiKey });
       if (res.status === 200 && res.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
         const text = res.data.candidates[0].content.parts[0].text.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         if (text.length >= 4) return text.substring(0, 4);
+      } else if (res.status === 429) {
+        console.warn(`[Speedaf/Gemini] Model ${model} reached rate limit, switching to next model...`);
       }
     } catch (e) {
       console.warn(`[Speedaf/Gemini] Model ${model} failed:`, e.message);
@@ -174,19 +180,28 @@ async function loginSpeedafWithCaptcha(account, password, verifyCode, uuid) {
 /**
  * تسجيل الدخول التلقائي لـ Speedaf وحل الكابتشا عبر Gemini
  */
-async function autoLoginSpeedaf(maxRetries = 3) {
-  const geminiKey = await getSetting('GEMINI_API_KEY');
-  const account = (await getSetting('SPEEDAF_ACCOUNT')) || 'EG004774001';
-  const password = (await getSetting('SPEEDAF_PASSWORD')) || 'DAP786786';
+async function autoLoginSpeedaf(maxRetries = 3, overrides = {}) {
+  const geminiKey = overrides.geminiApiKey || (await getSetting('GEMINI_API_KEY'));
+  const account = overrides.account || (await getSetting('SPEEDAF_ACCOUNT')) || 'EG004774001';
+  const password = overrides.password || (await getSetting('SPEEDAF_PASSWORD')) || 'DAP786786';
 
   if (!geminiKey) {
     return { success: false, error: 'GEMINI_API_KEY غير محدد في الإعدادات لحل الكابتشا تلقائياً' };
   }
 
+  // Save them if provided in overrides
+  if (overrides.geminiApiKey) db.setSetting('GEMINI_API_KEY', overrides.geminiApiKey).catch(() => {});
+  if (overrides.account) db.setSetting('SPEEDAF_ACCOUNT', overrides.account).catch(() => {});
+  if (overrides.password) db.setSetting('SPEEDAF_PASSWORD', overrides.password).catch(() => {});
+
   console.log(`[Speedaf/AutoLogin] Starting auto-login for account: ${account}...`);
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      if (attempt > 1) {
+        console.log('[Speedaf/AutoLogin] Waiting 2.5s before retry...');
+        await new Promise(r => setTimeout(r, 2500));
+      }
       console.log(`[Speedaf/AutoLogin] Attempt ${attempt}/${maxRetries}: Fetching captcha...`);
       const captcha = await fetchSpeedafCaptcha();
       if (!captcha) {

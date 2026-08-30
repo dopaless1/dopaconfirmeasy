@@ -639,7 +639,8 @@ router.get('/:id/speedaf-track', async (req, res) => {
 router.post('/speedaf/auto-login', async (req, res) => {
   try {
     const { autoLoginSpeedaf } = require('../services/speedaf');
-    const result = await autoLoginSpeedaf();
+    const { geminiApiKey, account, password } = req.body || {};
+    const result = await autoLoginSpeedaf(3, { geminiApiKey, account, password });
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
