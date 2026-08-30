@@ -448,6 +448,14 @@ async function getAllOrders(filters = {}) {
     }
   }
 
+  if (filters.source && filters.source !== 'all' && filters.source !== 'both') {
+    if (filters.source === 'easyorders') {
+      sql += " AND (source = 'easyorders' OR source = 'easy_orders')";
+    } else if (filters.source === 'shopify') {
+      sql += " AND (source = 'shopify' OR source IS NULL OR source = '')";
+    }
+  }
+
   const sortOrder = filters.sort === 'asc' ? 'ASC' : 'DESC';
   // Sorting by actual Shopify creation time ensures correct order regardless of import batches
   sql += ` ORDER BY COALESCE(json_extract(raw_payload, '$.created_at'), created_at) ${sortOrder}`;
@@ -506,8 +514,19 @@ async function deleteOrderByShopifyId(shopifyOrderId) {
   return client.execute({ sql: 'DELETE FROM orders WHERE shopify_order_id = ?', args: [String(shopifyOrderId)] });
 }
 
-async function getOrderStats() {
+async function getOrderStats(filters = {}) {
   const client = getDb();
+  let where = 'WHERE deleted_at IS NULL';
+  const args = [];
+
+  if (filters && filters.source && filters.source !== 'all' && filters.source !== 'both') {
+    if (filters.source === 'easyorders') {
+      where += " AND (source = 'easyorders' OR source = 'easy_orders')";
+    } else if (filters.source === 'shopify') {
+      where += " AND (source = 'shopify' OR source IS NULL OR source = '')";
+    }
+  }
+
   const res = await client.execute({
     sql: `SELECT
       COUNT(*) as total,
@@ -519,8 +538,8 @@ async function getOrderStats() {
       COALESCE(SUM(CASE WHEN status = 'whatsapp_failed' THEN 1 ELSE 0 END),0) as whatsapp_failed,
       COALESCE(SUM(CASE WHEN status = 'shipping_failed' THEN 1 ELSE 0 END),0) as shipping_failed
     FROM orders
-    WHERE deleted_at IS NULL`,
-    args: [],
+    ${where}`,
+    args,
   });
   return res.rows[0] || {};
 }

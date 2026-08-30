@@ -885,18 +885,18 @@ async function testEasyOrders() {
   btn.disabled = true;
   btn.textContent = '⏳ جارٍ الفحص...';
   result.className = 'test-result visible';
-  result.textContent = 'جارٍ فحص الـ API Key الخاص بـ Easy Orders...';
+  result.textContent = 'جارٍ فحص الـ Public API Key الخاص بـ Easy Orders...';
 
   try {
-    const res = await fetch('/api/orders/import-from-easyorders?limit=1', { method: 'POST' });
+    const res = await fetch('/api/orders/easyorders/test');
     const data = await res.json();
     result.textContent = JSON.stringify(data, null, 2);
     result.className = 'test-result visible ' + (data.success ? '' : 'error');
 
     if (data.success) {
-      showToast('✅ متصل بـ Easy Orders بنجاح (إجمالي: ' + (data.total || 0) + ' طلب)', 'success');
+      showToast('✅ متصل بـ Easy Orders بنجاح عبر Public API Key!', 'success');
     } else {
-      showToast('💡 ملاحظة: الربط التلقائي يعمل عبر الـ Webhook بدون الحاجة لـ API Key', 'info');
+      showToast('❌ فشل فحص الـ API Key: ' + (data.error || 'خطأ'), 'error');
     }
   } catch (err) {
     result.textContent = 'خطأ: ' + err.message;

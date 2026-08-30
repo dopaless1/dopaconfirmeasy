@@ -12,7 +12,7 @@
 const axios = require('axios');
 const db = require('../database/db');
 
-const DEFAULT_BASE_URL = 'https://api.easy-orders.net/api/v1';
+const DEFAULT_BASE_URL = 'https://api.easy-orders.net/api/v1/external-apps';
 
 async function getApiKey() {
   const key = await db.getSetting('EASYORDERS_API_KEY').catch(() => null);
@@ -21,7 +21,14 @@ async function getApiKey() {
 
 async function getBaseUrl() {
   const url = await db.getSetting('EASYORDERS_BASE_URL').catch(() => null);
-  return (url || process.env.EASYORDERS_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
+  let base = (url || process.env.EASYORDERS_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
+  // Auto-correct if user enters root api/v1 without external-apps
+  if (base.endsWith('/api/v1')) {
+    base += '/external-apps';
+  } else if (!base.includes('external-apps') && base.includes('api.easy-orders.net')) {
+    base = 'https://api.easy-orders.net/api/v1/external-apps';
+  }
+  return base;
 }
 
 /**
@@ -37,8 +44,8 @@ async function getClient() {
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'Api-Key': apiKey,
       'api-key': apiKey,
-      'x-api-key': apiKey,
       'Authorization': `Bearer ${apiKey}`,
     },
   });
@@ -249,17 +256,24 @@ async function cancelEasyOrder(orderId, reason = 'customer') {
 async function testEasyOrdersConnection() {
   const apiKey = await getApiKey();
   if (!apiKey) {
-    return { success: false, error: 'EASYORDERS_API_KEY is not configured in settings' };
+    return { success: false, error: 'EASYORDERS_API_KEY غير موجود في الإعدادات' };
   }
 
   try {
     const client = await getClient();
-    const response = await client.get('/orders', { params: { limit: 1 } });
-    return { success: true, message: 'Connected to Easy Orders successfully', status: response.status };
+    // Try products endpoint first (standard check in Easy Orders external-apps API)
+    try {
+      const prodRes = await client.get('/products', { params: { limit: 1 } });
+      return { success: true, message: 'متصل بـ Easy Orders بنجاح عبر Public API', status: prodRes.status };
+    } catch (prodErr) {
+      const orderRes = await client.get('/orders', { params: { limit: 1 } });
+      return { success: true, message: 'متصل بـ Easy Orders بنجاح', status: orderRes.status };
+    }
   } catch (err) {
     return {
       success: false,
       error: err.response?.data?.message || err.message || `HTTP ${err.response?.status}`,
+      status: err.response?.status,
     };
   }
 }

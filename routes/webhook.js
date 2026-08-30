@@ -121,8 +121,21 @@ router.post('/easyorders', async (req, res) => {
 });
 
 async function handleNewEasyOrder(payload, topic = 'order.created') {
-  const parsed = parseEasyOrder(payload);
+  let parsed = parseEasyOrder(payload);
   if (!parsed.easyorders_id) return;
+
+  // If payload from webhook was minimal (missing phone or items), fetch full order from Easy Orders API
+  if (!parsed.customer_phone || !parsed.items || parsed.items === '[]') {
+    try {
+      const { fetchEasyOrder } = require('../services/easyorders');
+      const enriched = await fetchEasyOrder(parsed.easyorders_id);
+      if (enriched.success && enriched.order) {
+        parsed = parseEasyOrder(enriched.order);
+      }
+    } catch (e) {
+      console.warn(`[Webhook/EasyOrders] Note: Could not enrich order ${parsed.easyorders_id}:`, e.message);
+    }
+  }
 
   console.log(`[Webhook/EasyOrders] Processing order ${parsed.order_number} — phone: ${parsed.customer_phone || 'NONE'}`);
 

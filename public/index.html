@@ -261,6 +261,20 @@
         </div>
       </div>
 
+      <!-- Source Selection Tabs (Easy Orders vs Shopify vs Both) -->
+      <div id="source-tabs-bar" style="display: flex; gap: 8px; margin-bottom: 16px; align-items: center; background: #fff; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.04); flex-wrap: wrap;">
+        <span style="font-size: 13px; font-weight: 700; color: var(--text-muted); margin-left: 8px;">🛒 مصدر الطلبات:</span>
+        <button type="button" class="btn btn-sm source-tab-btn active" id="source-tab-all" onclick="changeSourceFilter('all')" style="padding: 6px 14px; font-weight: 700; border-radius: 8px;">
+          🌐 كل المنصات (<span id="source-count-all">0</span>)
+        </button>
+        <button type="button" class="btn btn-sm source-tab-btn" id="source-tab-easyorders" onclick="changeSourceFilter('easyorders')" style="background: transparent; color: #0284c7; border: 1.5px solid #0284c7; padding: 6px 14px; font-weight: 700; border-radius: 8px;">
+          ⚡ Easy Orders (<span id="source-count-easy">0</span>)
+        </button>
+        <button type="button" class="btn btn-sm source-tab-btn" id="source-tab-shopify" onclick="changeSourceFilter('shopify')" style="background: transparent; color: #16a34a; border: 1.5px solid #16a34a; padding: 6px 14px; font-weight: 700; border-radius: 8px;">
+          🛍️ Shopify (<span id="source-count-shopify">0</span>)
+        </button>
+      </div>
+
       <!-- Filter Bar -->
       <div class="filter-bar">
         <div class="search-wrapper">
@@ -755,6 +769,36 @@ window.addEventListener('click', function(e) {
   }
 });
 
+let currentDashboardSource = 'all';
+
+function changeSourceFilter(source) {
+  currentDashboardSource = source;
+  document.querySelectorAll('.source-tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+    btn.style.background = 'transparent';
+    if (btn.id === 'source-tab-easyorders') { btn.style.color = '#0284c7'; }
+    else if (btn.id === 'source-tab-shopify') { btn.style.color = '#16a34a'; }
+    else { btn.style.color = 'var(--text-primary)'; }
+  });
+
+  const activeBtn = document.getElementById(`source-tab-${source}`);
+  if (activeBtn) {
+    activeBtn.classList.add('active');
+    if (source === 'easyorders') {
+      activeBtn.style.background = '#0284c7';
+      activeBtn.style.color = '#fff';
+    } else if (source === 'shopify') {
+      activeBtn.style.background = '#16a34a';
+      activeBtn.style.color = '#fff';
+    } else {
+      activeBtn.style.background = 'var(--primary-color, #4F46E5)';
+      activeBtn.style.color = '#fff';
+    }
+  }
+
+  loadOrders(true);
+}
+
 // ─── Load Orders ──────────────────────────
 async function loadOrders(showLoader = false, silent = false) {
   try {
@@ -768,6 +812,9 @@ async function loadOrders(showLoader = false, silent = false) {
     if (date && date !== 'all') params.set('date', date);
     if (sort) params.set('sort', sort);
     if (activeReviewFilter) params.set('review', activeReviewFilter);
+    if (currentDashboardSource && currentDashboardSource !== 'all') {
+      params.set('source', currentDashboardSource);
+    }
 
     if (showLoader) showTableLoader();
 
@@ -785,6 +832,36 @@ async function loadOrders(showLoader = false, silent = false) {
     allOrders = data.orders || [];
     updateStats(data.stats || {});
     calculateKPIs(allOrders);
+
+    // Update source tabs visibility based on server setting
+    const sourceSetting = data.sourceSetting || 'both';
+    const sourceBar = document.getElementById('source-tabs-bar');
+    if (sourceBar) {
+      if (sourceSetting === 'easyorders') {
+        document.getElementById('source-tab-shopify').style.display = 'none';
+        document.getElementById('source-tab-all').style.display = 'none';
+        document.getElementById('source-tab-easyorders').style.display = 'inline-block';
+        document.getElementById('source-tab-easyorders').style.background = '#0284c7';
+        document.getElementById('source-tab-easyorders').style.color = '#fff';
+      } else if (sourceSetting === 'shopify') {
+        document.getElementById('source-tab-easyorders').style.display = 'none';
+        document.getElementById('source-tab-all').style.display = 'none';
+        document.getElementById('source-tab-shopify').style.display = 'inline-block';
+        document.getElementById('source-tab-shopify').style.background = '#16a34a';
+        document.getElementById('source-tab-shopify').style.color = '#fff';
+      } else {
+        document.getElementById('source-tab-all').style.display = 'inline-block';
+        document.getElementById('source-tab-easyorders').style.display = 'inline-block';
+        document.getElementById('source-tab-shopify').style.display = 'inline-block';
+      }
+    }
+
+    const easyCount = allOrders.filter(o => o.source === 'easyorders' || o.source === 'easy_orders').length;
+    const shopifyCount = allOrders.filter(o => o.source === 'shopify' || !o.source).length;
+    if (document.getElementById('source-count-all')) document.getElementById('source-count-all').textContent = allOrders.length;
+    if (document.getElementById('source-count-easy')) document.getElementById('source-count-easy').textContent = easyCount;
+    if (document.getElementById('source-count-shopify')) document.getElementById('source-count-shopify').textContent = shopifyCount;
+
     renderOrders(allOrders, !silent && lastOrderCount !== allOrders.length);
     lastOrderCount = allOrders.length;
 

@@ -135,6 +135,17 @@ router.post('/import-from-shopify', async (req, res) => {
   }
 });
 
+// GET /api/orders/easyorders/test — فحص الاتصال بـ Easy Orders API
+router.get('/easyorders/test', async (req, res) => {
+  try {
+    const { testEasyOrdersConnection } = require('../services/easyorders');
+    const result = await testEasyOrdersConnection();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/orders/import-from-easyorders — استيراد الطلبات من Easy Orders
 router.post('/import-from-easyorders', async (req, res) => {
   try {
@@ -187,16 +198,24 @@ router.post('/import-from-easyorders', async (req, res) => {
 // GET /api/orders
 router.get('/', async (req, res) => {
   try {
-    const { status, search, date, sort, limit, review } = req.query;
-    let orders = await db.getAllOrders({ status, search, date, sort, limit });
+    let { status, search, date, sort, limit, review, source } = req.query;
+
+    const sourceSetting = await db.getSetting('ORDER_SOURCE').catch(() => null) || process.env.ORDER_SOURCE || 'easyorders';
+
+    // If source query parameter is not explicitly passed by client, default to configured ORDER_SOURCE setting
+    if (!source) {
+      source = sourceSetting;
+    }
+
+    let orders = await db.getAllOrders({ status, search, date, sort, limit, source });
     // Client-side review filter (review_sent_at is in DB, filter here)
     if (review === 'sent') {
       orders = orders.filter(o => !!o.review_sent_at);
     } else if (review === 'not_sent') {
       orders = orders.filter(o => !o.review_sent_at);
     }
-    const stats = await db.getOrderStats();
-    res.json({ orders, stats });
+    const stats = await db.getOrderStats({ source });
+    res.json({ orders, stats, sourceSetting, activeSource: source });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
