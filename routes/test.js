@@ -53,6 +53,18 @@ router.post('/shopify-webhook', async (req, res) => {
   }
 });
 
+// POST /api/test/easyorders-webhook
+router.post('/easyorders-webhook', async (req, res) => {
+  const webhookRouter = require('./webhook');
+  const sampleOrder = req.body?.order || generateSampleEasyOrder(req.body);
+  try {
+    await webhookRouter.handleNewEasyOrder(sampleOrder);
+    res.json({ success: true, order_id: String(sampleOrder.id), order_number: sampleOrder.order_number });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/test/replay-to-starlink
 router.post('/replay-to-starlink', async (req, res) => {
   const db = require('../database/db');
@@ -98,6 +110,26 @@ function generateSampleOrder(opts = {}) {
     billing_address:  { first_name: firstName, last_name: lastName, address1: '5 شارع التحرير', city: 'القاهرة', country: 'Egypt', phone },
     line_items: [{ id: ts+10, title: 'منتج تجريبي', quantity: 1, price: '299.00' }],
     shipping_lines: [{ title: 'توصيل مجاني', price: '0.00' }],
+  };
+}
+
+function generateSampleEasyOrder(opts = {}) {
+  const ts = Date.now();
+  const num = Math.floor(Math.random() * 9000) + 1000;
+  const phone = opts.phone || '01012345678';
+  const name  = opts.name  || 'أحمد محمود';
+  return {
+    id: ts,
+    order_number: `#EO-${num}`,
+    customer_name: name,
+    customer_phone: phone,
+    governorate: 'الدقهلية',
+    detailed_address: 'شارع المشاية السفلية، المنصورة',
+    products: [
+      { id: ts + 1, name: 'تيشيرت أوفر سايز', quantity: 1, price: 250, sku: 'TSH-01' }
+    ],
+    total: 250,
+    currency: 'EGP',
   };
 }
 

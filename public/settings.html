@@ -162,16 +162,33 @@
               <span class="form-hint">اتركه فارغاً للاستخدام الافتراضي</span>
             </div>
             <div class="form-group">
-              <label class="form-label">رابط استقبال الـ Webhook (في Easy Orders)</label>
+              <label class="form-label" style="color:var(--primary-color);font-weight:700">🔗 رابط استقبال الـ Webhook (الأهم للربط التلقائي)</label>
               <div style="display:flex;gap:8px">
-                <input type="text" class="form-input code-font" id="easyorders-webhook-url" readonly style="background:var(--bg-base);flex:1" />
-                <button type="button" class="btn btn-outline btn-sm" onclick="copyEasyOrdersWebhook()">📋 نسخ</button>
+                <input type="text" class="form-input code-font" id="easyorders-webhook-url" readonly style="background:var(--bg-base);flex:1;font-weight:600" />
+                <button type="button" class="btn btn-outline btn-sm" onclick="copyEasyOrdersWebhook()">📋 نسخ الرابط</button>
               </div>
-              <span class="form-hint">انسخ هذا الرابط وضعه في إعدادات Webhooks في لوحة Easy Orders (حدث إنشاء الطلب)</span>
+              <span class="form-hint" style="color:var(--text-secondary);font-size:12px;margin-top:4px">
+                📌 <strong>طريقة التفعيل:</strong> افتح لوحة تحكم متجرك في Easy Orders ⬅️ الإعدادات ⬅️ الـ Webhooks ⬅️ أضف هذا الرابط لحدث <strong>إنشاء الطلب (Order Created)</strong>.
+              </span>
             </div>
-            <div class="test-row">
-              <button class="btn btn-warning" onclick="testEasyOrders()" id="test-easyorders-btn">
-                🧪 اختبار الاتصال بـ Easy Orders
+
+            <div class="form-row" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+              <div class="form-group">
+                <label class="form-label">API Key (اختياري)</label>
+                <input type="password" class="form-input code-font" id="EASYORDERS_API_KEY" placeholder="مفتاح API إن وجد" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">API Base URL</label>
+                <input type="text" class="form-input code-font" id="EASYORDERS_BASE_URL" placeholder="https://api.easy-orders.net/api/v1" />
+              </div>
+            </div>
+
+            <div class="test-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+              <button class="btn btn-success" type="button" onclick="testEasyOrdersWebhookSimulation()" id="test-eo-sim-btn">
+                🧪 تجربة استقبال طلب Easy Orders (محاكاة)
+              </button>
+              <button class="btn btn-outline btn-sm" type="button" onclick="testEasyOrders()" id="test-easyorders-btn">
+                🔍 فحص الـ API Key
               </button>
             </div>
             <div class="test-result" id="easyorders-test-result"></div>
@@ -833,13 +850,42 @@ function copyEasyOrdersWebhook() {
   }
 }
 
+async function testEasyOrdersWebhookSimulation() {
+  const btn = document.getElementById('test-eo-sim-btn');
+  const result = document.getElementById('easyorders-test-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري إرسال طلب تجريبي...';
+  result.className = 'test-result visible';
+  result.textContent = 'جاري إرسال طلب محاكاة من Easy Orders إلى الـ Webhook...';
+
+  try {
+    const res = await fetch('/api/test/easyorders-webhook', { method: 'POST' });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    result.className = 'test-result visible ' + (data.success ? '' : 'error');
+
+    if (data.success) {
+      showToast(`✅ تم استقبال ومعالجة طلب Easy Orders التجريبي (${data.order_number}) بنجاح!`, 'success');
+    } else {
+      showToast('❌ فشل استقبال الطلب: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    result.textContent = 'خطأ: ' + err.message;
+    result.className = 'test-result visible error';
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🧪 تجربة استقبال طلب Easy Orders (محاكاة)';
+  }
+}
+
 async function testEasyOrders() {
   const btn = document.getElementById('test-easyorders-btn');
   const result = document.getElementById('easyorders-test-result');
   btn.disabled = true;
-  btn.textContent = '⏳ جارٍ الاتصال...';
+  btn.textContent = '⏳ جارٍ الفحص...';
   result.className = 'test-result visible';
-  result.textContent = 'جارٍ فحص الاتصال بـ Easy Orders...';
+  result.textContent = 'جارٍ فحص الـ API Key الخاص بـ Easy Orders...';
 
   try {
     const res = await fetch('/api/orders/import-from-easyorders?limit=1', { method: 'POST' });
@@ -850,7 +896,7 @@ async function testEasyOrders() {
     if (data.success) {
       showToast('✅ متصل بـ Easy Orders بنجاح (إجمالي: ' + (data.total || 0) + ' طلب)', 'success');
     } else {
-      showToast('❌ فشل الاتصال بـ Easy Orders: ' + (data.error || 'خطأ'), 'error');
+      showToast('💡 ملاحظة: الربط التلقائي يعمل عبر الـ Webhook بدون الحاجة لـ API Key', 'info');
     }
   } catch (err) {
     result.textContent = 'خطأ: ' + err.message;
@@ -858,7 +904,7 @@ async function testEasyOrders() {
     showToast('❌ خطأ: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = '🧪 اختبار الاتصال بـ Easy Orders';
+    btn.textContent = '🔍 فحص الـ API Key';
   }
 }
 

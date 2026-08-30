@@ -566,5 +566,6 @@ router.post('/meta', async (req, res) => {
 });
 
 router.handleNewShopifyOrder = handleNewShopifyOrder;
+router.handleNewEasyOrder = handleNewEasyOrder;
 router.processIncomingWhatsAppMessage = processIncomingWhatsAppMessage;
 module.exports = router;

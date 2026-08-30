@@ -48,51 +48,78 @@ async function getClient() {
  * Parse an Easy Orders payload/webhook into the normalized internal order schema
  */
 function parseEasyOrder(data) {
-  const order = data.order || data;
+  if (!data) return { source: 'easyorders', easyorders_id: '' };
 
-  const id = String(order.id || order.order_id || order._id || '');
-  const orderNumber = String(order.order_number || order.number || order.code || `#EO-${id}`);
+  const order = data.order || data.data?.order || data.data || data.payload || data;
+
+  const id = String(
+    order.id ||
+    order.order_id ||
+    order._id ||
+    order.code ||
+    order.order_code ||
+    order.number ||
+    order.order_number ||
+    `EO_${Date.now()}`
+  );
+
+  const orderNumber = String(
+    order.order_number ||
+    order.number ||
+    order.code ||
+    order.order_code ||
+    `#EO-${id}`
+  );
 
   // Customer info
   const customerName = (
     order.customer_name ||
     order.customer?.name ||
     order.customer?.full_name ||
+    order.client_name ||
     order.name ||
-    `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim() ||
+    `${order.customer?.first_name || order.first_name || ''} ${order.customer?.last_name || order.last_name || ''}`.trim() ||
     'عميل'
   );
 
   const customerPhone = (
     order.customer_phone ||
     order.customer?.phone ||
+    order.client_phone ||
     order.phone ||
+    order.mobile ||
+    order.customer?.mobile ||
     order.shipping_address?.phone ||
+    order.billing_address?.phone ||
     null
   );
 
   // Products / Items
-  const rawItems = order.items || order.products || order.line_items || order.order_items || [];
-  const items = rawItems.map((item) => ({
-    line_item_id: String(item.id || item.product_id || ''),
+  const rawItems = order.items || order.products || order.line_items || order.order_items || order.cart || [];
+  const items = Array.isArray(rawItems) ? rawItems.map((item) => ({
+    line_item_id: String(item.id || item.product_id || item._id || ''),
     product_id: String(item.product_id || item.id || ''),
     variant_id: String(item.variant_id || ''),
-    name: item.name || item.title || item.product_name || 'منتج',
-    quantity: Number(item.quantity || item.qty || 1),
-    price: `${item.price || item.unit_price || 0} ${order.currency || 'EGP'}`.trim(),
+    name: item.name || item.title || item.product_name || item.item_name || 'منتج',
+    quantity: Number(item.quantity || item.qty || item.count || 1),
+    price: `${item.price || item.unit_price || item.total || 0} ${order.currency || 'EGP'}`.trim(),
     sku: item.sku || '',
-  }));
+  })) : [];
 
   // Total
-  const total = `${order.total || order.total_price || order.grand_total || 0} ${order.currency || 'EGP'}`.trim();
+  const total = `${order.total || order.total_price || order.grand_total || order.order_total || order.amount || 0} ${order.currency || 'EGP'}`.trim();
 
   // Address parsing — Easy Orders has governorate separate
   const governorate = (
     order.governorate ||
     order.province ||
+    order.state ||
+    order.government ||
+    order.zone ||
     order.city ||
     order.shipping_address?.governorate ||
     order.shipping_address?.province ||
+    order.shipping_address?.state ||
     order.shipping_address?.city ||
     ''
   );
@@ -100,8 +127,12 @@ function parseEasyOrder(data) {
   const detailedAddress = (
     order.detailed_address ||
     order.address ||
+    order.street ||
+    order.address1 ||
+    order.shipping_address?.detailed_address ||
     order.shipping_address?.address ||
     order.shipping_address?.address1 ||
+    order.shipping_address?.street ||
     ''
   );
 
