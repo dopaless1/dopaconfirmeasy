@@ -357,35 +357,63 @@ function startBackgroundJobs() {
   // Daily Report: كل يوم الساعة 8 صباحاً
   scheduleDailyAt(8, 0, runDailyReport);
 
-  // Task Reminders: كل 15 دقيقة
-  setInterval(runTaskReminders, 15 * 60 * 1000);
-  setTimeout(runTaskReminders, 90 * 1000);
-
-  // Scheduled WhatsApp: كل 5 دقايق (للتأخير)
-  setInterval(runScheduledWhatsApp, 5 * 60 * 1000);
-  setTimeout(runScheduledWhatsApp, 60 * 1000);
+  // Scheduled WhatsApp: كل دقيقة (لفحص الرسائل المؤجلة)
+  setInterval(runScheduledWhatsApp, 1 * 60 * 1000);
+  setTimeout(runScheduledWhatsApp, 15 * 1000);
 
   // Speedaf Tracking: كل 30 دقيقة
   setInterval(runSpeedafTracking, 30 * 60 * 1000);
   setTimeout(runSpeedafTracking, 4 * 60 * 1000);
 
-  console.log('[BgJobs] ✅ Auto-Retry (15m) | Order Timeout (10m) | Daily Report (8AM) | Task Reminders (15m) | Scheduled WA (5m) | Speedaf Tracking (30m)');
+  console.log('[BgJobs] ✅ Auto-Retry (15m) | Order Timeout (10m) | Daily Report (8AM) | Scheduled WA (1m) | Speedaf Tracking (30m)');
 }
 
-// بيحسب كم ms باقي لحد الساعة المحددة ويشغل الـ job
-function scheduleDailyAt(hour, minute, fn) {
+// بيحسب كم ms باقي لحد الساعة المحددة بتوقيت القاهرة (Africa/Cairo) ويشغل الـ job
+function scheduleDailyAt(cairoTargetHour, cairoTargetMinute, fn) {
   function msUntilNext() {
     const now = new Date();
-    const next = new Date();
-    next.setHours(hour, minute, 0, 0);
-    if (next <= now) next.setDate(next.getDate() + 1);
-    return next - now;
+    // احسب وقت القاهرة الحالي
+    const cairoTimeFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Cairo',
+      year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', second: 'numeric',
+      hour12: false
+    });
+    
+    const parts = cairoTimeFormatter.formatToParts(now);
+    const p = {};
+    for (const part of parts) p[part.type] = part.value;
+
+    const currentYear = parseInt(p.year);
+    const currentMonth = parseInt(p.month) - 1; // 0-indexed
+    const currentDay = parseInt(p.day);
+    const currentHour = parseInt(p.hour);
+    const currentMinute = parseInt(p.minute);
+
+    // احسب الفرق بالساعات بين UTC والقاهرة حالياً
+    const cairoDateObj = new Date(Date.UTC(currentYear, currentMonth, currentDay, currentHour, currentMinute, parseInt(p.second)));
+    const cairoOffsetMs = cairoDateObj.getTime() - now.getTime();
+
+    // تاريخ الهدف التالي بتوقيت القاهرة
+    let targetCairoDay = currentDay;
+    if (currentHour > cairoTargetHour || (currentHour === cairoTargetHour && currentMinute >= cairoTargetMinute)) {
+      targetCairoDay += 1;
+    }
+
+    const targetDateCairo = new Date(Date.UTC(currentYear, currentMonth, targetCairoDay, cairoTargetHour, cairoTargetMinute, 0));
+    // حوّله للـ epoch الحقيقي بطرح الـ offset
+    const realTargetTime = targetDateCairo.getTime() - cairoOffsetMs;
+    const diff = realTargetTime - now.getTime();
+
+    console.log(`[DailyReport] ⏰ Next daily report scheduled in ${Math.round(diff / 60000)} minutes (at 08:00 AM Cairo Time)`);
+    return Math.max(diff, 1000);
   }
+
   setTimeout(function tick() {
     fn();
     setTimeout(tick, msUntilNext());
   }, msUntilNext());
 }
 
-module.exports = { startBackgroundJobs, runAutoRetry, runOrderTimeout, runDailyReport, runTaskReminders, runScheduledWhatsApp, runSpeedafTracking };
+module.exports = { startBackgroundJobs, runAutoRetry, runOrderTimeout, runDailyReport, runScheduledWhatsApp, runSpeedafTracking };
 

@@ -232,19 +232,26 @@ async function handleNewShopifyOrder(orderPayload, topic = 'orders/create') {
 }
 
 // ─── Delayed WhatsApp Dispatch ──────────────────────────────────────────────────────────────────────
-// لو WHATSAPP_DELAY_HOURS > 0: احفظ وقت الإرسال في notes وسيب Job يبعت
+// لو WHATSAPP_DELAY_MINUTES > 0: احفظ وقت الإرسال في notes وسيب Job يبعت
 // لو = 0: ابعت فوراً (السلوك الأصلي)
 async function sendOrScheduleConfirmation(order) {
   if (!order) return;
   try {
-    const delayHours = parseFloat(await db.getSetting('WHATSAPP_DELAY_HOURS') || '0');
-    if (delayHours > 0) {
-      const sendAfter = new Date(Date.now() + delayHours * 3600 * 1000).toISOString();
+    const delayMinSetting = await db.getSetting('WHATSAPP_DELAY_MINUTES');
+    let delayMinutes = 0;
+    if (delayMinSetting !== undefined && delayMinSetting !== null && delayMinSetting !== '') {
+      delayMinutes = parseFloat(delayMinSetting) || 0;
+    } else {
+      delayMinutes = (parseFloat(await db.getSetting('WHATSAPP_DELAY_HOURS') || '0') || 0) * 60;
+    }
+
+    if (delayMinutes > 0) {
+      const sendAfter = new Date(Date.now() + delayMinutes * 60 * 1000).toISOString();
       let notes = {};
       try { notes = JSON.parse(order.notes || '{}'); } catch {}
       notes.whatsapp_send_after = sendAfter;
       await db.updateOrderNotes(order.id, JSON.stringify(notes));
-      console.log(`[WA] ⏰ Order ${order.order_number} — WhatsApp scheduled for ${sendAfter} (delay: ${delayHours}h)`);
+      console.log(`[WA] ⏰ Order ${order.order_number} — WhatsApp scheduled for ${sendAfter} (delay: ${delayMinutes}m)`);
     } else {
       await sendConfirmationWhatsApp(order);
     }

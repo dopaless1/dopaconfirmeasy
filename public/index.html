@@ -106,15 +106,6 @@
         <span class="nav-icon">❤️</span>
         <span>فحص الخادم</span>
       </a>
-
-      <a href="/workspace" class="nav-item">
-        <span class="nav-icon">🗂️</span>
-        <span>مساحة العمل</span>
-      </a>
-      <a href="/notes" class="nav-item">
-        <span class="nav-icon">📝</span>
-        <span>الملاحظات</span>
-      </a>
     </nav>
 
     <div class="sidebar-footer">
@@ -342,6 +333,7 @@
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;flex:1;">
           <button id="bulk-btn-shipping" class="btn btn-success btn-sm" onclick="executeBulkAction('confirm_shipping')" title="إرسال المحددين للشحن">🚚 إرسال للشحن</button>
+          <button id="bulk-btn-print-waybills" class="btn btn-sm" onclick="bulkPrintWaybills()" title="طباعة بوالص الشحن لجميع الطلبات المحددة في ملف PDF واحد" style="background:#ea580c;border-color:#ea580c;color:#fff;font-weight:700">🖨️ طباعة البوالص (PDF)</button>
           <button id="bulk-btn-review" class="btn btn-warning btn-sm" onclick="executeBulkAction('request_review')" title="إرسال طلب تقييم للمحددين">⭐ طلب تقييم</button>
           <button id="bulk-btn-whatsapp" class="btn btn-primary btn-sm" onclick="executeBulkAction('resend_whatsapp')" title="إعادة إرسال واتساب للمحددين">💬 إعادة واتساب</button>
           <button id="bulk-btn-delete" class="btn btn-danger btn-sm" onclick="executeBulkAction('delete')" title="حذف المحددين">🗑 حذف</button>
@@ -352,11 +344,11 @@
       </div>
 
 
-      <!-- Shopify Real Orders Table -->
+      <!-- Real Orders Table -->
       <div class="table-card">
         <div class="table-header">
           <div class="table-title">
-            🛍️ طلبات متجر شوبيفاي
+            <span id="main-table-title-icon">📦</span> <span id="main-table-title-text">جميع الطلبات</span>
             <span class="table-count" id="shopify-table-count"></span>
           </div>
         </div>
@@ -399,27 +391,88 @@
 
 <!-- ─── Simulate Webhook Modal ─────────────── -->
 <div class="modal-overlay" id="simulate-modal">
-  <div class="modal" style="max-width:460px">
-    <h2 class="modal-title">🧪 محاكاة طلب Shopify</h2>
-    <p class="modal-body" style="margin-bottom:16px">
-      سيقوم النظام بمحاكاة استقبال طلب جديد من Shopify وإرسال رسالة واتساب للعميل.
+  <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h2 class="modal-title" style="margin-bottom:0">🧪 تجربة ومحاكاة طلب جديد</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('simulate-modal')">✕</button>
+    </div>
+    
+    <p class="modal-body" style="margin-bottom:14px;font-size:13px;color:var(--text-secondary)">
+      محاكاة طلب حقيقي بكامل البيانات لاختبار رسائل الواتساب وتدفق الطلب في النظام.
     </p>
-    <div class="form-group">
-      <label class="form-label">رقم هاتف العميل (اختياري)</label>
-      <input type="text" class="form-input" id="sim-phone" placeholder="+201012345678" />
-      <p class="form-hint">اتركه فارغاً لاستخدام الرقم الافتراضي</p>
+
+    <!-- Source Toggle -->
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label" style="font-weight:700">نوع المنصة للمحاكاة</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="btn btn-sm" id="sim-source-easy" onclick="setSimSource('easyorders')" style="flex:1;background:#0284c7;color:#fff;font-weight:700;padding:8px">
+          ⚡ Easy Orders (إيزي أوردرز)
+        </button>
+        <button type="button" class="btn btn-sm btn-outline" id="sim-source-shopify" onclick="setSimSource('shopify')" style="flex:1;font-weight:700;padding:8px">
+          🛍️ Shopify (شوبيفاي)
+        </button>
+      </div>
+      <input type="hidden" id="sim-platform" value="easyorders">
     </div>
-    <div class="form-group">
-      <label class="form-label">اسم العميل (اختياري)</label>
-      <input type="text" class="form-input" id="sim-name" placeholder="أحمد محمد" />
+
+    <!-- Customer Details -->
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group">
+        <label class="form-label">اسم العميل</label>
+        <input type="text" class="form-input" id="sim-name" placeholder="أحمد محمود" value="أحمد محمود" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">رقم الهاتف (واتساب)</label>
+        <input type="text" class="form-input" id="sim-phone" placeholder="01012345678" value="01012345678" dir="ltr" />
+      </div>
     </div>
+
+    <!-- Address Details -->
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group">
+        <label class="form-label">المحافظة</label>
+        <input type="text" class="form-input" id="sim-gov" placeholder="الدقهلية" value="الدقهلية" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">المدينة / المركز</label>
+        <input type="text" class="form-input" id="sim-city" placeholder="المنصورة" value="المنصورة" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">العنوان التفصيلي</label>
+      <input type="text" class="form-input" id="sim-street" placeholder="شارع المشاية السفلية، بجوار حديقة شجرة الدر" value="شارع المشاية السفلية، بجوار حديقة شجرة الدر" />
+    </div>
+
+    <!-- Product Details -->
+    <div style="background:var(--bg-base);padding:12px;border-radius:8px;margin-bottom:16px;border:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:8px">📦 تفاصيل المنتج التجريبي</div>
+      <div class="form-row" style="margin-bottom:8px">
+        <div class="form-group" style="flex:2">
+          <label class="form-label" style="font-size:11px">اسم المنتج</label>
+          <input type="text" class="form-input" id="sim-prod-name" value="سيروم نضارة الوجه 50 مل" style="padding:6px 10px;font-size:13px" />
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label" style="font-size:11px">الكمية</label>
+          <input type="number" class="form-input" id="sim-prod-qty" value="1" min="1" max="10" style="padding:6px 10px;font-size:13px" oninput="updateSimTotal()" />
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label" style="font-size:11px">السعر (EGP)</label>
+          <input type="number" class="form-input" id="sim-prod-price" value="250" style="padding:6px 10px;font-size:13px" oninput="updateSimTotal()" />
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;color:var(--text-primary)">
+        <span>الإجمالي المحسوب:</span>
+        <span id="sim-total-display" style="color:#0284c7">250 EGP</span>
+      </div>
+    </div>
+
     <div class="modal-actions" style="justify-content:space-between">
       <button class="btn btn-ghost" onclick="closeModal('simulate-modal')">إلغاء</button>
       <button class="btn btn-primary" onclick="runSimulate()" id="simulate-btn">
-        🚀 تشغيل المحاكاة
+        🚀 تشغيل المحاكاة وإرسال الواتساب
       </button>
     </div>
-    <div class="test-result" id="simulate-result"></div>
+    <div class="test-result" id="simulate-result" style="margin-top:12px"></div>
   </div>
 </div>
 
@@ -812,6 +865,29 @@ function changeSourceFilter(source) {
     }
   }
 
+  // Update table title and sidebar buttons dynamically
+  const titleIcon = document.getElementById('main-table-title-icon');
+  const titleText = document.getElementById('main-table-title-text');
+  const shopifyImportBtn = document.getElementById('btn-import');
+  const easyImportBtn = document.getElementById('btn-import-eo');
+
+  if (source === 'easyorders') {
+    if (titleIcon) titleIcon.textContent = '⚡';
+    if (titleText) titleText.textContent = 'طلبات متجر Easy Orders';
+    if (shopifyImportBtn) shopifyImportBtn.style.display = 'none';
+    if (easyImportBtn) easyImportBtn.style.display = 'flex';
+  } else if (source === 'shopify') {
+    if (titleIcon) titleIcon.textContent = '🛍️';
+    if (titleText) titleText.textContent = 'طلبات متجر Shopify';
+    if (shopifyImportBtn) shopifyImportBtn.style.display = 'flex';
+    if (easyImportBtn) easyImportBtn.style.display = 'none';
+  } else {
+    if (titleIcon) titleIcon.textContent = '📦';
+    if (titleText) titleText.textContent = 'جميع الطلبات (Easy Orders + Shopify)';
+    if (shopifyImportBtn) shopifyImportBtn.style.display = 'flex';
+    if (easyImportBtn) easyImportBtn.style.display = 'flex';
+  }
+
   loadOrders(true);
 }
 
@@ -836,7 +912,6 @@ async function loadOrders(showLoader = false, silent = false) {
 
     const response = await fetch(`/api/orders?${params}`);
 
-    // If session expired or not logged in, redirect to login
     if (response.status === 401) {
       window.location.href = '/login.html';
       return;
@@ -848,29 +923,6 @@ async function loadOrders(showLoader = false, silent = false) {
     allOrders = data.orders || [];
     updateStats(data.stats || {});
     calculateKPIs(allOrders);
-
-    // Update source tabs visibility based on server setting
-    const sourceSetting = data.sourceSetting || 'both';
-    const sourceBar = document.getElementById('source-tabs-bar');
-    if (sourceBar) {
-      if (sourceSetting === 'easyorders') {
-        document.getElementById('source-tab-shopify').style.display = 'none';
-        document.getElementById('source-tab-all').style.display = 'none';
-        document.getElementById('source-tab-easyorders').style.display = 'inline-block';
-        document.getElementById('source-tab-easyorders').style.background = '#0284c7';
-        document.getElementById('source-tab-easyorders').style.color = '#fff';
-      } else if (sourceSetting === 'shopify') {
-        document.getElementById('source-tab-easyorders').style.display = 'none';
-        document.getElementById('source-tab-all').style.display = 'none';
-        document.getElementById('source-tab-shopify').style.display = 'inline-block';
-        document.getElementById('source-tab-shopify').style.background = '#16a34a';
-        document.getElementById('source-tab-shopify').style.color = '#fff';
-      } else {
-        document.getElementById('source-tab-all').style.display = 'inline-block';
-        document.getElementById('source-tab-easyorders').style.display = 'inline-block';
-        document.getElementById('source-tab-shopify').style.display = 'inline-block';
-      }
-    }
 
     const easyCount = allOrders.filter(o => o.source === 'easyorders' || o.source === 'easy_orders').length;
     const shopifyCount = allOrders.filter(o => o.source === 'shopify' || !o.source).length;
@@ -903,19 +955,30 @@ function showTableLoader() {
   if (shopTbody) shopTbody.innerHTML = loaderHtml;
 }
 
+function cleanOrderNumberDisplay(orderNum) {
+  if (!orderNum) return '—';
+  let s = String(orderNum).trim();
+  s = s.replace(/^EO-#/i, '#EO-').replace(/^#EO-#/i, '#EO-').replace(/^EO-/i, '#EO-');
+  if (s.startsWith('#EO-') && s.length > 14) {
+    const rawId = s.replace('#EO-', '');
+    s = `#EO-${rawId.substring(0, 8)}`;
+  }
+  return s;
+}
+
 // ─── Render Orders Table ───────────────────
 function renderOrders(orders, highlightNew = false) {
   const simulatedOrders = orders.filter(o => 
     String(o.order_number).startsWith('#SIM-') || 
     String(o.shopify_order_id).startsWith('SIM-')
   );
-  const shopifyOrders = orders.filter(o => 
+  const realOrders = orders.filter(o => 
     !String(o.order_number).startsWith('#SIM-') && 
     !String(o.shopify_order_id).startsWith('SIM-')
   );
 
   renderSingleTable('simulated-orders-tbody', 'simulated-table-count', simulatedOrders, highlightNew);
-  renderSingleTable('shopify-orders-tbody', 'shopify-table-count', shopifyOrders, highlightNew);
+  renderSingleTable('shopify-orders-tbody', 'shopify-table-count', realOrders, highlightNew);
 }
 
 function renderSingleTable(tbodyId, countId, orders, highlightNew = false) {
@@ -943,14 +1006,15 @@ function renderSingleTable(tbodyId, countId, orders, highlightNew = false) {
   tbody.innerHTML = orders.map((order, index) => {
     const isNew = highlightNew && index === 0;
     const hasNotes = !!order.notes;
+    const displayNum = cleanOrderNumberDisplay(order.order_number);
     
     return `
     <tr class="${isNew ? 'row-new' : ''}" id="row-${order.id}">
       <td><input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateBulkSelection()"></td>
       <td>
         <div style="display:flex;align-items:center;gap:4px">
-          <span class="order-number">${escapeHtml(order.order_number)}</span>
-          <span style="cursor:pointer;opacity:0.6;font-size:12px" title="نسخ رقم الطلب" onclick="copyToClipboard('${escapeHtml(order.order_number)}')">📋</span>
+          <span class="order-number" style="white-space:nowrap;direction:ltr;display:inline-block;font-family:monospace,sans-serif;font-weight:700;">${escapeHtml(displayNum)}</span>
+          <span style="cursor:pointer;opacity:0.6;font-size:12px" title="نسخ رقم الطلب" onclick="copyToClipboard('${escapeHtml(displayNum)}')">📋</span>
         </div>
         <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">
           ${order.source === 'easyorders' ? '<span class="badge" style="background:#e0f2fe;color:#0284c7;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700">⚡ Easy Orders</span>' : '<span class="badge" style="background:#f0fdf4;color:#16a34a;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700">🛍️ Shopify</span>'}
@@ -1669,19 +1733,55 @@ async function showOrderDetail(orderId) {
 }
 
 // ─── Simulate Webhook ─────────────────────
+function setSimSource(platform) {
+  document.getElementById('sim-platform').value = platform;
+  const easyBtn = document.getElementById('sim-source-easy');
+  const shopifyBtn = document.getElementById('sim-source-shopify');
+  if (platform === 'easyorders') {
+    easyBtn.className = 'btn btn-sm';
+    easyBtn.style.background = '#0284c7';
+    easyBtn.style.color = '#fff';
+    shopifyBtn.className = 'btn btn-sm btn-outline';
+    shopifyBtn.style.background = 'transparent';
+    shopifyBtn.style.color = 'inherit';
+  } else {
+    shopifyBtn.className = 'btn btn-sm';
+    shopifyBtn.style.background = '#16a34a';
+    shopifyBtn.style.color = '#fff';
+    easyBtn.className = 'btn btn-sm btn-outline';
+    easyBtn.style.background = 'transparent';
+    easyBtn.style.color = 'inherit';
+  }
+}
+
+function updateSimTotal() {
+  const qty = parseFloat(document.getElementById('sim-prod-qty')?.value) || 1;
+  const price = parseFloat(document.getElementById('sim-prod-price')?.value) || 0;
+  const total = qty * price;
+  const el = document.getElementById('sim-total-display');
+  if (el) el.textContent = `${total} EGP`;
+}
+
 function openSimulate() {
-  document.getElementById('sim-phone').value = '';
-  document.getElementById('sim-name').value = '';
   document.getElementById('simulate-result').className = 'test-result';
   document.getElementById('simulate-result').textContent = '';
+  updateSimTotal();
   openModal('simulate-modal');
 }
 
 async function runSimulate() {
   const btn = document.getElementById('simulate-btn');
   const result = document.getElementById('simulate-result');
-  const phone = document.getElementById('sim-phone').value.trim();
-  const name = document.getElementById('sim-name').value.trim();
+  const platform = document.getElementById('sim-platform').value;
+  const phone = document.getElementById('sim-phone').value.trim() || '01012345678';
+  const name = document.getElementById('sim-name').value.trim() || 'أحمد محمود';
+  const gov = document.getElementById('sim-gov').value.trim() || 'الدقهلية';
+  const city = document.getElementById('sim-city').value.trim() || 'المنصورة';
+  const street = document.getElementById('sim-street').value.trim() || 'شارع المشاية السفلية';
+  const prodName = document.getElementById('sim-prod-name').value.trim() || 'سيروم نضارة الوجه 50 مل';
+  const prodQty = parseInt(document.getElementById('sim-prod-qty').value) || 1;
+  const prodPrice = parseFloat(document.getElementById('sim-prod-price').value) || 250;
+  const total = prodQty * prodPrice;
 
   btn.disabled = true;
   btn.textContent = '⏳ جارٍ المحاكاة...';
@@ -1689,31 +1789,65 @@ async function runSimulate() {
   result.textContent = '';
 
   try {
-    const body = {};
-    if (phone || name) {
-      const ts = Date.now();
-      body.order = {
-        id: ts,
-        name: `#SIM-${Math.floor(Math.random() * 9000) + 1000}`,
-        order_number: Math.floor(Math.random() * 9000) + 1000,
-        created_at: new Date().toISOString(),
-        total_price: '199.00',
-        currency: 'EGP',
-        customer: {
+    const ts = Date.now();
+    const num = Math.floor(Math.random() * 9000) + 1000;
+    let endpoint = '/api/test/easyorders-webhook';
+    let body = {};
+
+    if (platform === 'easyorders') {
+      endpoint = '/api/test/easyorders-webhook';
+      body = {
+        order: {
           id: ts,
-          first_name: name ? name.split(' ')[0] : 'أحمد',
-          last_name: name ? (name.split(' ')[1] || '') : 'محمد',
-          phone: phone || '+201012345678',
-        },
-        billing_address: { phone: phone || '+201012345678', address1: '123 شارع التحرير', city: 'القاهرة', country: 'Egypt' },
-        shipping_address: { phone: phone || '+201012345678', address1: '123 شارع التحرير', city: 'القاهرة', country: 'Egypt' },
-        line_items: [
-          { id: 1, name: 'منتج تجريبي', quantity: 1, price: '199.00', sku: 'TEST' }
-        ]
+          order_number: `${num}`,
+          code: `${num}`,
+          customer_name: name,
+          customer_phone: phone,
+          governorate: gov,
+          city: city,
+          detailed_address: street,
+          products: [
+            { id: ts + 1, name: prodName, quantity: prodQty, price: prodPrice, sku: 'SIM-SKU' }
+          ],
+          total: total,
+          currency: 'EGP'
+        }
+      };
+    } else {
+      endpoint = '/api/test/shopify-webhook';
+      const [firstName, ...rest] = name.split(' ');
+      const lastName = rest.join(' ') || '';
+      body = {
+        order: {
+          id: ts,
+          name: `#SIM-${num}`,
+          order_number: num,
+          created_at: new Date().toISOString(),
+          total_price: `${total}.00`,
+          currency: 'EGP',
+          customer: {
+            id: ts,
+            first_name: firstName,
+            last_name: lastName,
+            phone: phone,
+          },
+          shipping_address: {
+            first_name: firstName,
+            last_name: lastName,
+            address1: street,
+            city: city,
+            province: gov,
+            country: 'Egypt',
+            phone: phone
+          },
+          line_items: [
+            { id: ts + 10, name: prodName, quantity: prodQty, price: `${prodPrice}.00`, sku: 'SIM-SKU' }
+          ]
+        }
       };
     }
 
-    const res = await fetch('/api/test/shopify-webhook', {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -1724,8 +1858,11 @@ async function runSimulate() {
     result.className = 'test-result visible ' + (data.success ? '' : 'error');
 
     if (data.success) {
-      showToast(`✅ تمت المحاكاة بنجاح — ${data.order_number}`, 'success');
-      loadOrders();
+      showToast(`✅ تمت المحاكاة بنجاح — طلب رقم ${data.order_number || num}`, 'success');
+      setTimeout(() => {
+        closeModal('simulate-modal');
+        loadOrders();
+      }, 1000);
     } else {
       showToast('❌ فشل: ' + (data.error || 'خطأ'), 'error');
     }
@@ -1734,7 +1871,7 @@ async function runSimulate() {
     result.className = 'test-result visible error';
   } finally {
     btn.disabled = false;
-    btn.textContent = '🚀 تشغيل المحاكاة';
+    btn.textContent = '🚀 تشغيل المحاكاة وإرسال الواتساب';
   }
 }
 
@@ -1794,10 +1931,10 @@ function updateStatusDot(online) {
 
 function updateLastRefreshTime() {
   const sub = document.getElementById('status-sub');
-  sub.textContent = `آخر تحديث: ${new Date().toLocaleTimeString('ar-EG')}`;
+  sub.textContent = `آخر تحديث: ${new Date().toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo' })}`;
 }
 
-// ─── Time Formatting ──────────────────────
+// ─── Time Formatting (Cairo Timezone) ──────────────────────
 function formatTime(isoStr) {
   if (!isoStr) return '—';
   try {
@@ -1807,7 +1944,7 @@ function formatTime(isoStr) {
     if (diff < 60000) return 'منذ لحظات';
     if (diff < 3600000) return `منذ ${Math.floor(diff/60000)} دقيقة`;
     if (diff < 86400000) return `منذ ${Math.floor(diff/3600000)} ساعة`;
-    return d.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch { return isoStr; }
 }
 
@@ -2199,8 +2336,132 @@ function exportToCSV() {
   window.location.href = `/api/orders/export?${params.toString()}`;
 }
 
-// ─── Bulk Tag ────────────────────────────────────────────────────────────────
-// ─── Custom Export (print-to-PDF) ────────────────────────────────────────────
+// ─── Bulk Waybill Printing (PDF / Thermal Label) ────────────────────────────
+function bulkPrintWaybills() {
+  if (selectedOrders.size === 0) return showToast('حدد أوردرات الأول لطباعة بوالصها', 'error');
+
+  const orders = allOrders.filter(o => selectedOrders.has(String(o.id)));
+  if (orders.length === 0) return showToast('لم يتم العثور على الأوردرات المحددة', 'error');
+
+  const waybillsHtml = orders.map((order, idx) => {
+    let itemsArr = [];
+    try { itemsArr = JSON.parse(order.items || '[]'); } catch {}
+    const itemsListHtml = itemsArr.length > 0 
+      ? itemsArr.map(it => `<tr><td style="padding:4px 8px;border:1px solid #ddd;">${escapeHtml(it.name || it.title || 'منتج')}</td><td style="padding:4px 8px;border:1px solid #ddd;text-align:center;font-weight:700;">x${it.quantity || 1}</td><td style="padding:4px 8px;border:1px solid #ddd;text-align:left;">${escapeHtml(String(it.price || ''))}</td></tr>`).join('')
+      : `<tr><td colspan="3" style="padding:6px 8px;border:1px solid #ddd;text-align:center;">منتجات الطلب</td></tr>`;
+
+    const waybillNumber = order.speedaf_waybill || order.order_number || `#${order.id}`;
+    const displayOrderNum = cleanOrderNumberDisplay(order.order_number);
+    const dateStr = order.created_at ? new Date(order.created_at).toLocaleDateString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+
+    return `
+    <div class="waybill-label" style="page-break-after: always; break-after: page; border: 2px solid #000; border-radius: 8px; padding: 14px 18px; max-width: 480px; margin: 0 auto 24px auto; background: #fff; font-family: 'Cairo', Tahoma, sans-serif; direction: rtl; color: #000;">
+      <!-- Header -->
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px;">
+        <div>
+          <div style="font-size: 20px; font-weight: 900; letter-spacing: 0.5px; display:flex; align-items:center; gap:6px;">
+            <span>🚚 Speedaf Express</span>
+          </div>
+          <div style="font-size: 11px; color: #444; font-weight: 600;">بوليصة شحن وتوصيل سريعة</div>
+        </div>
+        <div style="text-align:left;">
+          <div style="font-size: 13px; font-weight: 800; font-family: monospace; background: #000; color: #fff; padding: 3px 8px; border-radius: 4px;">${escapeHtml(displayOrderNum)}</div>
+          <div style="font-size: 10px; color: #555; margin-top: 3px;">${dateStr}</div>
+        </div>
+      </div>
+
+      <!-- Barcode representation -->
+      <div style="text-align:center; padding: 6px 0 10px 0; border-bottom: 1.5px dashed #666; margin-bottom: 12px;">
+        <div style="font-family: 'Libre Barcode 128', 'Courier New', monospace; font-size: 38px; letter-spacing: 4px; line-height: 1;">*${escapeHtml(String(waybillNumber).replace(/[^a-zA-Z0-9]/g,''))}*</div>
+        <div style="font-size: 13px; font-weight: 800; letter-spacing: 1.5px; font-family: monospace; margin-top: 2px;">${escapeHtml(String(waybillNumber))}</div>
+      </div>
+
+      <!-- Consignee (المستلم) -->
+      <div style="border: 1.5px solid #000; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; background: #fafafa;">
+        <div style="font-size: 12px; font-weight: 800; color: #000; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 6px; display:flex; justify-content:space-between;">
+          <span>📍 بيانات المستلم (العميل)</span>
+          <span style="font-size:11px; color:#555;">To: Customer</span>
+        </div>
+        <div style="font-size: 15px; font-weight: 800; margin-bottom: 4px; color: #000;">${escapeHtml(order.customer_name || 'عميل')}</div>
+        <div style="font-size: 14px; font-weight: 800; margin-bottom: 6px; color: #000; direction: ltr; text-align: right;">📞 ${escapeHtml(order.customer_phone || '—')}</div>
+        <div style="font-size: 13px; font-weight: 600; line-height: 1.4; color: #111;">🏠 ${escapeHtml(order.address || 'العنوان غير محدد')}</div>
+      </div>
+
+      <!-- COD Amount (المبلغ المطلوب تحصيله) -->
+      <div style="border: 2px solid #000; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; background: #fff7ed; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-size: 11px; font-weight: 800; color: #ea580c;">💵 المبلغ المطلوب تحصيله (COD):</div>
+          <div style="font-size: 10px; color: #666;">شامل مصاريف الشحن والتوصيل</div>
+        </div>
+        <div style="font-size: 24px; font-weight: 900; color: #c2410c; font-family: sans-serif;">
+          ${escapeHtml(order.total || '0 EGP')}
+        </div>
+      </div>
+
+      <!-- Items Breakdown -->
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 11px; font-weight: 800; color: #333; margin-bottom: 4px;">📦 محتويات الطرد:</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="background: #f1f5f9;">
+              <th style="padding: 4px 8px; border: 1px solid #ddd; text-align: right;">المنتج</th>
+              <th style="padding: 4px 8px; border: 1px solid #ddd; text-align: center; width: 50px;">الكمية</th>
+              <th style="padding: 4px 8px; border: 1px solid #ddd; text-align: left; width: 80px;">السعر</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsListHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Shipper (المرسل) & Instructions -->
+      <div style="border-top: 1.5px solid #000; padding-top: 8px; font-size: 11px; color: #333; display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+          <div><strong>الراسل:</strong> متجر DopaLess 🛍️</div>
+          <div><strong>هاتف خدمة العملاء:</strong> 01032462703</div>
+          <div><strong>المدينة:</strong> المنصورة، الدقهلية</div>
+        </div>
+        <div style="text-align: left; font-size: 10px; color: #666; max-width: 160px; line-height: 1.3;">
+          ⚠️ يرجى التأكد من سلامة الشحنة والتواصل مع المستلم قبل التوصيل.
+        </div>
+      </div>
+    </div>
+    `;
+  }).join('');
+
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="UTF-8">
+      <title>طباعة بوالص الشحن — ${orders.length} طلب</title>
+      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+      <style>
+        @page { size: auto; margin: 10mm; }
+        body { margin: 0; padding: 16px; background: #f8fafc; font-family: 'Cairo', Tahoma, sans-serif; }
+        .no-print-bar { text-align: center; margin-bottom: 24px; padding: 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .print-btn { background: #ea580c; color: #fff; font-weight: 700; font-size: 16px; padding: 10px 28px; border: none; border-radius: 6px; cursor: pointer; }
+        @media print {
+          body { background: #fff; padding: 0; }
+          .no-print-bar { display: none !important; }
+          .waybill-label { margin: 0 0 20px 0 !important; border-radius: 0 !important; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="no-print-bar">
+        <button class="print-btn" onclick="window.print()">🖨️ طباعة جميع البوالص (${orders.length} بوليصة)</button>
+      </div>
+      ${waybillsHtml}
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+  showToast(`🖨️ تم تجهيز ${orders.length} بوليصة شحن للطباعة`, 'success');
+}
+
 const EXPORT_FIELD_LABELS = {
   order_number: 'رقم الطلب',
   customer_name: 'اسم العميل',

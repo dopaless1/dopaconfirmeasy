@@ -307,8 +307,6 @@ app.use((req, res, next) => {
 
 app.use('/webhook', require('./routes/webhook'));
 app.use('/api/orders', require('./routes/orders'));
-app.use('/api/workspace', require('./routes/workspace'));
-app.use('/api/notes', require('./routes/notes'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/test', require('./routes/test'));
 
@@ -336,8 +334,6 @@ global.broadcastSSE = (data) => {
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/settings', (req, res) => res.sendFile(path.join(__dirname, 'public', 'settings.html')));
-app.get('/workspace', (req, res) => res.sendFile(path.join(__dirname, 'public', 'workspace.html')));
-app.get('/notes',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'notes.html')));
 
 // ─── Dynamic favicon ──────────────────────────────────────────────────────────
 // Served from the DB setting so the merchant can upload/change it from
@@ -480,9 +476,12 @@ async function startServer() {
       console.log('   → Using INTERNAL (Baileys) — no external webhook registration needed.');
     }
 
-    // Background job: abandoned carts every 5 minutes
+    // Background job: abandoned carts every 5 minutes (Shopify only — if enabled in settings)
     setInterval(async () => {
       try {
+        const enabled = await db.getSetting('FEATURE_ABANDONED_CART');
+        if (enabled !== 'true') return;
+
         const pendingCheckouts = await db.getPendingAbandonedCheckouts();
         if (pendingCheckouts.length > 0) {
           const { sendAbandonedCheckoutRecovery } = require('./services/whatsapp');

@@ -18,12 +18,14 @@ const SETTING_KEYS = [
   'FEATURE_TIMEOUT_REMIND_HRS',  // رقم — ساعات قبل إرسال التذكير (default 6)
   'FEATURE_TIMEOUT_FINAL_HRS',   // رقم — ساعات قبل needs_follow_up (default 12)
   'FEATURE_DAILY_REPORT',        // true/false — تقرير يومي على واتساب
+  'FEATURE_ABANDONED_CART',      // true/false — استرجاع السلات المتروكة (Shopify)
   'WHATSAPP_REVIEW_IMAGE_BASE64', // صورة رسالة التقييم
   'OWNER_ALERT_PHONE',           // رقم واتساب صاحب المتجر للتنبيهات
   'SITE_FAVICON_BASE64',         // أيقونة الموقع (favicon)
   'TASK_REMIND_HOURS_AHEAD',     // كام ساعة قبل موعد المهمة يتبعت تذكير واتساب للعامل
   'SHIPPING_MODE',               // وضع الشحن: manual | speedaf_auto | starlink_auto
   'WHATSAPP_DELAY_HOURS',        // تأخير إرسال واتساب بالساعات (0 = فوري)
+  'WHATSAPP_DELAY_MINUTES',      // تأخير إرسال واتساب بالدقائق (0 = فوري)
   // ─── Order Source (SaaS Configuration) ───────────────────
   'ORDER_SOURCE',                // shopify | easyorders | both
   'EASYORDERS_API_KEY',          // مفتاح الـ API لمنصة Easy Orders

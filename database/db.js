@@ -270,6 +270,12 @@ async function initializeSchema() {
   try { await client.execute('CREATE INDEX IF NOT EXISTS idx_area_codes_level ON speedaf_area_codes(level)'); } catch (e) {}
   try { await client.execute('CREATE INDEX IF NOT EXISTS idx_orders_source ON orders(source)'); } catch (e) {}
   try { await client.execute('CREATE INDEX IF NOT EXISTS idx_orders_speedaf_waybill ON orders(speedaf_waybill)'); } catch (e) {}
+
+  // Auto-repair any malformed Easy Orders order numbers from previous versions
+  try {
+    await client.execute("UPDATE orders SET order_number = REPLACE(order_number, 'EO-#', '#EO-') WHERE order_number LIKE 'EO-#%'");
+    await client.execute("UPDATE orders SET order_number = REPLACE(order_number, '#EO-#', '#EO-') WHERE order_number LIKE '#EO-#%'");
+  } catch (e) {}
 }
 
 // ─── Helper ─────────────────────────────────────────────────────────────────

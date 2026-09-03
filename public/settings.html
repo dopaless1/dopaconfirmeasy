@@ -77,11 +77,6 @@
       </a>
 
       <div class="nav-section-title" style="margin-top:16px">أدوات</div>
-
-      <a href="/workspace" class="nav-item"><span class="nav-icon">🗂️</span><span>مساحة العمل</span></a>
-      <a href="/notes" class="nav-item"><span class="nav-icon">📝</span><span>الملاحظات</span></a>
-
-      <div class="nav-section-title" style="margin-top:16px">أدوات</div>
       <a href="/health" class="nav-item" target="_blank"><span class="nav-icon">❤️</span><span>فحص الخادم</span></a>
     </nav>
 
@@ -172,18 +167,7 @@
               </span>
             </div>
 
-            <div class="form-row" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
-              <div class="form-group">
-                <label class="form-label">API Key (اختياري)</label>
-                <input type="password" class="form-input code-font" id="EASYORDERS_API_KEY" placeholder="مفتاح API إن وجد" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">API Base URL</label>
-                <input type="text" class="form-input code-font" id="EASYORDERS_BASE_URL" placeholder="https://api.easy-orders.net/api/v1" />
-              </div>
-            </div>
-
-            <div class="test-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+            <div class="test-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
               <button class="btn btn-success" type="button" onclick="testEasyOrdersWebhookSimulation()" id="test-eo-sim-btn">
                 🧪 تجربة استقبال طلب Easy Orders (محاكاة)
               </button>
@@ -362,17 +346,34 @@
               <div class="card-desc">إرسال الرسائل عبر الواتساب المباشر (Baileys) أو Green API أو Meta API</div>
             </div>
           </div>
-          <div class="settings-card-body">
             <!-- ⏱ WhatsApp Delay -->
             <div class="form-group" style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)">
-              <label class="form-label">⏱ تأخير إرسال رسالة التأكيد</label>
-              <div style="display:flex;align-items:center;gap:12px">
-                <input type="number" class="form-input" id="WHATSAPP_DELAY_HOURS"
-                  min="0" max="72" step="0.5" style="max-width:110px" placeholder="0" />
-                <span style="color:var(--text-secondary);font-size:14px">ساعة بعد وصول الأوردر</span>
+              <label class="form-label" style="font-weight:700">⏱ تأخير إرسال رسالة التأكيد بعد وصول الطلب</label>
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <select class="form-input" id="whatsapp-delay-preset" onchange="onDelayPresetChange()" style="max-width:220px">
+                  <option value="0">⚡ فوري (بدون تأخير)</option>
+                  <option value="5">⏳ 5 دقائق</option>
+                  <option value="10">⏳ 10 دقائق</option>
+                  <option value="15">⏳ 15 دقيقة</option>
+                  <option value="30">⏳ 30 دقيقة</option>
+                  <option value="60">⏱️ 1 ساعة</option>
+                  <option value="120">⏱️ 2 ساعة</option>
+                  <option value="custom">✏️ كتابة وقت مخصص...</option>
+                </select>
+                
+                <div id="custom-delay-container" style="display:none;align-items:center;gap:8px">
+                  <input type="number" class="form-input" id="WHATSAPP_DELAY_MINUTES" min="0" max="4320" style="max-width:110px" placeholder="مثال: 5" oninput="onCustomDelayInput()" />
+                  <span style="color:var(--text-secondary);font-size:13px">دقيقة</span>
+                </div>
+                <input type="hidden" id="WHATSAPP_DELAY_HOURS" value="0" />
               </div>
-              <span class="form-hint">0 = إرسال فوري عند مجيء الأوردر &nbsp;·&nbsp; 0.5 = نص ساعة &nbsp;·&nbsp; 1 = ساعة</span>
+              <span class="form-hint" style="margin-top:6px;display:block">
+                يمكنك تحديد مهلة قبل إرسال رسالة التأكيد عبر واتساب (مثلاً 5 دقائق لإتاحة وقت للعميل أو تجهيز الفاتورة).
+              </span>
             </div>
+
+            <!-- WhatsApp Provider -->
+            <div class="form-group">
               <label class="form-label">مزود خدمة واتساب (WhatsApp Provider)</label>
               <select class="form-input" id="WHATSAPP_PROVIDER" onchange="toggleWhatsappProviderFields()" style="padding: 9px 14px;">
                 <option value="internal">📱 واتساب مباشر (Baileys) - موصى به</option>
@@ -640,6 +641,18 @@
             </label>
           </div>
 
+          <!-- Abandoned Carts -->
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-name">🛒 استرجاع السلات المتروكة (Shopify)</div>
+              <div class="feature-desc">إرسال رسالة تذكير تلقائية عبر واتساب للعملاء الذين لم يكملوا عملية الدفع في شوبيفاي</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="FEATURE_ABANDONED_CART" onchange="saveFeatureToggle('FEATURE_ABANDONED_CART', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
           <!-- Owner Alert Phone -->
           <div class="feature-row" style="border-top:1px solid var(--border);padding-top:20px;">
             <div class="feature-info">
@@ -783,7 +796,7 @@ async function loadSettings() {
     const fields = [
       'SHOPIFY_STORE', 'SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET',
       'SHOPIFY_WEBHOOK_SECRET', 'GREEN_API_INSTANCE_ID', 'GREEN_API_TOKEN',
-      'STARLINK_API_URL', 'SHIPPING_MODE', 'WHATSAPP_DELAY_HOURS', 'WHATSAPP_MESSAGE_TEMPLATE', 'PORT', 'PUBLIC_URL',
+      'STARLINK_API_URL', 'SHIPPING_MODE', 'WHATSAPP_DELAY_HOURS', 'WHATSAPP_DELAY_MINUTES', 'WHATSAPP_MESSAGE_TEMPLATE', 'PORT', 'PUBLIC_URL',
       'WHATSAPP_PROVIDER', 'META_PHONE_NUMBER_ID', 'META_ACCESS_TOKEN', 'META_WEBHOOK_VERIFY_TOKEN', 'WHATSAPP_REVIEW_TEMPLATE', 'WHATSAPP_MESSAGE_IMAGE_BASE64',
       'ORDER_SOURCE', 'EASYORDERS_API_KEY', 'EASYORDERS_BASE_URL',
       'SPEEDAF_TOKEN', 'SPEEDAF_SENDER_NAME', 'SPEEDAF_SENDER_PHONE', 'SPEEDAF_SENDER_ADDRESS', 'SPEEDAF_SENDER_PROVINCE_NAME',
@@ -814,10 +827,39 @@ async function loadSettings() {
     updateWebhookUrlDisplay();
 
     // Feature Toggles
-    const featureCheckboxes = ['FEATURE_AUTO_RETRY', 'FEATURE_ORDER_TIMEOUT', 'FEATURE_DAILY_REPORT'];
+    const featureCheckboxes = ['FEATURE_AUTO_RETRY', 'FEATURE_ORDER_TIMEOUT', 'FEATURE_DAILY_REPORT', 'FEATURE_ABANDONED_CART'];
     for (const key of featureCheckboxes) {
       const el = document.getElementById(key);
-      if (el) el.checked = (settings[key] === 'true' || (settings[key] === undefined || settings[key] === null));
+      if (el) {
+        if (key === 'FEATURE_ABANDONED_CART') {
+          el.checked = settings[key] === 'true'; // default false
+        } else {
+          el.checked = (settings[key] === 'true' || (settings[key] === undefined || settings[key] === null));
+        }
+      }
+    }
+
+    // WhatsApp Delay Preset Loading
+    const delayMin = settings['WHATSAPP_DELAY_MINUTES'] !== undefined && settings['WHATSAPP_DELAY_MINUTES'] !== '' 
+      ? parseInt(settings['WHATSAPP_DELAY_MINUTES']) 
+      : Math.round(parseFloat(settings['WHATSAPP_DELAY_HOURS'] || '0') * 60);
+    
+    const presetSelect = document.getElementById('whatsapp-delay-preset');
+    const customContainer = document.getElementById('custom-delay-container');
+    const customInput = document.getElementById('WHATSAPP_DELAY_MINUTES');
+    const hoursInput = document.getElementById('WHATSAPP_DELAY_HOURS');
+
+    if (customInput) customInput.value = delayMin;
+    if (hoursInput) hoursInput.value = (delayMin / 60).toFixed(2);
+
+    if (presetSelect) {
+      if ([0, 5, 10, 15, 30, 60, 120].includes(delayMin)) {
+        presetSelect.value = String(delayMin);
+        if (customContainer) customContainer.style.display = 'none';
+      } else {
+        presetSelect.value = 'custom';
+        if (customContainer) customContainer.style.display = 'flex';
+      }
     }
     const numFields = ['FEATURE_TIMEOUT_REMIND_HRS', 'FEATURE_TIMEOUT_FINAL_HRS', 'OWNER_ALERT_PHONE'];
     for (const key of numFields) {
@@ -846,6 +888,31 @@ async function loadSettings() {
   } catch (err) {
     showToast('❌ فشل تحميل الإعدادات: ' + err.message, 'error');
   }
+}
+
+function onDelayPresetChange() {
+  const val = document.getElementById('whatsapp-delay-preset').value;
+  const customContainer = document.getElementById('custom-delay-container');
+  const customInput = document.getElementById('WHATSAPP_DELAY_MINUTES');
+  const hoursInput = document.getElementById('WHATSAPP_DELAY_HOURS');
+  if (val === 'custom') {
+    customContainer.style.display = 'flex';
+    if (!customInput.value || customInput.value === '0') customInput.value = '5';
+    const min = parseFloat(customInput.value) || 0;
+    hoursInput.value = (min / 60).toFixed(2);
+  } else {
+    customContainer.style.display = 'none';
+    customInput.value = val;
+    const min = parseFloat(val) || 0;
+    hoursInput.value = (min / 60).toFixed(2);
+  }
+}
+
+function onCustomDelayInput() {
+  const customInput = document.getElementById('WHATSAPP_DELAY_MINUTES');
+  const hoursInput = document.getElementById('WHATSAPP_DELAY_HOURS');
+  const min = parseFloat(customInput.value) || 0;
+  hoursInput.value = (min / 60).toFixed(2);
 }
 
 // ─── Toggle Order Source Cards ───────────
