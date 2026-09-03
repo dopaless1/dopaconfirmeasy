@@ -30,6 +30,9 @@ const SETTING_KEYS = [
   'EASYORDERS_BASE_URL',         // رابط الـ API لمنصة Easy Orders
   // ─── Speedaf Direct Dashboard API ─────────────────────────
   'SPEEDAF_TOKEN',               // توكن جلسة الداشبورد (Cookie token)
+  'SPEEDAF_ACCOUNT',             // اسم حساب Speedaf
+  'SPEEDAF_PASSWORD',            // كلمة مرور Speedaf
+  'GEMINI_API_KEY',              // مفتاح Google Gemini لحل الكابتشا والمطابقة الذكية
   'SPEEDAF_SENDER_NAME',         // اسم الراسل (DopaLess)
   'SPEEDAF_SENDER_PHONE',        // هاتف الراسل (01032462703)
   'SPEEDAF_SENDER_ADDRESS',      // عنوان الراسل (المنصورة)

@@ -124,8 +124,8 @@ async function handleNewEasyOrder(payload, topic = 'order.created') {
   let parsed = parseEasyOrder(payload);
   if (!parsed.easyorders_id) return;
 
-  // If payload from webhook was minimal (missing phone or items), fetch full order from Easy Orders API
-  if (!parsed.customer_phone || !parsed.items || parsed.items === '[]') {
+  // If payload from webhook was minimal (missing phone, items, name or total), fetch full order from Easy Orders API
+  if (!parsed.customer_phone || !parsed.items || parsed.items === '[]' || parsed.customer_name === 'عميل' || parsed.total === '0 EGP') {
     try {
       const { fetchEasyOrder } = require('../services/easyorders');
       const enriched = await fetchEasyOrder(parsed.easyorders_id);
@@ -386,19 +386,20 @@ async function processIncomingWhatsAppMessage(senderPhone, textMessage) {
       const shippingMode = await db.getSetting('SHIPPING_MODE');
       if (shippingMode === 'speedaf_auto' && !String(shopifyOrderId).startsWith('SIM-')) {
         let speedafResult = { success: false };
-        // Check if governorate can be auto-matched
-        let govMatch = null;
-        if (order.address) {
-          const parts = order.address.split(/[-–,،]/).map(s => s.trim()).filter(Boolean);
-          if (parts.length > 0) {
-            govMatch = await matchGovernorateToSpeedafCode(parts[0]);
-          }
-        }
-
+        const { matchGovernorateToSpeedafCode, matchAreaWithGemini, sendOrderToSpeedaf } = require('../services/speedaf');
+        
+        let govMatch = await matchGovernorateToSpeedafCode(order.address);
         if (govMatch) {
+          const areaMatch = await matchAreaWithGemini({ address: order.address, provinceCode: govMatch.code, provinceName: govMatch.name_ar || govMatch.name });
+          const districtCode = areaMatch?.matched?.code || '';
+          const districtName = areaMatch?.matched?.name_ar || '';
           const locationCodes = {
             provinceCode: govMatch.code,
-            provinceName: govMatch.name,
+            provinceName: govMatch.name_ar || govMatch.name,
+            districtCode: districtCode,
+            districtName: districtName,
+            cityName: districtName,
+            cityCode: districtCode,
           };
           speedafResult = await sendOrderToSpeedaf(order, locationCodes);
         } else {

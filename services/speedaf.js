@@ -511,7 +511,7 @@ async function matchAreaWithGemini({ address, provinceCode, provinceName = '' })
   }
 
   // 3. Smart Gemini AI Matching
-  const geminiKey = await db.getSetting('GEMINI_API_KEY');
+  const geminiKey = await getSetting('GEMINI_API_KEY');
   if (!geminiKey) return null;
 
   const areaNames = areas.map(a => a.name_ar || a.name);

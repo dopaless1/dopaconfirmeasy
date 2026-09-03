@@ -63,6 +63,7 @@ function parseEasyOrder(data) {
     order.id ||
     order.order_id ||
     order._id ||
+    order.uuid ||
     order.code ||
     order.order_code ||
     order.number ||
@@ -70,64 +71,174 @@ function parseEasyOrder(data) {
     `EO_${Date.now()}`
   );
 
-  const orderNumber = String(
+  // Friendly human-readable order number
+  let orderNumber = String(
     order.order_number ||
     order.number ||
-    order.code ||
     order.order_code ||
-    `#EO-${id}`
-  );
+    order.code ||
+    order.reference ||
+    order.reference_id ||
+    order.serial ||
+    order.serial_number ||
+    order.display_number ||
+    order.display_id ||
+    order.friendly_id ||
+    order.human_id ||
+    ''
+  ).trim();
 
-  // Customer info
-  const customerName = (
+  if (!orderNumber || orderNumber === id) {
+    if (id.includes('-') || id.length > 12) {
+      orderNumber = `#EO-${id.substring(0, 8)}`;
+    } else {
+      orderNumber = `#EO-${id}`;
+    }
+  } else if (!orderNumber.startsWith('#')) {
+    orderNumber = `#${orderNumber}`;
+  }
+
+  // Customer name
+  let customerName = (
     order.customer_name ||
+    order.client_name ||
+    order.buyer_name ||
+    order.recipient_name ||
+    order.receiver_name ||
     order.customer?.name ||
     order.customer?.full_name ||
-    order.client_name ||
-    order.name ||
-    `${order.customer?.first_name || order.first_name || ''} ${order.customer?.last_name || order.last_name || ''}`.trim() ||
-    'عميل'
-  );
+    order.client?.name ||
+    order.client?.full_name ||
+    order.buyer?.name ||
+    order.shipping_address?.name ||
+    order.shipping_address?.full_name ||
+    order.shipping_address?.recipient_name ||
+    order.shipping_address?.receiver_name ||
+    order.billing_address?.name ||
+    order.billing_address?.full_name ||
+    order.user?.name ||
+    order.user?.full_name ||
+    `${order.customer?.first_name || order.client?.first_name || order.shipping_address?.first_name || order.first_name || ''} ${order.customer?.last_name || order.client?.last_name || order.shipping_address?.last_name || order.last_name || ''}`.trim() ||
+    ''
+  ).trim();
 
-  const customerPhone = (
+  if (!customerName && order.name && !String(order.name).startsWith('#') && !/^\d+$/.test(order.name)) {
+    customerName = String(order.name).trim();
+  }
+  if (!customerName) customerName = 'عميل';
+
+  // Customer phone
+  let customerPhone = (
     order.customer_phone ||
-    order.customer?.phone ||
     order.client_phone ||
+    order.buyer_phone ||
+    order.recipient_phone ||
+    order.receiver_phone ||
     order.phone ||
     order.mobile ||
+    order.telephone ||
+    order.customer?.phone ||
     order.customer?.mobile ||
+    order.client?.phone ||
+    order.client?.mobile ||
+    order.buyer?.phone ||
+    order.buyer?.mobile ||
     order.shipping_address?.phone ||
+    order.shipping_address?.mobile ||
     order.billing_address?.phone ||
+    order.billing_address?.mobile ||
+    order.user?.phone ||
+    order.user?.mobile ||
     null
   );
 
   // Products / Items
-  const rawItems = order.items || order.products || order.line_items || order.order_items || order.cart || [];
-  const items = Array.isArray(rawItems) ? rawItems.map((item) => ({
-    line_item_id: String(item.id || item.product_id || item._id || ''),
-    product_id: String(item.product_id || item.id || ''),
-    variant_id: String(item.variant_id || ''),
-    name: item.name || item.title || item.product_name || item.item_name || 'منتج',
-    quantity: Number(item.quantity || item.qty || item.count || 1),
-    price: `${item.price || item.unit_price || item.total || 0} ${order.currency || 'EGP'}`.trim(),
-    sku: item.sku || '',
-  })) : [];
+  let rawItems = order.items || order.products || order.order_items || order.line_items || order.order_products || order.cart || order.details || order.product_list || order.variants || order.data?.items || order.data?.products || [];
+  if (rawItems && typeof rawItems === 'object' && !Array.isArray(rawItems)) {
+    rawItems = Object.values(rawItems);
+  }
+
+  const currency = order.currency || 'EGP';
+
+  const items = Array.isArray(rawItems) ? rawItems.map((item) => {
+    const pName = (
+      item.product_name ||
+      item.name ||
+      item.title ||
+      item.product_title ||
+      item.item_name ||
+      item.product?.name ||
+      item.product?.title ||
+      item.product?.product_name ||
+      item.variant?.name ||
+      item.variant?.title ||
+      'منتج'
+    );
+    const pQty = Number(item.quantity || item.qty || item.count || item.amount || item.ordered_quantity || 1) || 1;
+    const pPriceNum = parseFloat(item.price || item.unit_price || item.product_price || item.total || item.product?.price || item.variant?.price || item.subtotal || 0) || 0;
+    const pCurr = item.currency || currency;
+
+    return {
+      line_item_id: String(item.id || item.product_id || item._id || ''),
+      product_id: String(item.product_id || item.id || ''),
+      variant_id: String(item.variant_id || ''),
+      name: pName,
+      quantity: pQty,
+      price: `${pPriceNum} ${pCurr}`.trim(),
+      sku: item.sku || item.product?.sku || item.variant?.sku || '',
+    };
+  }) : [];
 
   // Total
-  const total = `${order.total || order.total_price || order.grand_total || order.order_total || order.amount || 0} ${order.currency || 'EGP'}`.trim();
+  let totalNum = parseFloat(
+    order.total ||
+    order.total_price ||
+    order.total_amount ||
+    order.final_total ||
+    order.grand_total ||
+    order.order_total ||
+    order.amount ||
+    order.net_total ||
+    order.price ||
+    order.cost ||
+    0
+  );
 
-  // Address parsing — Easy Orders has governorate separate
+  // If total is 0 but we have items, compute sum
+  if ((!totalNum || totalNum === 0) && items.length > 0) {
+    const itemsSum = items.reduce((sum, i) => {
+      const priceVal = parseFloat(String(i.price).replace(/[^0-9.]/g, '')) || 0;
+      return sum + (priceVal * (i.quantity || 1));
+    }, 0);
+    const shippingCost = parseFloat(order.shipping_cost || order.delivery_cost || order.shipping_fee || order.delivery_fee || order.shipping_price || 0) || 0;
+    totalNum = itemsSum + shippingCost;
+  }
+
+  const total = `${totalNum || 0} ${currency}`.trim();
+
+  // Address parsing
   const governorate = (
     order.governorate ||
     order.province ||
     order.state ||
     order.government ||
     order.zone ||
-    order.city ||
     order.shipping_address?.governorate ||
     order.shipping_address?.province ||
     order.shipping_address?.state ||
+    order.shipping_address?.government ||
+    ''
+  );
+
+  const city = (
+    order.city ||
+    order.area ||
+    order.center ||
+    order.district ||
     order.shipping_address?.city ||
+    order.shipping_address?.area ||
+    order.shipping_address?.center ||
+    order.shipping_address?.district ||
     ''
   );
 
@@ -136,14 +247,16 @@ function parseEasyOrder(data) {
     order.address ||
     order.street ||
     order.address1 ||
+    order.address2 ||
     order.shipping_address?.detailed_address ||
     order.shipping_address?.address ||
-    order.shipping_address?.address1 ||
     order.shipping_address?.street ||
+    order.shipping_address?.address1 ||
+    order.shipping_address?.address2 ||
     ''
   );
 
-  const addressParts = [governorate, detailedAddress].filter(Boolean);
+  const addressParts = [governorate, city, detailedAddress].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
   const address = addressParts.join(' - ') || 'غير محدد';
 
   return {
@@ -198,8 +311,25 @@ async function fetchEasyOrders(page = 1, limit = 50) {
 async function fetchEasyOrder(orderId) {
   try {
     const client = await getClient();
-    const response = await client.get(`/orders/${orderId}`);
-    return { success: true, order: response.data?.data || response.data?.order || response.data };
+    // 1. Try direct GET /orders/:id
+    try {
+      const response = await client.get(`/orders/${orderId}`);
+      const order = response.data?.data?.order || response.data?.data || response.data?.order || response.data;
+      if (order && (order.id || order.customer || order.customer_name || order.items)) {
+        return { success: true, order };
+      }
+    } catch (e) {}
+
+    // 2. Try GET /orders with search parameter
+    try {
+      const response2 = await client.get('/orders', { params: { search: orderId, limit: 1 } });
+      const orders = response2.data?.data || response2.data?.orders || response2.data;
+      if (Array.isArray(orders) && orders.length > 0) {
+        return { success: true, order: orders[0] };
+      }
+    } catch (e) {}
+
+    return { success: false, error: 'Order not found in Easy Orders API' };
   } catch (err) {
     console.error(`[EasyOrders] Fetch order ${orderId} failed:`, err.response?.data || err.message);
     return { success: false, error: err.response?.data?.message || err.message };
