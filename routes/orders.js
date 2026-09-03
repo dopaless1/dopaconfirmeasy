@@ -526,15 +526,27 @@ router.post('/:id/resend', async (req, res) => {
     const resultText = await sendWhatsAppMessageWithRetry(order.customer_phone, messageText, true);
     const pollMessage = 'برجاء اختيار رد من الخيارات بالأسفل لتأكيد طلبك وتجهيزه للشحن:';
     const pollOptions = [{ optionName: '✅ تأكيد الطلب' }, { optionName: '❌ تعديل أو إلغاء' }];
-    const resultPoll = await sendPollWithRetry(order.customer_phone, pollMessage, pollOptions);
+    const resultPoll = await sendPollWithRetry(order.customer_phone, pollMessage, pollOptions, order.shopify_order_id);
 
     if (resultText.success || resultPoll.success) {
-      await db.updateOrderStatus(order.shopify_order_id, 'whatsapp_sent', { whatsapp_sent_at: new Date().toISOString() });
-      updateShopifyOrderTags(order.shopify_order_id, 'whatsapp_sent').catch(e => {});
+      const now = new Date().toISOString();
+      await db.updateOrderStatus(order.shopify_order_id, 'whatsapp_sent', { whatsapp_sent_at: now });
+      const { updateSourceStatus } = require('../services/sourceAdapter');
+      updateSourceStatus(order, 'whatsapp_sent').catch(e => {});
       await db.upsertWhatsappSession(order.customer_phone, order.shopify_order_id);
+
+      // Clear scheduled send time and mark as sent manually
+      let notes = {};
+      try { notes = JSON.parse(order.notes || '{}'); } catch {}
+      delete notes.whatsapp_send_after;
+      notes.sent_manually = true;
+      await db.updateOrderNotes(order.id, JSON.stringify(notes));
+
+      if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: order.shopify_order_id, status: 'whatsapp_sent' });
     } else {
       await db.updateOrderStatus(order.shopify_order_id, 'whatsapp_failed', { whatsapp_sent_at: new Date().toISOString() });
-      updateShopifyOrderTags(order.shopify_order_id, 'whatsapp_failed').catch(e => {});
+      const { updateSourceStatus } = require('../services/sourceAdapter');
+      updateSourceStatus(order, 'whatsapp_failed').catch(e => {});
     }
     res.json({ success: resultText.success || resultPoll.success, error: resultPoll.error || resultText.error });
   } catch (err) {

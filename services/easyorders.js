@@ -98,36 +98,52 @@ function parseEasyOrder(data) {
     orderNumber = `#${orderNumber}`;
   }
 
-  // Customer name
-  let customerName = (
-    order.customer_name ||
-    order.client_name ||
-    order.buyer_name ||
-    order.recipient_name ||
-    order.receiver_name ||
-    order.customer?.name ||
-    order.customer?.full_name ||
-    order.client?.name ||
-    order.client?.full_name ||
-    order.buyer?.name ||
-    order.shipping_address?.name ||
-    order.shipping_address?.full_name ||
-    order.shipping_address?.recipient_name ||
-    order.shipping_address?.receiver_name ||
-    order.billing_address?.name ||
-    order.billing_address?.full_name ||
-    order.user?.name ||
-    order.user?.full_name ||
-    `${order.customer?.first_name || order.client?.first_name || order.shipping_address?.first_name || order.first_name || ''} ${order.customer?.last_name || order.client?.last_name || order.shipping_address?.last_name || order.last_name || ''}`.trim() ||
-    ''
-  ).trim();
+  // Customer name: comprehensive check for strings, objects, and form fields
+  let customerName = '';
+  if (typeof order.customer === 'string' && order.customer.trim()) customerName = order.customer.trim();
+  else if (typeof order.client === 'string' && order.client.trim()) customerName = order.client.trim();
+  else if (typeof order.buyer === 'string' && order.buyer.trim()) customerName = order.buyer.trim();
+  else if (typeof order.receiver === 'string' && order.receiver.trim()) customerName = order.receiver.trim();
+  else if (typeof order.recipient === 'string' && order.recipient.trim()) customerName = order.recipient.trim();
+  else if (typeof order.customer_name === 'string' && order.customer_name.trim()) customerName = order.customer_name.trim();
+  else if (typeof order.client_name === 'string' && order.client_name.trim()) customerName = order.client_name.trim();
+  else if (typeof order.buyer_name === 'string' && order.buyer_name.trim()) customerName = order.buyer_name.trim();
+  else if (typeof order.recipient_name === 'string' && order.recipient_name.trim()) customerName = order.recipient_name.trim();
+  else if (typeof order.receiver_name === 'string' && order.receiver_name.trim()) customerName = order.receiver_name.trim();
+  else if (typeof order.full_name === 'string' && order.full_name.trim()) customerName = order.full_name.trim();
+  else if (order.customer?.name || order.customer?.full_name) customerName = (order.customer.name || order.customer.full_name).trim();
+  else if (order.client?.name || order.client?.full_name) customerName = (order.client.name || order.client.full_name).trim();
+  else if (order.buyer?.name || order.buyer?.full_name) customerName = (order.buyer.name || order.buyer.full_name).trim();
+  else if (order.shipping_address?.name || order.shipping_address?.full_name || order.shipping_address?.recipient_name) customerName = (order.shipping_address.name || order.shipping_address.full_name || order.shipping_address.recipient_name).trim();
+  else if (order.billing_address?.name || order.billing_address?.full_name) customerName = (order.billing_address.name || order.billing_address.full_name).trim();
+  else if (order.user?.name || order.user?.full_name) customerName = (order.user.name || order.user.full_name).trim();
+  else {
+    const fn = order.customer?.first_name || order.client?.first_name || order.shipping_address?.first_name || order.first_name || '';
+    const ln = order.customer?.last_name || order.client?.last_name || order.shipping_address?.last_name || order.last_name || '';
+    customerName = `${fn} ${ln}`.trim();
+  }
 
-  if (!customerName && order.name && !String(order.name).startsWith('#') && !/^\d+$/.test(order.name)) {
-    customerName = String(order.name).trim();
+  // Check form/custom_fields
+  if (!customerName && Array.isArray(order.custom_fields || order.form || order.inputs || order.fields)) {
+    const fields = order.custom_fields || order.form || order.inputs || order.fields;
+    for (const f of fields) {
+      const key = String(f.name || f.key || f.label || '').toLowerCase();
+      if ((key.includes('name') || key.includes('اسم') || key.includes('client') || key.includes('customer')) && f.value) {
+        customerName = String(f.value).trim();
+        break;
+      }
+    }
+  }
+
+  if (!customerName && typeof order.name === 'string') {
+    const n = order.name.trim();
+    if (!n.startsWith('#') && !n.startsWith('EO-') && !n.startsWith('SIM-') && !/^[0-9a-f]{8}-/i.test(n) && !/^\d+$/.test(n)) {
+      customerName = n;
+    }
   }
   if (!customerName) customerName = 'عميل';
 
-  // Customer phone
+  // Customer phone: comprehensive check
   let customerPhone = (
     order.customer_phone ||
     order.client_phone ||
@@ -137,30 +153,56 @@ function parseEasyOrder(data) {
     order.phone ||
     order.mobile ||
     order.telephone ||
-    order.customer?.phone ||
-    order.customer?.mobile ||
-    order.client?.phone ||
-    order.client?.mobile ||
-    order.buyer?.phone ||
-    order.buyer?.mobile ||
-    order.shipping_address?.phone ||
-    order.shipping_address?.mobile ||
-    order.billing_address?.phone ||
-    order.billing_address?.mobile ||
-    order.user?.phone ||
-    order.user?.mobile ||
+    (typeof order.client === 'object' ? (order.client?.phone || order.client?.mobile) : null) ||
+    (typeof order.customer === 'object' ? (order.customer?.phone || order.customer?.mobile) : null) ||
+    (typeof order.buyer === 'object' ? (order.buyer?.phone || order.buyer?.mobile) : null) ||
+    (typeof order.shipping_address === 'object' ? (order.shipping_address?.phone || order.shipping_address?.mobile) : null) ||
+    (typeof order.billing_address === 'object' ? (order.billing_address?.phone || order.billing_address?.mobile) : null) ||
+    (typeof order.user === 'object' ? (order.user?.phone || order.user?.mobile) : null) ||
     null
   );
 
-  // Products / Items
-  let rawItems = order.items || order.products || order.order_items || order.line_items || order.order_products || order.cart || order.details || order.product_list || order.variants || order.data?.items || order.data?.products || [];
+  // Check form/custom_fields for phone
+  if (!customerPhone && Array.isArray(order.custom_fields || order.form || order.inputs || order.fields)) {
+    const fields = order.custom_fields || order.form || order.inputs || order.fields;
+    for (const f of fields) {
+      const key = String(f.name || f.key || f.label || '').toLowerCase();
+      if ((key.includes('phone') || key.includes('mobile') || key.includes('هاتف') || key.includes('موبايل')) && f.value) {
+        customerPhone = String(f.value).trim();
+        break;
+      }
+    }
+  }
+
+  // Products / Items: comprehensive parsing
+  let rawItems = order.items || order.products || order.order_items || order.line_items || order.order_products || order.cart || order.cart_items || order.details || order.product_list || order.variants || order.data?.items || order.data?.products || order.data?.cart || [];
+
+  if (typeof rawItems === 'string') {
+    try { rawItems = JSON.parse(rawItems); } catch {}
+  }
   if (rawItems && typeof rawItems === 'object' && !Array.isArray(rawItems)) {
     rawItems = Object.values(rawItems);
+  }
+
+  // If still empty, check for single product at root level
+  if (!Array.isArray(rawItems) || rawItems.length === 0) {
+    const singleName = order.product_name || order.product_title || order.item_name || order.product?.name || order.product?.title || order.title || (typeof order.product === 'string' ? order.product : null);
+    if (singleName) {
+      rawItems = [{
+        name: singleName,
+        quantity: order.quantity || order.qty || order.count || 1,
+        price: order.price || order.product_price || order.unit_price || order.total || 0,
+        sku: order.sku || order.product_sku || '',
+      }];
+    }
   }
 
   const currency = order.currency || 'EGP';
 
   const items = Array.isArray(rawItems) ? rawItems.map((item) => {
+    if (typeof item === 'string') {
+      return { line_item_id: '', product_id: '', variant_id: '', name: item, quantity: 1, price: `0 ${currency}`, sku: '' };
+    }
     const pName = (
       item.product_name ||
       item.name ||
@@ -172,6 +214,7 @@ function parseEasyOrder(data) {
       item.product?.product_name ||
       item.variant?.name ||
       item.variant?.title ||
+      (typeof item.product === 'string' ? item.product : '') ||
       'منتج'
     );
     const pQty = Number(item.quantity || item.qty || item.count || item.amount || item.ordered_quantity || 1) || 1;

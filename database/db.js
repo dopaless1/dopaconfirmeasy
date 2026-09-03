@@ -276,6 +276,15 @@ async function initializeSchema() {
     await client.execute("UPDATE orders SET order_number = REPLACE(order_number, 'EO-#', '#EO-') WHERE order_number LIKE 'EO-#%'");
     await client.execute("UPDATE orders SET order_number = REPLACE(order_number, '#EO-#', '#EO-') WHERE order_number LIKE '#EO-#%'");
   } catch (e) {}
+
+  // WhatsApp LID (Linked ID / Username / Privacy) to Phone Number Mapping
+  await client.execute(`CREATE TABLE IF NOT EXISTS whatsapp_lid_mapping (
+      lid TEXT PRIMARY KEY,
+      phone TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );`);
+  try { await client.execute('ALTER TABLE whatsapp_polls ADD COLUMN order_id TEXT'); } catch (e) {}
+  try { await client.execute('ALTER TABLE whatsapp_polls ADD COLUMN phone TEXT'); } catch (e) {}
 }
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
@@ -397,14 +406,39 @@ async function getOrderById(id) {
 async function getOrderByPhone(phone) {
   const client = getDb();
   const normalized = normalizePhoneForLookup(phone);
-  const res = await client.execute({
-    sql: `SELECT o.* FROM orders o
-          INNER JOIN whatsapp_sessions ws ON ws.order_id = o.shopify_order_id
-          WHERE ws.phone = ?
-          ORDER BY o.created_at DESC LIMIT 1`,
-    args: [normalized],
+  const cleanPhone1 = normalized.replace(/^20/, '0'); // e.g. 01012345678
+  const cleanPhone2 = normalized; // e.g. 201012345678
+  const cleanPhone3 = '+' + normalized; // e.g. +201012345678
+
+  // Try direct match from orders table first (most reliable)
+  const direct = await client.execute({
+    sql: `SELECT * FROM orders
+          WHERE deleted_at IS NULL
+          AND status IN ('pending_confirmation', 'whatsapp_sent', 'whatsapp_failed', 'shipping_failed', 'confirmed')
+          AND (
+            customer_phone = ? OR
+            customer_phone = ? OR
+            customer_phone = ? OR
+            customer_phone LIKE ?
+          )
+          ORDER BY created_at DESC LIMIT 1`,
+    args: [cleanPhone1, cleanPhone2, cleanPhone3, `%${cleanPhone1}%`],
   });
-  return res.rows[0] || null;
+  if (direct.rows[0]) return direct.rows[0];
+
+  // Try sessions table join as secondary fallback
+  const sessionRes = await client.execute({
+    sql: `SELECT o.* FROM orders o
+          INNER JOIN whatsapp_sessions ws ON (ws.order_id = o.shopify_order_id OR ws.order_id = CAST(o.id AS TEXT))
+          WHERE ws.phone = ? OR ws.phone = ?
+          ORDER BY o.created_at DESC LIMIT 1`,
+    args: [normalized, cleanPhone1],
+  });
+  return sessionRes.rows[0] || null;
+}
+
+async function getLatestActiveOrderByPhone(phone) {
+  return getOrderByPhone(phone);
 }
 
 async function getAllOrders(filters = {}) {
@@ -685,13 +719,13 @@ async function removeWhatsAppAuth(id) {
   await client.execute({ sql: 'DELETE FROM whatsapp_auth WHERE id = ?', args: [id] });
 }
 
-// ─── WhatsApp Polls (Baileys) ────────────────────────────────────────────────
+// ─── WhatsApp Polls & LID Mapping (Baileys) ──────────────────────────────────
 
-async function insertPollSecret(messageId, secretBase64) {
+async function insertPollSecret(messageId, secretBase64, orderId = null, phone = null) {
   const client = getDb();
   return client.execute({
-    sql: `INSERT OR REPLACE INTO whatsapp_polls (id, secret, created_at) VALUES (?, ?, datetime('now'))`,
-    args: [messageId, secretBase64]
+    sql: `INSERT OR REPLACE INTO whatsapp_polls (id, secret, order_id, phone, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+    args: [messageId, secretBase64, orderId ? String(orderId) : null, phone ? normalizePhoneForLookup(phone) : null]
   });
 }
 
@@ -699,6 +733,35 @@ async function getPollSecret(messageId) {
   const client = getDb();
   const res = await client.execute({ sql: 'SELECT secret FROM whatsapp_polls WHERE id = ?', args: [messageId] });
   return res.rows[0] ? res.rows[0].secret : null;
+}
+
+async function getPollInfo(messageId) {
+  const client = getDb();
+  const res = await client.execute({ sql: 'SELECT * FROM whatsapp_polls WHERE id = ?', args: [messageId] });
+  return res.rows[0] || null;
+}
+
+async function saveLidMapping(lid, phone) {
+  if (!lid || !phone) return;
+  const cleanLid = String(lid).replace(/@lid|@c\.us|@s\.whatsapp\.net/g, '').trim();
+  const cleanPhone = normalizePhoneForLookup(phone);
+  if (!cleanLid || !cleanPhone || cleanLid === cleanPhone) return;
+  const client = getDb();
+  try {
+    await client.execute({
+      sql: `INSERT OR REPLACE INTO whatsapp_lid_mapping (lid, phone, created_at) VALUES (?, ?, datetime('now'))`,
+      args: [cleanLid, cleanPhone]
+    });
+    console.log(`[DB/LID] 🔗 Mapped LID ${cleanLid} -> Phone ${cleanPhone}`);
+  } catch (e) {}
+}
+
+async function getPhoneByLid(lid) {
+  if (!lid) return null;
+  const cleanLid = String(lid).replace(/@lid|@c\.us|@s\.whatsapp\.net/g, '').trim();
+  const client = getDb();
+  const res = await client.execute({ sql: 'SELECT phone FROM whatsapp_lid_mapping WHERE lid = ?', args: [cleanLid] });
+  return res.rows[0]?.phone || null;
 }
 
 // ─── Quick Links ─────────────────────────────────────────────────────────────
@@ -1092,6 +1155,7 @@ module.exports = {
   getOrderByShopifyId,
   getOrderById,
   getOrderByPhone,
+  getLatestActiveOrderByPhone,
   getAllOrders,
   deleteOrder,
   trashOrder,
@@ -1118,6 +1182,9 @@ module.exports = {
   removeWhatsAppAuth,
   insertPollSecret,
   getPollSecret,
+  getPollInfo,
+  saveLidMapping,
+  getPhoneByLid,
   getQuickLinks,
   addQuickLink,
   deleteQuickLink,

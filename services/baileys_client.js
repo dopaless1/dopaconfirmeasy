@@ -72,6 +72,23 @@ async function startBaileys() {
 
     sock.ev.on('creds.update', saveCreds);
 
+    // Track contact LID mappings
+    sock.ev.on('contacts.upsert', async (contacts) => {
+      for (const contact of contacts) {
+        if (contact.id && contact.lid) {
+          await db.saveLidMapping(contact.lid, contact.id);
+        }
+      }
+    });
+
+    sock.ev.on('contacts.update', async (contacts) => {
+      for (const contact of contacts) {
+        if (contact.id && contact.lid) {
+          await db.saveLidMapping(contact.lid, contact.id);
+        }
+      }
+    });
+
   sock.ev.on('connection.update', async (update) => {
     // هاندلر جاي من سوكت قديم اتلغى؟ متعملش أي حاجة خالص
     if (myGeneration !== socketGeneration) return;
@@ -135,22 +152,24 @@ async function startBaileys() {
       for (const msg of m.messages) {
         if (!msg.key.fromMe && msg.message) {
           let sender = msg.key.remoteJid; // ممكن تيجي بصيغة LID: 103843853529241@lid بدل رقم التليفون
+          let explicitOrderId = null;
 
-          // لو الـ JID جاي بصيغة LID، حوله لرقم التليفون الحقيقي (PN) عشان نلاقي الـ session بيه
+          // لو الـ JID جاي بصيغة LID أو Username، حوله لرقم التليفون الحقيقي (PN)
           if (sender && sender.endsWith('@lid')) {
             let resolvedPn = msg.key.remoteJidAlt || null;
             if (!resolvedPn) {
               try {
                 resolvedPn = await sock.signalRepository.lidMapping.getPNForLID(sender);
-              } catch (e) {
-                console.error('[Baileys] Error resolving LID to PN:', e.message);
-              }
+              } catch (e) {}
+            }
+            if (!resolvedPn) {
+              resolvedPn = await db.getPhoneByLid(sender);
             }
             if (resolvedPn) {
-              console.log(`[Baileys] Resolved LID ${sender} → PN ${resolvedPn}`);
+              console.log(`[Baileys] ✅ Resolved LID ${sender} → Phone ${resolvedPn}`);
               sender = resolvedPn;
             } else {
-              console.warn(`[Baileys] ⚠️ Could not resolve LID ${sender} to a phone number — session lookup will likely fail.`);
+              console.warn(`[Baileys] ⚠️ LID received without direct PN mapping: ${sender}`);
             }
           }
 
@@ -168,7 +187,17 @@ async function startBaileys() {
                 const pollKey = msg.message.pollUpdateMessage.pollCreationMessageKey;
                 const pollMsgId = pollKey.id;
                 console.log(`[Baileys] Poll vote received — pollMsgId: ${pollMsgId} | fromMe: ${pollKey.fromMe} | participant: ${pollKey.participant} | voterJid: ${msg.key.remoteJid}`);
-                const secretBase64 = await db.getPollSecret(pollMsgId);
+                
+                const pollInfo = await db.getPollInfo(pollMsgId);
+                if (pollInfo) {
+                    if (pollInfo.order_id) explicitOrderId = pollInfo.order_id;
+                    if (pollInfo.phone && (!sender || sender.endsWith('@lid'))) {
+                        sender = pollInfo.phone;
+                        console.log(`[Baileys] 🎯 Linked poll vote directly to order: ${pollInfo.order_id} (Phone: ${pollInfo.phone})`);
+                    }
+                }
+
+                const secretBase64 = pollInfo?.secret || await db.getPollSecret(pollMsgId);
                 if (secretBase64) {
                     // واتساب بقت تشفر تصويتات الـ poll بصيغة LID مش PN دايمًا، فمفيش طريقة مضمونة
                     // نعرف بيها الصيغة الصح مقدمًا. الحل الموثق رسميًا من Baileys: نجرب كل التركيبات
@@ -233,9 +262,8 @@ async function startBaileys() {
             }
           }
 
-
           if (text && onMessageReceived) {
-            onMessageReceived(sender, text);
+            onMessageReceived(sender, text, explicitOrderId);
           }
         }
       }
@@ -288,7 +316,7 @@ async function sendWhatsAppMessage(phone, text, withImage = false, imageKey = 'W
   }
 }
 
-async function sendWhatsAppPoll(phone, question, options) {
+async function sendWhatsAppPoll(phone, question, options, orderId = null) {
   if (!sock || connectionState !== 'connected') {
       console.error('[Baileys] Not connected. Cannot send poll.');
       return false;
@@ -306,8 +334,8 @@ async function sendWhatsAppPoll(phone, question, options) {
       
       if (sentMsg?.message?.messageContextInfo?.messageSecret) {
          const secretBase64 = Buffer.from(sentMsg.message.messageContextInfo.messageSecret).toString('base64');
-         await db.insertPollSecret(sentMsg.key.id, secretBase64);
-         console.log(`[Baileys] Poll secret saved for messageId: ${sentMsg.key.id}`);
+         await db.insertPollSecret(sentMsg.key.id, secretBase64, orderId, phone);
+         console.log(`[Baileys] Poll secret saved for messageId: ${sentMsg.key.id} (Order: ${orderId || 'NONE'}, Phone: ${phone})`);
       } else {
          console.warn(`[Baileys] ⚠️ No messageSecret found on sent poll! messageId: ${sentMsg?.key?.id}`);
       }

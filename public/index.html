@@ -1043,7 +1043,7 @@ function renderSingleTable(tbodyId, countId, orders, highlightNew = false) {
         <div class="items-summary" title="${getItemsSummaryFull(order.items)}">${getItemsSummary(order.items)}</div>
       </td>
       <td><span class="total-badge">${escapeHtml(order.total || '—')}</span></td>
-      <td>${renderStatusBadge(order.status)}${order.status === 'delivered' ? renderReviewBadge(order) : ''}</td>
+      <td>${renderStatusBadge(order.status, order)}${order.status === 'delivered' ? renderReviewBadge(order) : ''}</td>
       <td><div class="time-col">${formatTime(order.created_at)}</div></td>
       <td>
         <button class="btn btn-ghost btn-sm" onclick="toggleOrderActions(${order.id})" title="عرض الإجراءات" style="display: flex; align-items: center; gap: 4px;">
@@ -1078,7 +1078,31 @@ function getItemsSummaryFull(itemsJson) {
   } catch { return ''; }
 }
 
-function renderStatusBadge(status) {
+function renderStatusBadge(status, order = {}) {
+  let notes = {};
+  try { notes = JSON.parse(order?.notes || '{}'); } catch {}
+
+  // Check if there is a pending scheduled WhatsApp
+  if ((status === 'pending_confirmation' || !status) && notes.whatsapp_send_after) {
+    const diffMs = new Date(notes.whatsapp_send_after).getTime() - Date.now();
+    if (diffMs > 0) {
+      const minsLeft = Math.ceil(diffMs / 60000);
+      return `
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start">
+          <span class="badge" style="background:#fff7ed;color:#c2410c;border:1.5px solid #fed7aa;font-weight:800;font-size:12px;padding:3px 8px;white-space:nowrap;">
+            ⏳ إرسال بعد ${minsLeft} دقيقة
+          </span>
+          <button class="btn btn-xs" onclick="sendWhatsAppNow(${order.id})" style="background:#25D366;color:#fff;font-weight:700;padding:3px 10px;font-size:11px;border-radius:4px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;" title="إرسال رسالة التأكيد واتساب فوراً الآن دون انتظار التايمر">
+            ⚡ إرسال الآن
+          </button>
+        </div>`;
+    }
+  }
+
+  if (status === 'whatsapp_sent' && notes.sent_manually) {
+    return `<span class="badge badge-whatsapp-sent" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-weight:700">💬 أُرسل يدوياً (انتظار الرد)</span>`;
+  }
+
   const statusMap = {
     'pending_confirmation': ['badge-pending', '⏳', 'في انتظار رد العميل'],
     'whatsapp_sent':        ['badge-whatsapp-sent', '💬', 'تم إرسال واتساب'],
@@ -1093,6 +1117,22 @@ function renderStatusBadge(status) {
   };
   const [cls, icon, label] = statusMap[status] || ['badge-pending', '❓', status];
   return `<span class="badge ${cls}">${icon} ${label}</span>`;
+}
+
+async function sendWhatsAppNow(orderId) {
+  try {
+    showToast('جاري إرسال رسالة الواتساب فوراً...', 'info');
+    const res = await fetch(`/api/orders/${orderId}/resend`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ تم إرسال رسالة الواتساب بنجاح', 'success');
+      loadOrders(false, true);
+    } else {
+      showToast('❌ فشل الإرسال: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (e) {
+    showToast('❌ خطأ في الاتصال بالسيرفر', 'error');
+  }
 }
 
 // ─── Manual Tags ─────────────────────────────────────────────────────────────
@@ -1938,9 +1978,16 @@ function updateLastRefreshTime() {
 function formatTime(isoStr) {
   if (!isoStr) return '—';
   try {
-    const d = new Date(isoStr);
+    let cleanStr = String(isoStr).trim();
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(cleanStr)) {
+      cleanStr = cleanStr.replace(' ', 'T') + 'Z';
+    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(cleanStr)) {
+      cleanStr += 'Z';
+    }
+    const d = new Date(cleanStr);
     const now = new Date();
     const diff = now - d;
+    if (diff < 0) return 'منذ لحظات';
     if (diff < 60000) return 'منذ لحظات';
     if (diff < 3600000) return `منذ ${Math.floor(diff/60000)} دقيقة`;
     if (diff < 86400000) return `منذ ${Math.floor(diff/3600000)} ساعة`;

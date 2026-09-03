@@ -83,10 +83,10 @@ router.post('/shopify', verifyShopifyWebhook, async (req, res) => {
 
 router.post('/easyorders', async (req, res) => {
   try {
-    console.log('[Webhook/EasyOrders] ✅ Received webhook payload');
+    const payload = req.body;
+    console.log('[Webhook/EasyOrders] ✅ Received webhook payload:', JSON.stringify(payload));
     res.status(200).json({ received: true });
 
-    const payload = req.body;
     if (!payload) return;
 
     // Easy Orders order event
@@ -137,7 +137,7 @@ async function handleNewEasyOrder(payload, topic = 'order.created') {
     }
   }
 
-  console.log(`[Webhook/EasyOrders] Processing order ${parsed.order_number} — phone: ${parsed.customer_phone || 'NONE'}`);
+  console.log(`[Webhook/EasyOrders] 📦 Parsed order ${parsed.order_number} -> Name: "${parsed.customer_name}" | Phone: "${parsed.customer_phone}" | Items: ${parsed.items} | Total: "${parsed.total}"`);
 
   const insertResult = await db.insertOrder(parsed);
 
@@ -275,7 +275,7 @@ async function sendConfirmationWhatsApp(order) {
 
   const pollMessage = 'برجاء اختيار تأكيد الطلب من الخيارات بالأسفل لتسريع عملية الشحن:';
   const pollOptions = [{ optionName: '✅ تأكيد الطلب' }, { optionName: '❌ تعديل أو إلغاء' }];
-  const resultPoll  = await sendPollWithRetry(order.customer_phone, pollMessage, pollOptions);
+  const resultPoll  = await sendPollWithRetry(order.customer_phone, pollMessage, pollOptions, order.shopify_order_id);
 
   const now = new Date().toISOString();
 
@@ -338,28 +338,37 @@ router.post('/whatsapp', async (req, res) => {
   // For Meta/GreenAPI, the response was already sent on line 135
 });
 
-async function processIncomingWhatsAppMessage(senderPhone, textMessage) {
+async function processIncomingWhatsAppMessage(senderPhone, textMessage, explicitOrderId = null) {
   // Ensure we don't crash the server on unhandled rejections
   try {
-    const cleanPhone = senderPhone.replace('@c.us', '').replace('@s.whatsapp.net', '').replace(/^\+/, '');
-    console.log(`[WA Webhook] Processing reply from ${cleanPhone}: "${textMessage}"`);
+    const cleanPhone = String(senderPhone || '').replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '').replace(/^\+/, '').trim();
+    console.log(`[WA Webhook] 📩 Processing reply from ${cleanPhone} (explicitOrderId: ${explicitOrderId || 'NONE'}): "${textMessage}"`);
 
-    const session = await db.getSessionByPhone(cleanPhone);
-    if (!session) {
-      console.log(`[WA Webhook] No session found for ${cleanPhone}`);
-      return;
+    let order = null;
+    if (explicitOrderId) {
+      order = await db.getOrderByShopifyId(explicitOrderId);
+      if (order) console.log(`[WA Webhook] 🎯 Directly matched order by Poll metadata: ${order.order_number}`);
     }
 
-    const orderId = String(session.order_id);
-    console.log(`[WA Webhook] Session found — order_id: ${orderId}`);
-
-    const order = await db.getOrderByShopifyId(orderId);
     if (!order) {
-      console.log(`[WA Webhook] Order not found for id: ${orderId}`);
+      const session = await db.getSessionByPhone(cleanPhone);
+      if (session && session.order_id) {
+        console.log(`[WA Webhook] Session found — order_id: ${session.order_id}`);
+        order = await db.getOrderByShopifyId(session.order_id);
+      }
+    }
+
+    if (!order) {
+      console.log(`[WA Webhook] Fallback: Searching latest active order for phone/LID ${cleanPhone}`);
+      order = await db.getLatestActiveOrderByPhone(cleanPhone);
+    }
+
+    if (!order) {
+      console.log(`[WA Webhook] ❌ No active order found for phone: ${cleanPhone}`);
       return;
     }
 
-    console.log(`[WA Webhook] Order found — status: ${order.status} | order: ${order.order_number}`);
+    console.log(`[WA Webhook] 🎯 Order found — status: ${order.status} | order: ${order.order_number}`);
 
     if (order.status === 'delivered') {
       const starCount = (textMessage.match(/⭐/g) || []).length;

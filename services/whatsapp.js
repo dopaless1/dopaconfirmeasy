@@ -209,7 +209,7 @@ async function sendWhatsAppMessageWithRetry(phone, message, withImage = false, i
   return result;
 }
 
-async function sendPollMessage(phone, message, options) {
+async function sendPollMessage(phone, message, options, orderId = null) {
   const provider = await getProvider();
   if (provider === 'meta') return metaSendPoll(phone, message, options);
   if (provider === 'green') return greenSendPoll(phone, message, options);
@@ -219,16 +219,16 @@ async function sendPollMessage(phone, message, options) {
   if (!p) return { success: false, error: 'Invalid phone' };
   await ensureBaileysConnected();
   const pollOptions = options.map(o => o.optionName);
-  const res = await baileysClient.sendWhatsAppPoll(p, message, pollOptions);
+  const res = await baileysClient.sendWhatsAppPoll(p, message, pollOptions, orderId);
   return { success: res, chatId: p, data: {} };
 }
 
-async function sendPollWithRetry(phone, message, options) {
-  let result = await sendPollMessage(phone, message, options);
+async function sendPollWithRetry(phone, message, options, orderId = null) {
+  let result = await sendPollMessage(phone, message, options, orderId);
   for (let attempt = 1; attempt <= 2 && !result.success; attempt++) {
     console.log(`[WhatsApp] Retrying Poll in 5 seconds... (attempt ${attempt})`);
     await new Promise(r => setTimeout(r, 5000));
-    result = await sendPollMessage(phone, message, options);
+    result = await sendPollMessage(phone, message, options, orderId);
   }
   return result;
 }
