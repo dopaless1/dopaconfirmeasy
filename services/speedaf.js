@@ -471,16 +471,30 @@ async function syncAllAreas() {
 
 /**
  * مطابقة اسم المحافظة أو المنطقة من العنوان مع كود Speedaf
+ * يدعم عناوين Easy Orders بصيغة: "الشارع - المدينة - المحافظة"
  */
 async function matchGovernorateToSpeedafCode(addressText) {
   if (!addressText) return null;
   const clean = addressText.trim();
 
-  // Try exact match on province
-  const provinces = await db.searchAreas(clean, 'province');
-  if (provinces.length > 0) return provinces[0];
+  // Split address by common separators (Easy Orders sends "Street - City - Governorate")
+  const parts = clean.split(/[-–,،\n]/).map(s => s.trim()).filter(Boolean);
 
-  // Try matching any known governorate in text
+  // Try each part from last to first (governorate is usually last)
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    // Try DB search
+    const dbMatch = await db.searchAreas(part, 'province');
+    if (dbMatch.length > 0) return dbMatch[0];
+    // Try fallback list
+    for (const g of EGYPT_GOVERNORATES_FALLBACK) {
+      if (part === g.nameAr || part.toLowerCase() === g.name.toLowerCase()) {
+        return { code: g.code, name: g.name, name_ar: g.nameAr };
+      }
+    }
+  }
+
+  // Wider scan: look for any governorate keyword anywhere in the text
   for (const g of EGYPT_GOVERNORATES_FALLBACK) {
     if (clean.includes(g.nameAr) || clean.toLowerCase().includes(g.name.toLowerCase())) {
       return { code: g.code, name: g.name, name_ar: g.nameAr };
@@ -491,21 +505,40 @@ async function matchGovernorateToSpeedafCode(addressText) {
 }
 
 /**
+ * استخراج اسم المدينة/المنطقة من عنوان إيزي أوردرز
+ * الصيغة: "الشارع - المدينة - المحافظة" → المدينة هي العنصر قبل الأخير
+ */
+function extractCityFromAddress(addressText) {
+  if (!addressText) return '';
+  const parts = addressText.split(/[-–,،\n]/).map(s => s.trim()).filter(Boolean);
+  // If we have at least 2 parts, the city is likely the second-to-last element
+  if (parts.length >= 2) return parts[parts.length - 2];
+  return '';
+}
+
+/**
  * مطابقة المنطقة الذكية بالذكاء الاصطناعي (Gemini)
  * تحلل العنوان وتطابقه مع القائمة الرسمية لمناطق المحافظة في Speedaf
  */
 async function matchAreaWithGemini({ address, provinceCode, provinceName = '' }) {
   if (!address || !provinceCode) return null;
   const cleanAddr = address.trim();
+  const cityHint = extractCityFromAddress(address); // e.g. "El-Senbellawein" or "السنبلاوين"
 
   // 1. Get official areas for this province
   const areas = await db.getSpeedafAreasByProvince(provinceCode);
   if (!areas || areas.length === 0) return null;
 
-  // 2. Fast direct match (if customer wrote the exact area name)
+  // 2. Fast direct match — check Arabic name, English name, AND extracted city part
   for (const a of areas) {
-    const aName = a.name_ar || a.name;
-    if (aName && cleanAddr.includes(aName)) {
+    const aNameAr = (a.name_ar || '').trim();
+    const aNameEn = (a.name || '').replace(/-/g, '').toLowerCase();
+    const cityHintClean = cityHint.replace(/-/g, '').toLowerCase();
+    if (
+      (aNameAr && (cleanAddr.includes(aNameAr) || cityHint.includes(aNameAr))) ||
+      (aNameEn && (cityHintClean === aNameEn || cityHintClean.includes(aNameEn) || aNameEn.includes(cityHintClean)))
+    ) {
+      console.log(`[Speedaf/Match] ✅ Direct matched "${cityHint}" → "${a.name_ar}" (${a.code})`);
       return { matched: a, method: 'direct' };
     }
   }

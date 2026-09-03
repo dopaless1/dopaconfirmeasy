@@ -520,6 +520,13 @@ router.post('/:id/resend', async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (!order.customer_phone) return res.status(400).json({ error: 'No phone number for this order' });
 
+    // FIX: Clear the scheduled send flag FIRST to prevent ScheduledWA job from double-sending
+    let notes = {};
+    try { notes = JSON.parse(order.notes || '{}'); } catch {}
+    delete notes.whatsapp_send_after;
+    notes.sent_manually = true;
+    await db.updateOrderNotes(order.id, JSON.stringify(notes));
+
     const { sendWhatsAppMessageWithRetry, sendPollWithRetry, formatMessage, getMessageTemplate } = require('../services/whatsapp');
     const template = await getMessageTemplate();
     const messageText = formatMessage(template, order);
@@ -534,13 +541,6 @@ router.post('/:id/resend', async (req, res) => {
       const { updateSourceStatus } = require('../services/sourceAdapter');
       updateSourceStatus(order, 'whatsapp_sent').catch(e => {});
       await db.upsertWhatsappSession(order.customer_phone, order.shopify_order_id);
-
-      // Clear scheduled send time and mark as sent manually
-      let notes = {};
-      try { notes = JSON.parse(order.notes || '{}'); } catch {}
-      delete notes.whatsapp_send_after;
-      notes.sent_manually = true;
-      await db.updateOrderNotes(order.id, JSON.stringify(notes));
 
       if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: order.shopify_order_id, status: 'whatsapp_sent' });
     } else {
@@ -570,12 +570,28 @@ router.post('/:id/confirm', async (req, res) => {
     if (shippingMode === 'speedaf_auto' && !String(order.shopify_order_id).startsWith('SIM-')) {
       let govMatch = null;
       if (order.address) {
-        const parts = order.address.split(/[-–,،]/).map(s => s.trim()).filter(Boolean);
-        if (parts.length > 0) govMatch = await matchGovernorateToSpeedafCode(parts[0]);
+        // Pass the full address so matchGovernorateToSpeedafCode can split and scan all parts
+        govMatch = await matchGovernorateToSpeedafCode(order.address);
+      }
+
+      let areaMatch = null;
+      if (govMatch) {
+        const { matchAreaWithGemini } = require('../services/speedaf');
+        areaMatch = await matchAreaWithGemini({
+          address: order.address,
+          provinceCode: govMatch.code,
+          provinceName: govMatch.name_ar || govMatch.name,
+        });
       }
 
       if (govMatch) {
-        shippingResult = await sendOrderToSpeedaf(order, { provinceCode: govMatch.code, provinceName: govMatch.name });
+        const locationCodes = {
+          provinceCode: govMatch.code,
+          provinceName: govMatch.name_ar || govMatch.name,
+          districtCode: areaMatch?.matched?.code || '',
+          districtName: areaMatch?.matched?.name_ar || '',
+        };
+        shippingResult = await sendOrderToSpeedaf(order, locationCodes);
       } else {
         shippingResult = { success: false, error: 'يتطلب اختيار المدينة والحي' };
       }
@@ -583,18 +599,25 @@ router.post('/:id/confirm', async (req, res) => {
       if (shippingResult.success) {
         await db.updateOrderStatus(order.shopify_order_id, 'shipping_sent', { shipping_sent_at: now });
         updateSourceStatus(order, 'shipping_sent').catch(e => {});
+        if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: order.shopify_order_id, status: 'shipping_sent' });
+      } else {
+        if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: order.shopify_order_id, status: 'confirmed' });
       }
     } else if (shippingMode === 'starlink_auto') {
       shippingResult = await sendOrderToStarlink(order.raw_payload);
       if (shippingResult.success) {
         await db.updateOrderStatus(order.shopify_order_id, 'shipping_sent', { shipping_sent_at: now });
         updateSourceStatus(order, 'shipping_sent').catch(e => {});
+        if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: order.shopify_order_id, status: 'shipping_sent' });
       } else {
         await db.updateOrderStatus(order.shopify_order_id, 'shipping_failed');
         updateSourceStatus(order, 'shipping_failed').catch(e => {});
+        if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: order.shopify_order_id, status: 'shipping_failed' });
       }
+    } else {
+      // manual mode: just leave as 'confirmed' and broadcast
+      if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: order.shopify_order_id, status: 'confirmed' });
     }
-    // manual mode: just leave as 'confirmed'
 
     if (order.customer_phone) await db.deleteSession(order.customer_phone);
     res.json({ success: shippingResult.success, shipping: shippingResult, shippingMode });

@@ -414,7 +414,7 @@ async function getOrderByPhone(phone) {
   const direct = await client.execute({
     sql: `SELECT * FROM orders
           WHERE deleted_at IS NULL
-          AND status IN ('pending_confirmation', 'whatsapp_sent', 'whatsapp_failed', 'shipping_failed', 'confirmed')
+          AND status IN ('pending_confirmation', 'whatsapp_sent', 'whatsapp_failed', 'shipping_failed', 'needs_follow_up')
           AND (
             customer_phone = ? OR
             customer_phone = ? OR
@@ -434,7 +434,24 @@ async function getOrderByPhone(phone) {
           ORDER BY o.created_at DESC LIMIT 1`,
     args: [normalized, cleanPhone1],
   });
-  return sessionRes.rows[0] || null;
+  if (sessionRes.rows[0]) return sessionRes.rows[0];
+
+  // LID fallback: if phone looks like a LID (not Egyptian format), resolve via mapping table
+  // This handles text replies from customers with WhatsApp privacy mode enabled
+  const rawPhone = String(phone || '').replace('@lid', '').replace('@s.whatsapp.net', '').replace('@c.us', '').trim();
+  const isLid = rawPhone && !/^(0|\+?20)\d{10}$/.test(rawPhone);
+  if (isLid) {
+    const lidRes = await client.execute({
+      sql: `SELECT phone FROM whatsapp_lid_mapping WHERE lid = ? OR lid = ? LIMIT 1`,
+      args: [rawPhone, rawPhone + '@lid'],
+    });
+    if (lidRes.rows[0]?.phone) {
+      console.log(`[DB] 🔍 Resolved LID ${rawPhone} → ${lidRes.rows[0].phone} via mapping table`);
+      return getOrderByPhone(lidRes.rows[0].phone);
+    }
+  }
+
+  return null;
 }
 
 async function getLatestActiveOrderByPhone(phone) {

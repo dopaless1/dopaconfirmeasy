@@ -41,10 +41,14 @@ async function updateSourceStatus(order, status) {
       console.error('[SourceAdapter] Shopify tag update failed:', e.message);
     }
   } else if (source === 'easyorders' && (order.easyorders_id || order.shopify_order_id)) {
+    const targetId = String(order.easyorders_id || order.shopify_order_id);
+    if (targetId.startsWith('SIM-') || String(order.order_number).startsWith('#SIM-') || /^\d{12,}$/.test(targetId)) {
+      return; // Skip simulated orders
+    }
     try {
       const easyorders = require('./easyorders');
       const eoStatus = EASYORDERS_STATUS_MAP[status] || 'pending';
-      await easyorders.updateOrderStatus(order.easyorders_id || order.shopify_order_id, eoStatus);
+      await easyorders.updateOrderStatus(targetId, eoStatus);
     } catch (e) {
       console.error('[SourceAdapter] Easy Orders status update failed:', e.message);
     }

@@ -79,7 +79,7 @@ async function runAutoRetry() {
         const msgText = formatMessage(template, order);
         const rText = await sendWhatsAppMessageWithRetry(order.customer_phone, msgText, true);
         const pollOptions = [{ optionName: '✅ تأكيد الطلب' }, { optionName: '❌ تعديل أو إلغاء' }];
-        const rPoll = await sendPollWithRetry(order.customer_phone, 'برجاء اختيار تأكيد الطلب من الخيارات بالأسفل لتسريع عملية الشحن:', pollOptions);
+        const rPoll = await sendPollWithRetry(order.customer_phone, 'برجاء اختيار تأكيد الطلب من الخيارات بالأسفل لتسريع عملية الشحن:', pollOptions, order.shopify_order_id);
 
         notes.retry_count = retryCount;
         notes.last_retry_at = new Date().toISOString();

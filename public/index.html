@@ -2477,36 +2477,55 @@ function bulkPrintWaybills() {
     `;
   }).join('');
 
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html lang="ar" dir="rtl">
-    <head>
-      <meta charset="UTF-8">
-      <title>طباعة بوالص الشحن — ${orders.length} طلب</title>
-      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-      <style>
-        @page { size: auto; margin: 10mm; }
-        body { margin: 0; padding: 16px; background: #f8fafc; font-family: 'Cairo', Tahoma, sans-serif; }
-        .no-print-bar { text-align: center; margin-bottom: 24px; padding: 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .print-btn { background: #ea580c; color: #fff; font-weight: 700; font-size: 16px; padding: 10px 28px; border: none; border-radius: 6px; cursor: pointer; }
-        @media print {
-          body { background: #fff; padding: 0; }
-          .no-print-bar { display: none !important; }
-          .waybill-label { margin: 0 0 20px 0 !important; border-radius: 0 !important; }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="no-print-bar">
-        <button class="print-btn" onclick="window.print()">🖨️ طباعة جميع البوالص (${orders.length} بوليصة)</button>
-      </div>
-      ${waybillsHtml}
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
-  showToast(`🖨️ تم تجهيز ${orders.length} بوليصة شحن للطباعة`, 'success');
+  const htmlDoc = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>طباعة بوالص الشحن — ${orders.length} طلب</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    @page { size: A5 portrait; margin: 8mm; }
+    body { margin: 0; padding: 0; background: #fff; font-family: 'Cairo', Tahoma, sans-serif; }
+    .waybill-label { page-break-after: always; break-after: page; border: 2px solid #000; border-radius: 8px; padding: 12px 16px; max-width: 460px; margin: 10px auto; background: #fff; direction: rtl; color: #000; }
+    .waybill-label:last-child { page-break-after: avoid; break-after: avoid; }
+    @media print {
+      body { background: #fff; }
+      .no-print-bar { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  ${waybillsHtml}
+</body>
+</html>`;
+
+  // Use Blob URL to avoid popup blocker
+  const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+
+  // Remove existing print iframe if any
+  const existingIframe = document.getElementById('print-iframe');
+  if (existingIframe) existingIframe.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'print-iframe';
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;';
+  iframe.src = blobUrl;
+
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      showToast(`🖨️ تم تجهيز ${orders.length} بوليصة للطباعة`, 'success');
+    } catch (e) {
+      // Fallback: open in new tab
+      window.open(blobUrl, '_blank');
+      showToast(`🖨️ تم فتح ${orders.length} بوليصة في تبويب جديد`, 'success');
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  };
+
+  document.body.appendChild(iframe);
 }
 
 const EXPORT_FIELD_LABELS = {

@@ -432,6 +432,8 @@ async function processIncomingWhatsAppMessage(senderPhone, textMessage, explicit
         } else {
           if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: shopifyOrderId, status: 'confirmed' });
           await sendWhatsAppMessage(cleanPhone, '✅ تم تأكيد طلبك بنجاح وجاري تجهيزه للشحن! 🚚\nسيقوم المندوب بالتواصل معك قريباً.');
+          // Notify merchant to assign shipping manually
+          notifyOwner(`⚠️ تأكيد أوردر بدون شحن تلقائي\nالأوردر: ${order.order_number}\nالعميل: ${order.customer_name}\nالعنوان: ${order.address}\n👉 حدد المحافظة يدوياً من الداشبورد`).catch(() => {});
         }
       } else if (shippingMode === 'starlink_auto') {
         const rawPayload = typeof order.raw_payload === 'string' ? order.raw_payload : JSON.stringify(order.raw_payload);
