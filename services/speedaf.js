@@ -457,7 +457,11 @@ async function syncAllAreas() {
         nameAr: areaAr,
         parentCode: pCode,
         level: 'area',
-        fullPath: `${pNameAr} > ${areaAr}`,
+        fullPath: `${pNameAr} > ${item.cityName || ''} > ${areaAr}`,
+        cityCode: item.cityCode || null,
+        cityName: item.cityName || null,
+        provinceCode: item.provinceCode || null,
+        provinceName: item.provinceName || null,
       });
       totalSynced++;
     }
@@ -622,7 +626,7 @@ async function sendOrderToSpeedaf(order, locationCodes) {
     return { success: false, error: 'Speedaf غير مفعّل — أضف SPEEDAF_TOKEN في الإعدادات' };
   }
 
-  if (!locationCodes || !locationCodes.provinceCode) {
+  if (!locationCodes || (!locationCodes.provinceCode && !locationCodes.districtCode)) {
     return { success: false, error: 'أكواد المنطقة مطلوبة — اختار المحافظة والمدينة والحي' };
   }
 
@@ -633,54 +637,123 @@ async function sendOrderToSpeedaf(order, locationCodes) {
   }
 
   try {
-    // Parse order data
+    // 1. Resolve Location Codes (Province, City, District)
+    let provinceCode = locationCodes.provinceCode || '';
+    let provinceName = locationCodes.provinceName || '';
+    let cityCode = locationCodes.cityCode || '';
+    let cityName = locationCodes.cityName || '';
+    let districtCode = locationCodes.districtCode || '';
+    let districtName = locationCodes.districtName || '';
+
+    // If districtCode is present, look up the exact official Speedaf city & province
+    if (districtCode) {
+      try {
+        const dbArea = await db.getAreaByCode(districtCode);
+        if (dbArea) {
+          if (dbArea.city_code) cityCode = dbArea.city_code;
+          if (dbArea.city_name) cityName = dbArea.city_name;
+          if (dbArea.province_code) provinceCode = dbArea.province_code;
+          if (dbArea.province_name) provinceName = dbArea.province_name;
+          districtName = dbArea.name_ar || dbArea.name || districtName;
+        }
+      } catch (e) {}
+
+      // Fallback: If cityCode is still missing or wrongly passed as district code, query live areas
+      if (!cityCode || cityCode.startsWith('EGA')) {
+        try {
+          const areaListRes = await fetchSpeedafAreas();
+          const liveArea = (areaListRes.areas || []).find(a => a.code === districtCode);
+          if (liveArea) {
+            cityCode = liveArea.cityCode || cityCode;
+            cityName = liveArea.cityName || cityName;
+            provinceCode = liveArea.provinceCode || provinceCode;
+            provinceName = liveArea.provinceName || provinceName;
+            districtName = liveArea.arName || liveArea.name || districtName;
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Ensure provinceName in English matches Speedaf expectations if known
+    if (provinceCode && !provinceName) {
+      const fallbackGov = EGYPT_GOVERNORATES_FALLBACK.find(g => g.code === provinceCode);
+      if (fallbackGov) provinceName = fallbackGov.name;
+    }
+
+    // 2. Parse products / items
     let items = [];
     try { items = JSON.parse(order.items || '[]'); } catch {}
-    const goodsName = items.map(i => i.name || i.title).join(', ').substring(0, 100) || 'منتج';
+    
+    // Clean goods name: remove promotional subtitles after '|' or ' - '
+    let goodsName = items.map(i => {
+      const raw = i.name || i.title || 'منتج';
+      return raw.split('|')[0].trim();
+    }).join(', ').substring(0, 100) || 'منتج';
     const goodsQTY = items.reduce((sum, i) => sum + (i.quantity || 1), 0) || 1;
 
-    // Parse address for the recipient
+    // 3. Parse recipient information
     let address = order.address || '';
     let customerName = order.customer_name || 'عميل';
-    let customerPhone = order.customer_phone || '';
+    let customerPhone = (order.customer_phone || '').replace(/^\+/, '').replace(/^002/, '2').replace(/^20/, '0');
+    if (/^01\d{9}$/.test(customerPhone)) {
+      // Clean Egyptian local phone format (01xxxxxxxxx)
+    } else if (order.customer_phone) {
+      customerPhone = order.customer_phone.replace(/^\+/, '');
+    }
 
     // Extract from raw_payload if available
     let rawPayload = {};
     try { rawPayload = JSON.parse(order.raw_payload || '{}'); } catch {}
-
     if (rawPayload.shipping_address) {
       const sa = rawPayload.shipping_address;
       if (!address) {
         address = [sa.address1, sa.address2].filter(Boolean).join(', ');
       }
       if (!customerPhone) {
-        customerPhone = sa.phone || rawPayload.customer?.phone || '';
+        customerPhone = (sa.phone || rawPayload.customer?.phone || '').replace(/^\+/, '');
       }
     }
 
-    // COD amount
+    // 4. Clean street address: strip out redundant governorate names from the street field
+    let cleanAddress = address;
+    const govAr = GOV_AR_NAMES[provinceCode];
+    const namesToStrip = [provinceName, govAr, cityName, districtName].filter(Boolean);
+    for (const n of namesToStrip) {
+      if (n.length >= 3) {
+        cleanAddress = cleanAddress.replace(new RegExp(`^${n}\\s*[-–,،/]\\s*`, 'i'), '');
+        cleanAddress = cleanAddress.replace(new RegExp(`\\s*[-–,،/]\\s*${n}$`, 'i'), '');
+      }
+    }
+    cleanAddress = cleanAddress.trim();
+    if (!cleanAddress) cleanAddress = address;
+
+    // 5. COD Amount
     const codFee = parseFloat(order.total) || 0;
 
-    // Sender defaults
+    // 6. Sender defaults
     const sender = await getSenderDefaults();
 
-    // Build Speedaf payload
+    // 7. Options: Allow Open Package
+    const allowOpenSetting = await getSetting('SPEEDAF_ALLOW_OPEN');
+    const isAllowOpen = allowOpenSetting === 'true' || allowOpenSetting === '1' ? 1 : 0;
+
+    // Build finalized Speedaf payload
     const payload = {
       // Recipient (المستلم)
       acceptName: customerName,
-      acceptMobile: customerPhone.replace(/^\+/, ''),
-      acceptAddress: address,
+      acceptMobile: customerPhone,
+      acceptAddress: cleanAddress,
       acceptCountryCode: 'EG',
       acceptCountryName: 'Egypt',
-      acceptProvinceCode: locationCodes.provinceCode,
-      acceptProvinceName: locationCodes.provinceName || '',
-      acceptCityCode: locationCodes.cityCode || '',
-      acceptCityName: locationCodes.cityName || '',
-      acceptDistrictCode: locationCodes.districtCode || '',
-      acceptDistrictName: locationCodes.districtName || '',
+      acceptProvinceCode: provinceCode,
+      acceptProvinceName: provinceName || '',
+      acceptCityCode: cityCode || '',
+      acceptCityName: cityName || '',
+      acceptDistrictCode: districtCode || '',
+      acceptDistrictName: districtName || '',
       acceptEmail: '',
 
-      // Sender (المرسل) — fixed values
+      // Sender (المرسل)
       ...sender,
 
       // Shipment details
@@ -691,15 +764,15 @@ async function sendOrderToSpeedaf(order, locationCodes) {
       goodsTypeName: 'Normal',
       codFee,
       paymentMethod: 'PA02',  // Cash on delivery
-      isAllowOpen: 0,
+      isAllowOpen,
       insurePrice: 0,
       shippingFee: 0,
       deliveryType: '',
       customOrderNo: order.order_number || '',
-      remark: `Order ${order.order_number}`,
+      remark: `Order ${order.order_number || ''}`.trim(),
     };
 
-    console.log(`[Speedaf] Creating shipment for order ${order.order_number} — COD: ${codFee} EGP`);
+    console.log(`[Speedaf] 📦 Creating shipment for ${order.order_number}: Prov: [${provinceName} (${provinceCode})], City: [${cityName} (${cityCode})], Dist: [${districtName} (${districtCode})], Street: "${cleanAddress}"`);
 
     const result = await speedafRequest('POST', '/express/order/add', payload);
 
@@ -833,6 +906,7 @@ module.exports = {
   // Core
   sendOrderToSpeedaf,
   testSpeedafConnection,
+  speedafRequest,
   // Area codes
   fetchSpeedafAreas,
   syncAllAreas,

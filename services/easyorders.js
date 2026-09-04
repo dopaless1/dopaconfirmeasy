@@ -72,27 +72,33 @@ function parseEasyOrder(data) {
   );
 
   // Friendly human-readable order number
-  let orderNumber = String(
-    order.order_number ||
-    order.number ||
-    order.order_code ||
-    order.code ||
-    order.reference ||
-    order.reference_id ||
-    order.serial ||
-    order.serial_number ||
-    order.display_number ||
-    order.display_id ||
-    order.friendly_id ||
-    order.human_id ||
+  // EasyOrders provides `short_id` as the clean sequential order number (e.g. 7 -> #7)
+  let rawNum = (
+    order.short_id ??
+    order.order_number ??
+    order.number ??
+    order.order_code ??
+    order.code ??
+    order.reference ??
+    order.reference_id ??
+    order.serial ??
+    order.serial_number ??
+    order.display_number ??
+    order.display_id ??
+    order.friendly_id ??
+    order.human_id ??
     ''
-  ).trim();
+  );
+
+  let orderNumber = String(rawNum !== undefined && rawNum !== null ? rawNum : '').trim();
 
   if (!orderNumber || orderNumber === id) {
-    if (id.includes('-') || id.length > 12) {
-      orderNumber = `#EO-${id.substring(0, 8)}`;
+    if (order.short_id !== undefined && order.short_id !== null && String(order.short_id).trim()) {
+      orderNumber = `#${order.short_id}`;
+    } else if (id.includes('-') || id.length > 12) {
+      orderNumber = `#${id.substring(0, 6)}`;
     } else {
-      orderNumber = `#EO-${id}`;
+      orderNumber = `#${id}`;
     }
   } else if (!orderNumber.startsWith('#')) {
     orderNumber = `#${orderNumber}`;

@@ -205,8 +205,16 @@ async function initializeSchema() {
       parent_code TEXT,
       level TEXT NOT NULL,
       full_path TEXT,
+      city_code TEXT,
+      city_name TEXT,
+      province_code TEXT,
+      province_name TEXT,
       synced_at TEXT DEFAULT (datetime('now'))
     );`);
+  try { await client.execute('ALTER TABLE speedaf_area_codes ADD COLUMN city_code TEXT'); } catch (e) {}
+  try { await client.execute('ALTER TABLE speedaf_area_codes ADD COLUMN city_name TEXT'); } catch (e) {}
+  try { await client.execute('ALTER TABLE speedaf_area_codes ADD COLUMN province_code TEXT'); } catch (e) {}
+  try { await client.execute('ALTER TABLE speedaf_area_codes ADD COLUMN province_name TEXT'); } catch (e) {}
 
   // Defensive: "CREATE TABLE IF NOT EXISTS" is a no-op if the table already
   // exists from an older deploy that had a different column set. If a
@@ -275,6 +283,8 @@ async function initializeSchema() {
   try {
     await client.execute("UPDATE orders SET order_number = REPLACE(order_number, 'EO-#', '#EO-') WHERE order_number LIKE 'EO-#%'");
     await client.execute("UPDATE orders SET order_number = REPLACE(order_number, '#EO-#', '#EO-') WHERE order_number LIKE '#EO-#%'");
+    // Convert ugly #EO-<uuid> orders to clean #<short_id> (e.g. #7)
+    await client.execute("UPDATE orders SET order_number = '#' || json_extract(raw_payload, '$.short_id') WHERE json_extract(raw_payload, '$.short_id') IS NOT NULL AND order_number LIKE '%EO-%'");
   } catch (e) {}
 
   // WhatsApp LID (Linked ID / Username / Privacy) to Phone Number Mapping
@@ -1054,19 +1064,34 @@ async function deleteNote(id) {
 
 // ─── Speedaf Area Codes ───────────────────────────────────────────────────────
 
-async function upsertAreaCode({ code, name, nameAr, parentCode, level, fullPath }) {
+async function upsertAreaCode({ code, name, nameAr, parentCode, level, fullPath, cityCode, cityName, provinceCode, provinceName }) {
   const client = await ready();
   await client.execute({
-    sql: `INSERT INTO speedaf_area_codes (code, name, name_ar, parent_code, level, full_path, synced_at)
-          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    sql: `INSERT INTO speedaf_area_codes (code, name, name_ar, parent_code, level, full_path, city_code, city_name, province_code, province_name, synced_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
           ON CONFLICT(code) DO UPDATE SET
             name = excluded.name,
             name_ar = excluded.name_ar,
             parent_code = excluded.parent_code,
             level = excluded.level,
             full_path = excluded.full_path,
+            city_code = excluded.city_code,
+            city_name = excluded.city_name,
+            province_code = excluded.province_code,
+            province_name = excluded.province_name,
             synced_at = datetime('now')`,
-    args: [code, name, nameAr || null, parentCode || null, level, fullPath || null],
+    args: [
+      code,
+      name,
+      nameAr || null,
+      parentCode || null,
+      level,
+      fullPath || null,
+      cityCode || null,
+      cityName || null,
+      provinceCode || null,
+      provinceName || null,
+    ],
   });
 }
 
@@ -1124,7 +1149,7 @@ async function getSpeedafProvinces() {
 async function getSpeedafAreasByProvince(provinceCode) {
   const client = await ready();
   const res = await client.execute({
-    sql: "SELECT code, name, name_ar, parent_code FROM speedaf_area_codes WHERE parent_code = ? AND level = 'area' ORDER BY name_ar ASC",
+    sql: "SELECT code, name, name_ar, parent_code, city_code, city_name, province_code, province_name FROM speedaf_area_codes WHERE parent_code = ? AND level = 'area' ORDER BY name_ar ASC",
     args: [provinceCode],
   });
   return res.rows;

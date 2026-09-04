@@ -815,6 +815,14 @@ function setupSSE() {
       // SSE reconnects automatically
     };
   } catch (e) {}
+
+  // Backup auto-refresh every 25s if tab is visible to ensure dashboard stays synced
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      loadOrders(false, true);
+      loadAnalytics();
+    }
+  }, 25000);
 }
 
 // ─── Filter Logic (Tabs) ────────────────────
@@ -2956,6 +2964,10 @@ async function onSpeedafModalProvinceChange(fullAddress = null) {
     const aName = a.name_ar || a.name;
     opt.textContent = aName;
     opt.dataset.name = aName;
+    opt.dataset.cityCode = a.city_code || '';
+    opt.dataset.cityName = a.city_name || '';
+    opt.dataset.provinceCode = a.province_code || a.parent_code || '';
+    opt.dataset.provinceName = a.province_name || '';
 
     if (addrClean && (addrClean.includes(aName.toLowerCase()) || aName.toLowerCase().includes(addrClean))) {
       opt.selected = true;
@@ -3079,13 +3091,14 @@ async function executeSendToSpeedaf() {
   btn.textContent = '⏳ جارٍ إنشاء البوليصة في Speedaf...';
 
   try {
+    const selectedAreaOpt = areaSelect.options[areaSelect.selectedIndex];
     const locationCodes = {
-      provinceCode,
-      provinceName,
+      provinceCode: selectedAreaOpt?.dataset?.provinceCode || provinceCode,
+      provinceName: selectedAreaOpt?.dataset?.provinceName || provinceName,
+      cityCode: selectedAreaOpt?.dataset?.cityCode || '',
+      cityName: selectedAreaOpt?.dataset?.cityName || '',
       districtCode,
       districtName,
-      cityName: districtName,
-      cityCode: districtCode,
     };
 
     const res = await fetch(`/api/orders/${orderId}/send-to-speedaf`, {

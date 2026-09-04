@@ -407,15 +407,14 @@ async function processIncomingWhatsAppMessage(senderPhone, textMessage, explicit
         let govMatch = await matchGovernorateToSpeedafCode(order.address);
         if (govMatch) {
           const areaMatch = await matchAreaWithGemini({ address: order.address, provinceCode: govMatch.code, provinceName: govMatch.name_ar || govMatch.name });
-          const districtCode = areaMatch?.matched?.code || '';
-          const districtName = areaMatch?.matched?.name_ar || '';
+          const matchedArea = areaMatch?.matched;
           const locationCodes = {
-            provinceCode: govMatch.code,
-            provinceName: govMatch.name_ar || govMatch.name,
-            districtCode: districtCode,
-            districtName: districtName,
-            cityName: districtName,
-            cityCode: districtCode,
+            provinceCode: matchedArea?.province_code || govMatch.code,
+            provinceName: matchedArea?.province_name || govMatch.name_ar || govMatch.name,
+            cityCode: matchedArea?.city_code || '',
+            cityName: matchedArea?.city_name || '',
+            districtCode: matchedArea?.code || '',
+            districtName: matchedArea?.name_ar || matchedArea?.name || '',
           };
           speedafResult = await sendOrderToSpeedaf(order, locationCodes);
         } else {

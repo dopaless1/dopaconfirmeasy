@@ -585,11 +585,14 @@ router.post('/:id/confirm', async (req, res) => {
       }
 
       if (govMatch) {
+        const matchedArea = areaMatch?.matched;
         const locationCodes = {
-          provinceCode: govMatch.code,
-          provinceName: govMatch.name_ar || govMatch.name,
-          districtCode: areaMatch?.matched?.code || '',
-          districtName: areaMatch?.matched?.name_ar || '',
+          provinceCode: matchedArea?.province_code || govMatch.code,
+          provinceName: matchedArea?.province_name || govMatch.name_ar || govMatch.name,
+          cityCode: matchedArea?.city_code || '',
+          cityName: matchedArea?.city_name || '',
+          districtCode: matchedArea?.code || '',
+          districtName: matchedArea?.name_ar || matchedArea?.name || '',
         };
         shippingResult = await sendOrderToSpeedaf(order, locationCodes);
       } else {
