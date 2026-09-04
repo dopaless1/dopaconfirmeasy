@@ -6,7 +6,7 @@ const db = require('../database/db');
 const { cancelShopifyOrder, deleteShopifyOrder, fetchShopifyOrders, parseShopifyOrder, updateShopifyOrderTags, syncManualTagsToShopify, getManualTagsFromShopify, updateShopifyOrderAddress, updateShopifyLineItemQuantity, requestSpeedafFulfillment } = require('../services/shopify');
 const { sendOrderToStarlink } = require('../services/starlink');
 const { syncStarlinkOrders } = require('../services/starlinkScraper');
-const { sendOrderToSpeedaf, fetchSpeedafAreas, syncAllAreas, trackOrder, testSpeedafConnection, getSpeedafStats, matchGovernorateToSpeedafCode } = require('../services/speedaf');
+const { sendOrderToSpeedaf, fetchSpeedafAreas, syncAllAreas, trackOrder, testSpeedafConnection, getSpeedafStats, matchGovernorateToSpeedafCode, auditSpeedafOrder, cancelSpeedafOrder, getSpeedafPrintData } = require('../services/speedaf');
 const { fetchEasyOrders, parseEasyOrder } = require('../services/easyorders');
 const { updateSourceStatus, cancelInSource } = require('../services/sourceAdapter');
 
@@ -741,6 +741,68 @@ router.post('/speedaf/auto-login', async (req, res) => {
     const { autoLoginSpeedaf } = require('../services/speedaf');
     const { geminiApiKey, account, password } = req.body || {};
     const result = await autoLoginSpeedaf(3, { geminiApiKey, account, password });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/orders/:id/speedaf-audit — مراجعة / اعتماد بوليصة في Speedaf
+router.post('/:id/speedaf-audit', async (req, res) => {
+  try {
+    const order = await db.getOrderById(parseInt(req.params.id));
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+    if (!order.speedaf_waybill) {
+      return res.status(400).json({ success: false, error: 'لا يوجد رقم بوليصة Speedaf لهذا الطلب' });
+    }
+
+    const result = await auditSpeedafOrder(order.speedaf_waybill);
+    if (result.success) {
+      // Update speedaf_status in DB
+      await db.updateSpeedafStatus(order.id, 'تمت المراجعة');
+      if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.id });
+      if (db.logActivity) db.logActivity(req.username, req.userRole, 'speedaf_audit', `order #${order.order_number} waybill ${order.speedaf_waybill}`);
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/orders/:id/speedaf-cancel — إبطال بوليصة في Speedaf
+router.post('/:id/speedaf-cancel', async (req, res) => {
+  try {
+    const order = await db.getOrderById(parseInt(req.params.id));
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+    if (!order.speedaf_waybill) {
+      return res.status(400).json({ success: false, error: 'لا يوجد رقم بوليصة Speedaf لهذا الطلب' });
+    }
+
+    const result = await cancelSpeedafOrder(order.speedaf_waybill);
+    if (result.success) {
+      await db.updateSpeedafStatus(order.id, 'مُبطل');
+      // Also update internal status back to confirmed so they can resend
+      await db.updateOrderStatus(order.shopify_order_id || order.easyorders_id, 'confirmed');
+      if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.id });
+      if (db.logActivity) db.logActivity(req.username, req.userRole, 'speedaf_cancel', `order #${order.order_number} waybill ${order.speedaf_waybill}`);
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/orders/:id/speedaf-print — معاينة / طباعة بوليصة Speedaf
+router.get('/:id/speedaf-print', async (req, res) => {
+  try {
+    const order = await db.getOrderById(parseInt(req.params.id));
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+    if (!order.speedaf_waybill) {
+      return res.status(400).json({ success: false, error: 'لا يوجد رقم بوليصة Speedaf لهذا الطلب' });
+    }
+
+    const printType = req.query.type || 'normal'; // 'normal' | 'small'
+    const result = await getSpeedafPrintData(order.speedaf_waybill, printType);
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

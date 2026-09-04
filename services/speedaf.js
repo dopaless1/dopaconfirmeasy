@@ -798,6 +798,111 @@ async function sendOrderToSpeedaf(order, locationCodes) {
   }
 }
 
+// ─── Order Audit / Review (المراجعة) ─────────────────────────────────────────
+
+/**
+ * مراجعة / اعتماد شحنة في Speedaf (المراجعة)
+ * يُستخدم قبل طباعة البوليصة لتأكيد الشحنة
+ * @param {string} waybillNo - رقم البوليصة من Speedaf
+ */
+async function auditSpeedafOrder(waybillNo) {
+  if (!waybillNo) return { success: false, error: 'Waybill number required' };
+  console.log(`[Speedaf] 🔍 Auditing order: ${waybillNo}`);
+
+  const result = await speedafRequest('POST', '/express/order/audit', { waybillNo });
+  if (result.success && (result.data?.code === 200 || result.data?.success)) {
+    console.log(`[Speedaf] ✅ Order ${waybillNo} audited successfully`);
+    return { success: true, data: result.data };
+  }
+  // Some Speedaf endpoints return code 0 for success
+  if (result.success && result.data?.code === 0) {
+    return { success: true, data: result.data };
+  }
+  const errMsg = result.data?.message || result.data?.msg || result.error || 'Audit failed';
+  console.error(`[Speedaf] ❌ Audit failed for ${waybillNo}: ${errMsg}`);
+  return { success: false, error: errMsg, raw: result.data };
+}
+
+// ─── Order Cancel / Void (إبطال) ─────────────────────────────────────────────
+
+/**
+ * إبطال / إلغاء شحنة في Speedaf
+ * يلغي البوليصة داخل Speedaf (لا يحذف الأوردر من الداشبورد)
+ * @param {string} waybillNo - رقم البوليصة
+ */
+async function cancelSpeedafOrder(waybillNo) {
+  if (!waybillNo) return { success: false, error: 'Waybill number required' };
+  console.log(`[Speedaf] 🚫 Cancelling Speedaf order: ${waybillNo}`);
+
+  // Try primary cancel endpoint
+  let result = await speedafRequest('POST', '/express/order/cancel', { waybillNo });
+  if (result.success && (result.data?.code === 200 || result.data?.code === 0 || result.data?.success)) {
+    console.log(`[Speedaf] ✅ Order ${waybillNo} cancelled in Speedaf`);
+    return { success: true, data: result.data };
+  }
+
+  // Fallback: try with waybillNoList array format (some Speedaf API versions)
+  result = await speedafRequest('POST', '/express/order/cancel', { waybillNoList: [waybillNo] });
+  if (result.success && (result.data?.code === 200 || result.data?.code === 0 || result.data?.success)) {
+    console.log(`[Speedaf] ✅ Order ${waybillNo} cancelled in Speedaf (list format)`);
+    return { success: true, data: result.data };
+  }
+
+  const errMsg = result.data?.message || result.data?.msg || result.error || 'Cancel failed';
+  console.error(`[Speedaf] ❌ Cancel failed for ${waybillNo}: ${errMsg}`);
+  return { success: false, error: errMsg, raw: result.data };
+}
+
+// ─── Waybill Print / Preview (طباعة / معاينة) ────────────────────────────────
+
+/**
+ * جلب بيانات الطباعة لبوليصة Speedaf
+ * يُرجع رابط PDF أو HTML للمعاينة والطباعة
+ * @param {string} waybillNo - رقم البوليصة
+ * @param {string} printType - نوع الطباعة: 'normal' (130*75) | 'small' (100*100)
+ */
+async function getSpeedafPrintData(waybillNo, printType = 'normal') {
+  if (!waybillNo) return { success: false, error: 'Waybill number required' };
+  console.log(`[Speedaf] 🖨️ Getting print data for: ${waybillNo}`);
+
+  // Try the print endpoint with waybill number
+  const params = new URLSearchParams({
+    waybillNo,
+    printType: printType === 'small' ? '2' : '1',
+  });
+
+  let result = await speedafRequest('GET', `/express/order/print?${params.toString()}`);
+  if (result.success && result.data) {
+    // Return print URL or HTML content
+    const printData = result.data?.data || result.data;
+    return {
+      success: true,
+      printUrl: printData?.printUrl || printData?.url || null,
+      printHtml: printData?.html || null,
+      raw: printData,
+    };
+  }
+
+  // Fallback: try getPrintData endpoint
+  result = await speedafRequest('POST', '/express/order/getPrintData', {
+    waybillNoList: [waybillNo],
+    printType: printType === 'small' ? 2 : 1,
+  });
+  if (result.success && result.data) {
+    const printData = result.data?.data || result.data;
+    return {
+      success: true,
+      printUrl: printData?.printUrl || printData?.url || null,
+      printHtml: printData?.html || null,
+      raw: printData,
+    };
+  }
+
+  const errMsg = result.data?.message || result.data?.msg || result.error || 'Print data fetch failed';
+  console.error(`[Speedaf] ❌ Print fetch failed for ${waybillNo}: ${errMsg}`);
+  return { success: false, error: errMsg, raw: result.data };
+}
+
 // ─── Order Tracking ───────────────────────────────────────────────────────────
 
 /**
@@ -916,6 +1021,10 @@ module.exports = {
   trackOrder,
   trackAllActiveOrders,
   getOrderList,
+  // Order Operations
+  auditSpeedafOrder,
+  cancelSpeedafOrder,
+  getSpeedafPrintData,
   // Stats
   getSpeedafStats,
   // Auto-Login & Captcha

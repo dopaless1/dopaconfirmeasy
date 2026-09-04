@@ -751,6 +751,75 @@
   </div>
 </div>
 
+
+<!-- ─── Speedaf Operations Modal ──────────────── -->
+<div class="modal-overlay" id="speedaf-ops-modal">
+  <div class="modal" style="max-width:480px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 class="modal-title" style="margin-bottom:0">📦 إجراءات Speedaf</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('speedaf-ops-modal')">✕</button>
+    </div>
+
+    <input type="hidden" id="speedaf-ops-order-id">
+
+    <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-weight:700" id="speedaf-ops-order-num">#—</span>
+        <span style="font-weight:600;color:#f97316;font-size:13px" id="speedaf-ops-waybill">—</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary)" id="speedaf-ops-customer">—</div>
+      <div style="font-size:12px;margin-top:4px" id="speedaf-ops-status-badge"></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <!-- المراجعة -->
+      <button id="speedaf-ops-audit-btn" class="btn btn-sm" 
+        style="background:#7c3aed;border-color:#7c3aed;color:#fff;font-weight:700;padding:12px 16px;font-size:14px;justify-content:center;"
+        onclick="speedafAudit()">
+        🔍 المراجعة — اعتماد الشحنة
+      </button>
+
+      <!-- معاينة البوليصة -->
+      <button id="speedaf-ops-preview-btn" class="btn btn-sm"
+        style="background:#0ea5e9;border-color:#0ea5e9;color:#fff;font-weight:700;padding:12px 16px;font-size:14px;justify-content:center;"
+        onclick="speedafPreview()">
+        👁️ معاينة البوليصة
+      </button>
+
+      <!-- طباعة البوليصة من Speedaf -->
+      <button id="speedaf-ops-print-btn" class="btn btn-sm"
+        style="background:#ea580c;border-color:#ea580c;color:#fff;font-weight:700;padding:12px 16px;font-size:14px;justify-content:center;"
+        onclick="speedafPrintOnline()">
+        🖨️ طباعة البوليصة (من Speedaf)
+      </button>
+
+      <hr style="margin:6px 0;border:none;border-top:1.5px dashed var(--border);">
+
+      <!-- إبطال البوليصة في Speedaf -->
+      <button id="speedaf-ops-void-btn" class="btn btn-sm btn-warning"
+        style="font-weight:700;padding:12px 16px;font-size:14px;justify-content:center;"
+        onclick="speedafVoid()">
+        🚫 إبطال البوليصة في Speedaf
+      </button>
+
+      <!-- حذف من الداشبورد -->
+      <button id="speedaf-ops-delete-btn" class="btn btn-sm btn-danger"
+        style="font-weight:700;padding:12px 16px;font-size:14px;justify-content:center;"
+        onclick="speedafDeleteOrder()">
+        🗑 حذف من الداشبورد
+      </button>
+
+    </div>
+
+    <div class="test-result" id="speedaf-ops-result" style="margin-top:14px"></div>
+
+    <div style="margin-top:14px;text-align:center;">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('speedaf-ops-modal')">إغلاق</button>
+    </div>
+  </div>
+</div>
+
 <!-- Audio for notifications -->
 <audio id="notification-sound" src="https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3?filename=success-1-6297.mp3" preload="auto"></audio>
 
@@ -1332,24 +1401,34 @@ function renderActionButtons(order, hasNotes) {
     </button>`);
   }
 
-  // Speedaf Action
+  // Speedaf Action — لو عنده بوليصة بيفتح modal الإجراءات، غير كده بيفتح modal الإرسال
   if (!['cancelled', 'delivered'].includes(order.status)) {
-    btns.push(`<button class="btn btn-sm" style="background:#f97316;color:#fff" onclick="openSpeedafModal(${order.id})" title="إرسال لـ Speedaf وتتبع">
-      📦 ${order.speedaf_waybill ? 'تتبع Speedaf' : 'تحويل لـ Speedaf'}
-    </button>`);
+    if (order.speedaf_waybill) {
+      // له بوليصة — نعرض زر إجراءات Speedaf الكاملة
+      btns.push(`<button class="btn btn-sm" style="background:#f97316;color:#fff;font-weight:700" onclick="openSpeedafOpsModal(${order.id})" title="مراجعة / معاينة / طباعة / إبطال">
+        📦 إجراءات Speedaf ▾
+      </button>`);
+    } else {
+      // لا بوليصة — نعرض زر إرسال لـ Speedaf
+      btns.push(`<button class="btn btn-sm" style="background:#f97316;color:#fff" onclick="openSpeedafModal(${order.id})" title="إرسال لـ Speedaf وإنشاء بوليصة">
+        📦 تحويل لـ Speedaf
+      </button>`);
+    }
   }
 
-  // Cancel
+  // Cancel (for orders without active shipment)
   if (!['cancelled', 'shipping_sent', 'handed_to_courier', 'delivered'].includes(order.status)) {
     btns.push(`<button class="btn btn-danger btn-sm" onclick="cancelOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="إلغاء الطلب">
       🚫 إلغاء
     </button>`);
   }
 
-  // Delete from DB
-  btns.push(`<button class="btn btn-delete btn-sm" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف من الداشبورد (لا يؤثر على Shopify)">
-    🗑 حذف
-  </button>`);
+  // Delete from DB — لو عنده بوليصة هيحذف من خلال modal الإجراءات، غير كده هنا
+  if (!order.speedaf_waybill) {
+    btns.push(`<button class="btn btn-delete btn-sm" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف من الداشبورد">
+      🗑 حذف
+    </button>`);
+  }
 
   // Request Review (only if delivered)
   if (order.status === 'delivered') {
@@ -3128,6 +3207,243 @@ async function executeSendToSpeedaf() {
     btn.disabled = false;
     btn.textContent = '📦 إنشاء بوليصة Speedaf الآن';
   }
+}
+
+// ─── Speedaf Operations Modal ─────────────────────────────────────────────────
+
+let speedafOpsCurrentOrder = null;
+
+function openSpeedafOpsModal(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  speedafOpsCurrentOrder = order;
+
+  document.getElementById('speedaf-ops-order-id').value = order.id;
+  document.getElementById('speedaf-ops-order-num').textContent = order.order_number;
+  document.getElementById('speedaf-ops-waybill').textContent = order.speedaf_waybill ? `🏷️ ${order.speedaf_waybill}` : '— لا بوليصة';
+  document.getElementById('speedaf-ops-customer').textContent = `${order.customer_name || '—'} (${order.customer_phone || '—'})`;
+
+  // Status badge
+  const statusBadge = document.getElementById('speedaf-ops-status-badge');
+  const spStatus = order.speedaf_status || '';
+  statusBadge.innerHTML = spStatus
+    ? `<span style="background:#fff7ed;color:#ea580c;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">📦 ${escapeHtml(spStatus)}</span>`
+    : '';
+
+  // Reset result area
+  const resultEl = document.getElementById('speedaf-ops-result');
+  resultEl.className = 'test-result';
+  resultEl.textContent = '';
+
+  // Show/hide buttons based on waybill presence
+  const hasWaybill = !!order.speedaf_waybill;
+  document.getElementById('speedaf-ops-audit-btn').style.display = hasWaybill ? '' : 'none';
+  document.getElementById('speedaf-ops-preview-btn').style.display = hasWaybill ? '' : 'none';
+  document.getElementById('speedaf-ops-print-btn').style.display = hasWaybill ? '' : 'none';
+  document.getElementById('speedaf-ops-void-btn').style.display = hasWaybill ? '' : 'none';
+
+  openModal('speedaf-ops-modal');
+}
+
+// المراجعة — اعتماد الشحنة في Speedaf
+async function speedafAudit() {
+  const order = speedafOpsCurrentOrder;
+  if (!order || !order.speedaf_waybill) return;
+
+  const btn = document.getElementById('speedaf-ops-audit-btn');
+  const resultEl = document.getElementById('speedaf-ops-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ المراجعة...';
+
+  try {
+    const res = await fetch(`/api/orders/${order.id}/speedaf-audit`, { method: 'POST' });
+    const data = await res.json();
+
+    resultEl.className = 'test-result visible' + (data.success ? '' : ' error');
+    resultEl.textContent = data.success
+      ? `✅ تمت المراجعة بنجاح للبوليصة ${order.speedaf_waybill}`
+      : `❌ فشلت المراجعة: ${data.error || 'خطأ غير محدد'}`;
+
+    if (data.success) {
+      showToast(`✅ تمت مراجعة الشحنة ${order.speedaf_waybill} بنجاح`, 'success');
+      // Update local state
+      const localOrder = allOrders.find(o => o.id === order.id);
+      if (localOrder) localOrder.speedaf_status = 'تمت المراجعة';
+      document.getElementById('speedaf-ops-status-badge').innerHTML =
+        `<span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">✅ تمت المراجعة</span>`;
+    } else {
+      showToast(`❌ فشلت المراجعة: ${data.error || 'خطأ'}`, 'error');
+    }
+  } catch (err) {
+    resultEl.className = 'test-result visible error';
+    resultEl.textContent = 'خطأ في الاتصال: ' + err.message;
+    showToast('❌ خطأ في الاتصال', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 المراجعة — اعتماد الشحنة';
+  }
+}
+
+// معاينة البوليصة — فتح في تاب جديد أو عرض الرابط
+async function speedafPreview() {
+  const order = speedafOpsCurrentOrder;
+  if (!order || !order.speedaf_waybill) return;
+
+  const btn = document.getElementById('speedaf-ops-preview-btn');
+  const resultEl = document.getElementById('speedaf-ops-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ جلب بيانات الطباعة...';
+
+  try {
+    const res = await fetch(`/api/orders/${order.id}/speedaf-print?type=normal`);
+    const data = await res.json();
+
+    if (data.success) {
+      if (data.printUrl) {
+        // Open in new tab
+        window.open(data.printUrl, '_blank');
+        showToast('✅ تم فتح البوليصة في تاب جديد', 'success');
+        resultEl.className = 'test-result visible';
+        resultEl.textContent = `رابط البوليصة: ${data.printUrl}`;
+      } else if (data.printHtml) {
+        // Open HTML in new window
+        const win = window.open('', '_blank');
+        win.document.write(data.printHtml);
+        win.document.close();
+        showToast('✅ تم فتح معاينة البوليصة', 'success');
+        resultEl.className = 'test-result visible';
+        resultEl.textContent = '✅ تم فتح معاينة البوليصة في نافذة جديدة';
+      } else {
+        // Show raw data
+        resultEl.className = 'test-result visible';
+        resultEl.textContent = JSON.stringify(data.raw, null, 2);
+        showToast('ℹ️ بيانات الطباعة جُلبت — انظر النتيجة', 'info');
+      }
+    } else {
+      resultEl.className = 'test-result visible error';
+      resultEl.textContent = `❌ فشل جلب بيانات الطباعة: ${data.error || 'خطأ غير محدد'}`;
+      showToast(`❌ ${data.error || 'فشل جلب بيانات الطباعة'}`, 'error');
+    }
+  } catch (err) {
+    resultEl.className = 'test-result visible error';
+    resultEl.textContent = 'خطأ: ' + err.message;
+    showToast('❌ خطأ في الاتصال', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '👁️ معاينة البوليصة';
+  }
+}
+
+// طباعة البوليصة من Speedaf
+async function speedafPrintOnline() {
+  const order = speedafOpsCurrentOrder;
+  if (!order || !order.speedaf_waybill) return;
+
+  const btn = document.getElementById('speedaf-ops-print-btn');
+  const resultEl = document.getElementById('speedaf-ops-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ جلب بيانات الطباعة...';
+
+  try {
+    const res = await fetch(`/api/orders/${order.id}/speedaf-print?type=normal`);
+    const data = await res.json();
+
+    if (data.success) {
+      if (data.printUrl) {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = data.printUrl;
+        document.body.appendChild(iframe);
+        setTimeout(() => {
+          try { iframe.contentWindow.print(); } catch {}
+        }, 1000);
+        setTimeout(() => document.body.removeChild(iframe), 5000);
+        showToast('🖨️ جارٍ طباعة البوليصة...', 'success');
+        resultEl.className = 'test-result visible';
+        resultEl.textContent = `🖨️ طباعة ${order.speedaf_waybill}`;
+      } else if (data.printHtml) {
+        const win = window.open('', '_blank');
+        win.document.write(`<html><head><title>بوليصة ${order.speedaf_waybill}</title>
+          <style>body{margin:0;padding:0;} @media print { button { display:none; } }</style>
+        </head><body>${data.printHtml}
+          <script>window.onload=function(){window.print()}<\/script>
+        </body></html>`);
+        win.document.close();
+        showToast('🖨️ تم فتح نافذة الطباعة', 'success');
+        resultEl.className = 'test-result visible';
+        resultEl.textContent = '🖨️ تم فتح نافذة الطباعة';
+      } else {
+        resultEl.className = 'test-result visible';
+        resultEl.textContent = '⚠️ لا يوجد رابط طباعة مباشر — البيانات الخام:\n' + JSON.stringify(data.raw, null, 2);
+        showToast('⚠️ لا يوجد رابط طباعة مباشر من Speedaf', 'warning');
+      }
+    } else {
+      resultEl.className = 'test-result visible error';
+      resultEl.textContent = `❌ ${data.error || 'فشل جلب بيانات الطباعة'}`;
+      showToast(`❌ ${data.error || 'فشل'}`, 'error');
+    }
+  } catch (err) {
+    resultEl.className = 'test-result visible error';
+    resultEl.textContent = 'خطأ: ' + err.message;
+    showToast('❌ خطأ في الاتصال', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🖨️ طباعة البوليصة (من Speedaf)';
+  }
+}
+
+// إبطال البوليصة في Speedaf
+async function speedafVoid() {
+  const order = speedafOpsCurrentOrder;
+  if (!order || !order.speedaf_waybill) return;
+
+  if (!confirm(`⚠️ هل أنت متأكد من إبطال بوليصة Speedaf رقم ${order.speedaf_waybill}؟\n\nهذا الإجراء سيلغي الشحنة في Speedaf ولا يمكن التراجع عنه.`)) return;
+
+  const btn = document.getElementById('speedaf-ops-void-btn');
+  const resultEl = document.getElementById('speedaf-ops-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ الإبطال في Speedaf...';
+
+  try {
+    const res = await fetch(`/api/orders/${order.id}/speedaf-cancel`, { method: 'POST' });
+    const data = await res.json();
+
+    resultEl.className = 'test-result visible' + (data.success ? '' : ' error');
+    resultEl.textContent = data.success
+      ? `✅ تم إبطال البوليصة ${order.speedaf_waybill} في Speedaf`
+      : `❌ فشل الإبطال: ${data.error || 'خطأ غير محدد'}`;
+
+    if (data.success) {
+      showToast(`✅ تم إبطال البوليصة ${order.speedaf_waybill} في Speedaf`, 'success');
+      const localOrder = allOrders.find(o => o.id === order.id);
+      if (localOrder) {
+        localOrder.speedaf_status = 'مُبطل';
+        localOrder.status = 'confirmed';
+      }
+      document.getElementById('speedaf-ops-status-badge').innerHTML =
+        `<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">🚫 مُبطل</span>`;
+      setTimeout(() => { closeModal('speedaf-ops-modal'); loadOrders(); }, 1800);
+    } else {
+      showToast(`❌ فشل الإبطال: ${data.error || 'خطأ'}`, 'error');
+    }
+  } catch (err) {
+    resultEl.className = 'test-result visible error';
+    resultEl.textContent = 'خطأ: ' + err.message;
+    showToast('❌ خطأ في الاتصال', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚫 إبطال البوليصة في Speedaf';
+  }
+}
+
+// حذف الأوردر من الداشبورد (من خلال modal الإجراءات)
+function speedafDeleteOrder() {
+  const order = speedafOpsCurrentOrder;
+  if (!order) return;
+  closeModal('speedaf-ops-modal');
+  // استخدم نفس دالة deleteOrder الموجودة
+  deleteOrder(order.id, order.order_number);
 }
 </script>
 </body>
