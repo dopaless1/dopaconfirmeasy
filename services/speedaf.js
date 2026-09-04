@@ -620,10 +620,18 @@ async function getSenderDefaults() {
  *   { provinceCode, provinceName, cityCode, cityName, districtCode, districtName }
  */
 async function sendOrderToSpeedaf(order, locationCodes) {
-  // 1. Simulated order bypass (allow testing without Speedaf credentials)
   if (order.order_number && (String(order.order_number).startsWith('#SIM-') || String(order.shopify_order_id).startsWith('SIM-'))) {
-    console.log('[Speedaf] ⚠️ Simulated order — faking success');
-    return { success: true, message: 'Simulated success', waybillNo: 'SIM-WAYBILL-001' };
+    console.log('[Speedaf] ⚠️ Simulated order — generating test waybill');
+    const simWb = 'EG' + Math.floor(100000000000 + Math.random() * 900000000000);
+    if (order.id) {
+      try {
+        await db.updateSpeedafWaybill(order.id, simWb);
+        await db.updateSpeedafStatus(order.id, 'تمت المراجعة');
+      } catch (e) {
+        console.warn('[Speedaf] Error saving simulated waybill:', e.message);
+      }
+    }
+    return { success: true, message: 'Simulated success', waybillNo: simWb };
   }
 
   // 2. Token check & Auto-login if missing
@@ -978,6 +986,12 @@ async function cancelSpeedafOrder(orderIdentifier, customOrderNo = null) {
   if (!orderIdentifier && !customOrderNo) return { success: false, error: 'Order identifier required' };
   console.log(`[Speedaf] 🚫 Cancelling/Invaliding Speedaf order: ${orderIdentifier}`);
 
+  // Simulated order bypass
+  if (String(orderIdentifier).startsWith('SIM-') || String(customOrderNo).startsWith('#SIM-')) {
+    console.log('[Speedaf] 🚫 Simulated order cancel success');
+    return { success: true, message: 'Simulated cancel success' };
+  }
+
   let numericId = typeof orderIdentifier === 'number' ? orderIdentifier : null;
 
   if (!numericId) {
@@ -988,21 +1002,14 @@ async function cancelSpeedafOrder(orderIdentifier, customOrderNo = null) {
   }
 
   if (numericId) {
-    // 1. أولاً: إبطال (مبطل) عبر /express/order/invalid
-    console.log(`[Speedaf] Step 1: Invaliding order ${numericId}...`);
-    await speedafRequest('POST', '/express/order/invalid', {
+    // إبطال عبر /express/order/invalid
+    console.log(`[Speedaf] Invaliding order ${numericId}...`);
+    const invRes = await speedafRequest('POST', '/express/order/invalid', {
       expressOrderIds: [Number(numericId)]
     });
-
-    // 2. ثانياً: حذف عبر /express/order/delete
-    console.log(`[Speedaf] Step 2: Deleting order ${numericId}...`);
-    const delRes = await speedafRequest('POST', '/express/order/delete', {
-      expressOrderIds: [Number(numericId)]
-    });
-
-    if (delRes.success) {
-      console.log(`[Speedaf] ✅ Order ${numericId} invalidated and deleted in Speedaf`);
-      return { success: true, data: delRes.data };
+    if (invRes.success) {
+      console.log(`[Speedaf] ✅ Order ${numericId} invalidated in Speedaf`);
+      return { success: true, data: invRes.data };
     }
   }
 

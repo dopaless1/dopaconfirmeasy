@@ -7,6 +7,7 @@
   <title>DopaConfirm — لوحة تحكم الطلبات</title>
   <meta name="description" content="نظام تأكيد الطلبات عبر واتساب لمتجر Shopify — لوحة التحكم الرئيسية" />
   <link rel="stylesheet" href="/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
   <style>
     /* Status Tabs */
     .status-tab {
@@ -48,6 +49,60 @@
       padding: 9px 14px 9px 36px;
     }
     .toast-container { right: auto; left: 24px; }
+
+    /* Waybill Thermal Label Styles (Speedaf 130*75mm / 100*150mm) */
+    .waybill-container {
+      width: 440px;
+      max-width: 100%;
+      margin: 0 auto;
+      background: #fff;
+      border: 2px solid #000;
+      border-radius: 6px;
+      padding: 12px 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      font-family: 'Cairo', Tahoma, sans-serif;
+      color: #111;
+      text-align: right;
+    }
+    .wb-header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px;
+    }
+    .wb-three-code {
+      font-size: 18px; font-weight: 900; font-family: sans-serif;
+      border: 2px solid #000; padding: 2px 8px; border-radius: 4px;
+      background: #f8fafc;
+    }
+    .wb-barcode-box {
+      text-align: center; border-bottom: 1.5px dashed #475569;
+      padding: 4px 0 8px 0; margin-bottom: 8px;
+    }
+    .wb-waybill-num {
+      font-size: 16px; font-weight: 900; font-family: monospace; letter-spacing: 1px;
+    }
+    .wb-section-box {
+      border: 1.5px solid #000; border-radius: 6px;
+      padding: 8px 10px; margin-bottom: 8px; background: #fafafa;
+    }
+    .wb-section-title {
+      font-size: 11px; font-weight: 800; color: #475569;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;
+    }
+    .wb-cod-box {
+      border: 2px solid #000; border-radius: 6px;
+      padding: 8px 12px; margin-bottom: 8px; background: #fff7ed;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .wb-allow-open {
+      border: 1.5px solid #ea580c; background: #ffedd5;
+      padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800;
+      color: #9a3412; display: flex; align-items: center; gap: 6px;
+    }
+    .wb-footer {
+      border-top: 1.5px solid #000; padding-top: 6px; font-size: 10.5px;
+      display: flex; justify-content: space-between; align-items: flex-end;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -811,6 +866,44 @@
   </div>
 </div>
 
+<!-- ─── Waybill Preview Modal (In-App Dialog, Immune to Popup Blockers) ─────── -->
+<div class="modal-overlay" id="waybill-preview-modal" style="z-index: 9999;">
+  <div class="modal" style="max-width: 540px; max-height: 92vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
+    
+    <!-- Modal Header -->
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: #0f172a; color: #fff; border-bottom: 1px solid #334155;">
+      <div style="font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 18px;">📦</span>
+        <span id="waybill-modal-title">معاينة بوالص الشحن (Speedaf Express)</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="btn btn-sm" onclick="printModalWaybills()" title="طباعة فورية" style="background: #ea580c; color: #fff; font-weight: 800; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          🖨️ طباعة
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('waybill-preview-modal')" style="color: #cbd5e1; font-size: 18px; padding: 4px 8px; cursor: pointer;">✕</button>
+      </div>
+    </div>
+
+    <!-- Modal Body (Scrollable Waybills Container) -->
+    <div id="waybill-modal-body" style="flex: 1; overflow-y: auto; padding: 16px; background: #e2e8f0; display: flex; flex-direction: column; gap: 16px; align-items: center;">
+      <!-- Waybills dynamically injected here -->
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #fff; border-top: 1px solid #cbd5e1;">
+      <span id="waybill-modal-count" style="font-size: 13px; font-weight: 700; color: #475569;"></span>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-sm" onclick="openWaybillsInNewTab()" style="background: #0284c7; color: #fff; font-weight: 700; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer;">
+          🔗 فتح في نافذة مستقلة
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('waybill-preview-modal')" style="cursor: pointer;">إغلاق</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
 <!-- Audio for notifications -->
 <audio id="notification-sound" src="https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3?filename=success-1-6297.mp3" preload="auto"></audio>
 
@@ -1350,11 +1443,19 @@ function renderRowActionButtons(order) {
       `);
     }
 
-    // 3. زر إبطال وحذف الشحنة معاً بضغطة واحدة
+    // 3. زر إبطال الشحنة في Speedaf فقط (دون حذف الطلب)
     btns.push(`
-      <button class="btn btn-sm btn-danger" onclick="speedafVoidAndDelete(${order.id})" title="إبطال البوليصة في Speedaf وحذف الطلب من الداشبورد"
-        style="font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-        🚫 إبطال وحذف
+      <button class="btn btn-sm" onclick="speedafVoidDirect(${order.id}, '${escapeHtml(order.order_number)}')" title="إبطال البوليصة في Speedaf (دون حذف الطلب)"
+        style="background:#d97706;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        🚫 إبطال
+      </button>
+    `);
+
+    // 4. زر حذف الطلب من الداشبورد
+    btns.push(`
+      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف الطلب من الداشبورد"
+        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+        🗑 حذف
       </button>
     `);
 
@@ -2705,14 +2806,99 @@ function openWaybillsPreviewWindow(ordersList, autoTriggerPrint = false) {
 </body>
 </html>`;
 
+  currentPrintHtml = printHtml;
+  currentPreviewOrdersList = ordersList;
+
+  // 1. عرض البوالص داخل المودال الداخلي مباشرة (مستحيل حظره بأي متصفح)
+  const modalBody = document.getElementById('waybill-modal-body');
+  const modalTitle = document.getElementById('waybill-modal-title');
+  const modalCount = document.getElementById('waybill-modal-count');
+
+  if (modalBody) {
+    modalBody.innerHTML = waybillsHtml;
+    if (modalTitle) modalTitle.textContent = `معاينة بوالص الشحن Speedaf Express (${ordersList.length} طلب)`;
+    if (modalCount) modalCount.textContent = `إجمالي البوالص المعروضة: ${ordersList.length}`;
+    openModal('waybill-preview-modal');
+
+    // رسم الباركود في جميع البوالص المعروضة
+    setTimeout(() => {
+      try {
+        if (window.JsBarcode) {
+          JsBarcode('#waybill-modal-body .barcode-svg').init();
+        }
+      } catch (e) {
+        console.warn('JsBarcode init error:', e);
+      }
+    }, 50);
+
+    showToast(`👁️ تم فتح معاينة (${ordersList.length}) بوليصة بنجاح`, 'success');
+
+    if (autoTriggerPrint) {
+      setTimeout(() => printModalWaybills(), 400);
+    }
+  } else {
+    // Fallback if modal container missing
+    const printWin = window.open('', '_blank');
+    if (printWin) {
+      printWin.document.open();
+      printWin.document.write(printHtml);
+      printWin.document.close();
+    }
+  }
+}
+
+let currentPrintHtml = '';
+let currentPreviewOrdersList = [];
+
+// طباعة بوالص الشحن المعروضة في المودال باستخدام iframe مخفي بدون أي نوافذ منبثقة
+function printModalWaybills() {
+  const modalBody = document.getElementById('waybill-modal-body');
+  if (!modalBody || !modalBody.innerHTML.trim()) {
+    showToast('⚠️ لا توجد بوالص معروضة للطباعة', 'warning');
+    return;
+  }
+
+  showToast('🖨️ جارٍ تجهيز أمر الطباعة...', 'info');
+
+  let printFrame = document.getElementById('waybill-print-frame');
+  if (!printFrame) {
+    printFrame = document.createElement('iframe');
+    printFrame.id = 'waybill-print-frame';
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+    document.body.appendChild(printFrame);
+  }
+
+  const doc = printFrame.contentWindow.document;
+  doc.open();
+  doc.write(currentPrintHtml || `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>طباعة البوالص</title></head><body>${modalBody.innerHTML}</body></html>`);
+  doc.close();
+
+  setTimeout(() => {
+    try {
+      printFrame.contentWindow.focus();
+      printFrame.contentWindow.print();
+    } catch (e) {
+      console.error('Print iframe error:', e);
+      window.print();
+    }
+  }, 450);
+}
+
+// فتح البوالص في تاب جديد مستقل لمن يرغب
+function openWaybillsInNewTab() {
+  if (!currentPrintHtml) return;
   const printWin = window.open('', '_blank');
   if (printWin) {
     printWin.document.open();
-    printWin.document.write(printHtml);
+    printWin.document.write(currentPrintHtml);
     printWin.document.close();
-    showToast(`👁️ تم فتح معاينة (${ordersList.length}) بوليصة بنجاح`, 'success');
   } else {
-    showToast('❌ المتصفح حظر فتح النافذة المنبثقة، يرجى السماح بالنوافذ المنبثقة للموقع', 'error');
+    showToast('❌ المتصفح حظر فتح التاب المستقل، يمكنك استخدام زر الطباعة مباشرة', 'warning');
   }
 }
 
@@ -3387,13 +3573,47 @@ async function speedafAudit() {
 }
 
 // معاينة البوليصة مباشرة من الجدول بنقرة واحدة (تصميم البوليصة الحرارية القياسي)
-function speedafPreviewDirect(orderId) {
-  const order = allOrders.find(o => o.id === orderId);
-  if (!order || !order.speedaf_waybill) {
-    showToast('❌ لا يوجد رقم بوليصة لهذا الطلب', 'error');
+async function speedafPreviewDirect(orderId) {
+  let order = allOrders.find(o => String(o.id) === String(orderId));
+  if (!order) {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`);
+      const data = await res.json();
+      if (data && data.order) order = data.order;
+    } catch (e) {}
+  }
+  if (!order) {
+    showToast('❌ لم يتم العثور على بيانات الطلب', 'error');
+    return;
+  }
+  if (!order.speedaf_waybill) {
+    showToast('⚠️ لا توجد بوليصة شحن مسجلة لهذا الطلب بعد', 'warning');
     return;
   }
   openWaybillsPreviewWindow([order], false);
+}
+
+// إبطال الشحنة فقط في Speedaf دون حذف الطلب من الداشبورد
+async function speedafVoidDirect(orderId, orderNum) {
+  const order = allOrders.find(o => String(o.id) === String(orderId));
+  const numDisplay = order ? order.order_number : orderNum;
+
+  if (!confirm(`⚠️ هل أنت متأكد من إبطال شحنة الطلب رقم ${numDisplay} في Speedaf؟\n\nسيتم إلغاء الشحنة لدى شركة الشحن وإعادة حالة الطلب إلى مؤكد (دون حذفه من الداشبورد).`)) return;
+
+  showToast(`⏳ جارٍ إبطال الشحنة في Speedaf...`, 'info');
+
+  try {
+    const res = await fetch(`/api/orders/${orderId}/speedaf-cancel`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ تم إبطال الشحنة في Speedaf بنجاح دون حذف الطلب`, 'success');
+      loadOrders(false, true);
+    } else {
+      showToast(`❌ فشل إبطال الشحنة: ${data.error || 'خطأ غير محدد'}`, 'error');
+    }
+  } catch (err) {
+    showToast(`❌ خطأ في الاتصال: ${err.message}`, 'error');
+  }
 }
 
 // اعتماد ومراجعة البوليصة مباشرة بنقرة واحدة

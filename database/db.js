@@ -641,7 +641,14 @@ async function deleteSession(phone) {
 async function getSetting(key) {
   const client = getDb();
   const res = await client.execute({ sql: 'SELECT value FROM settings WHERE key = ?', args: [key] });
-  return res.rows[0] ? res.rows[0].value : null;
+  if (res.rows[0] && res.rows[0].value !== null && res.rows[0].value !== undefined && res.rows[0].value !== '') {
+    return res.rows[0].value;
+  }
+  if (process.env[key] !== undefined && process.env[key] !== '') {
+    return process.env[key];
+  }
+  if (key === 'SHIPPING_MODE') return 'speedaf_auto';
+  return null;
 }
 
 async function getSettings(keys = []) {

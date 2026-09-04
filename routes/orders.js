@@ -567,7 +567,7 @@ router.post('/:id/confirm', async (req, res) => {
     const shippingMode = await db.getSetting('SHIPPING_MODE');
     let shippingResult = { success: true };
 
-    if (shippingMode === 'speedaf_auto' && !String(order.shopify_order_id).startsWith('SIM-')) {
+    if (shippingMode === 'speedaf_auto') {
       let govMatch = null;
       if (order.address) {
         // Pass the full address so matchGovernorateToSpeedafCode can split and scan all parts
@@ -1094,13 +1094,11 @@ router.post('/bulk-action', async (req, res) => {
           let result = { success: true };
 
           // إرسال مباشر لـ Speedaf لكل طلب من المحددين
-          if (!String(order.shopify_order_id).startsWith('SIM-')) {
-            try {
-              const { sendOrderToSpeedaf } = require('../services/speedaf');
-              result = await sendOrderToSpeedaf(order);
-            } catch (err) {
-              result = { success: false, error: err.message };
-            }
+          try {
+            const { sendOrderToSpeedaf } = require('../services/speedaf');
+            result = await sendOrderToSpeedaf(order);
+          } catch (err) {
+            result = { success: false, error: err.message };
           }
 
           if (result && result.success) {
