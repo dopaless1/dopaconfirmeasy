@@ -28,6 +28,7 @@ function setMessageHandler(handler) {
 
 let isStarting = false;
 let reconnectTimer = null;
+let replacedAttempts = 0;
 
 async function startBaileys() {
   // امنع تشغيل أكتر من instance في نفس الوقت
@@ -123,12 +124,18 @@ async function startBaileys() {
 
       } else if (statusCode === DisconnectReason.connectionReplaced) {
         // 440 — نسخة تانية اتصلت بنفس الـ session
-        // (Railway بيشغل container جديد وقديم في نفس الوقت لحظة الـ redeploy)
-        // الحل: استنى 30 ثانية عشان الـ container القديم يموت وبعدين اتصل
-        console.warn('[Baileys] connectionReplaced — another instance is active. Waiting 30s before retry...');
+        // (Railway بيشغل container جديد وقديم في نفس الوقت لحظة الـ redeploy أو سيرفر محلي مفتوح مع السيرفر السحابي)
+        replacedAttempts += 1;
+        const waitTimeSec = Math.min(30 * replacedAttempts, 180); // 30s, 60s, 90s ... max 3 min
+        console.warn(`[Baileys] ⚠️ connectionReplaced (440) — another instance is active! Conflict #${replacedAttempts}. Waiting ${waitTimeSec}s before retry...`);
+        console.warn('[Baileys] 💡 Tip: Make sure you do NOT have "node server.js" running locally while Railway is active, or two instances running on Railway.');
+        
         connectionState = 'reconnecting';
         if (!reconnectTimer) {
-          reconnectTimer = setTimeout(() => { reconnectTimer = null; startBaileys(); }, 30000);
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            startBaileys();
+          }, waitTimeSec * 1000);
         }
 
       } else {
@@ -140,10 +147,11 @@ async function startBaileys() {
       }
 
     } else if (connection === 'open') {
-      console.log('[Baileys] Connected to WhatsApp successfully!');
+      console.log('[Baileys] ✅ Connected to WhatsApp successfully!');
       currentQR = null;
       connectionState = 'connected';
-      userPhone = sock.user.id.split(':')[0];
+      replacedAttempts = 0; // تصفير عداد التعارض بمجرد استقرار الاتصال
+      userPhone = sock.user?.id ? sock.user.id.split(':')[0] : '';
     }
   });
 

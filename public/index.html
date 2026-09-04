@@ -1089,13 +1089,21 @@ function renderSingleTable(tbodyId, countId, orders, highlightNew = false) {
     <tr class="${isNew ? 'row-new' : ''}" id="row-${order.id}">
       <td><input type="checkbox" class="order-checkbox" value="${order.id}" onchange="updateBulkSelection()"></td>
       <td>
-        <div style="display:flex;align-items:center;gap:4px">
-          <span class="order-number" style="white-space:nowrap;direction:ltr;display:inline-block;font-family:monospace,sans-serif;font-weight:700;">${escapeHtml(displayNum)}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <a href="javascript:void(0)" onclick="showOrderDetail(${order.id})" 
+             class="order-number" 
+             style="white-space:nowrap;direction:ltr;display:inline-block;font-family:monospace,sans-serif;font-weight:800;color:var(--primary-color);text-decoration:underline;cursor:pointer;font-size:13.5px;" 
+             title="اضغط لفتح تفاصيل الأوردر الكاملة">
+            ${escapeHtml(displayNum)}
+          </a>
+          <button class="btn btn-ghost btn-sm" onclick="showOrderDetail(${order.id})" title="فتح تفاصيل الطلب" style="padding:2px 5px;font-size:12px;color:var(--primary-color)">
+            👁️
+          </button>
           <span style="cursor:pointer;opacity:0.6;font-size:12px" title="نسخ رقم الطلب" onclick="copyToClipboard('${escapeHtml(displayNum)}')">📋</span>
         </div>
         <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">
           ${order.source === 'easyorders' ? '<span class="badge" style="background:#e0f2fe;color:#0284c7;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700">⚡ Easy Orders</span>' : '<span class="badge" style="background:#f0fdf4;color:#16a34a;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700">🛍️ Shopify</span>'}
-          ${order.speedaf_waybill ? `<span class="badge" style="background:#fff7ed;color:#ea580c;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700" title="بوليصة Speedaf">📦 ${escapeHtml(order.speedaf_waybill)}${order.speedaf_status ? ` (${escapeHtml(order.speedaf_status)})` : ''}</span>` : ''}
+          ${order.speedaf_waybill ? `<span class="badge" style="background:#fff7ed;color:#ea580c;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700;cursor:pointer" onclick="openSpeedafOpsModal(${order.id})" title="اضغط لإجراءات بوليصة Speedaf">📦 ${escapeHtml(order.speedaf_waybill)}${order.speedaf_status ? ` (${escapeHtml(order.speedaf_status)})` : ''}</span>` : ''}
         </div>
       </td>
       <td>
@@ -1401,32 +1409,49 @@ function renderActionButtons(order, hasNotes) {
     </button>`);
   }
 
-  // Speedaf Action — لو عنده بوليصة بيفتح modal الإجراءات، غير كده بيفتح modal الإرسال
-  if (!['cancelled', 'delivered'].includes(order.status)) {
-    if (order.speedaf_waybill) {
-      // له بوليصة — نعرض زر إجراءات Speedaf الكاملة
-      btns.push(`<button class="btn btn-sm" style="background:#f97316;color:#fff;font-weight:700" onclick="openSpeedafOpsModal(${order.id})" title="مراجعة / معاينة / طباعة / إبطال">
-        📦 إجراءات Speedaf ▾
-      </button>`);
-    } else {
-      // لا بوليصة — نعرض زر إرسال لـ Speedaf
-      btns.push(`<button class="btn btn-sm" style="background:#f97316;color:#fff" onclick="openSpeedafModal(${order.id})" title="إرسال لـ Speedaf وإنشاء بوليصة">
-        📦 تحويل لـ Speedaf
-      </button>`);
-    }
-  }
+  // Speedaf Actions — لو عنده بوليصة تظهر أزرار Speedaf المباشرة (المراجعة، المعاينة، الطباعة، الإبطال، الحذف)
+  if (order.speedaf_waybill) {
+    // 1. المراجعة
+    btns.push(`<button class="btn btn-sm" style="background:#7c3aed;color:#fff;font-weight:700" onclick="openSpeedafOpsModal(${order.id});speedafAudit();" title="مراجعة واعتماد الشحنة في Speedaf">
+      🔍 المراجعة
+    </button>`);
 
-  // Cancel (for orders without active shipment)
-  if (!['cancelled', 'shipping_sent', 'handed_to_courier', 'delivered'].includes(order.status)) {
-    btns.push(`<button class="btn btn-danger btn-sm" onclick="cancelOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="إلغاء الطلب">
-      🚫 إلغاء
+    // 2. معاينة البوليصة
+    btns.push(`<button class="btn btn-sm" style="background:#0284c7;color:#fff;font-weight:700" onclick="openSpeedafOpsModal(${order.id});speedafPreview();" title="معاينة بوليصة Speedaf في نافذة جديدة">
+      👁️ معاينة
+    </button>`);
+
+    // 3. طباعة البوليصة
+    btns.push(`<button class="btn btn-sm" style="background:#ea580c;color:#fff;font-weight:700" onclick="openSpeedafOpsModal(${order.id});speedafPrintOnline();" title="طباعة بوليصة Speedaf">
+      🖨️ طباعة
+    </button>`);
+
+    // 4. إبطال الشحنة في Speedaf
+    btns.push(`<button class="btn btn-warning btn-sm" onclick="openSpeedafOpsModal(${order.id});speedafVoid();" title="إبطال وإلغاء البوليصة في Speedaf">
+      🚫 إبطال
+    </button>`);
+
+    // 5. حذف
+    btns.push(`<button class="btn btn-delete btn-sm" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف الطلب">
+      🗑 حذف
+    </button>`);
+
+  } else if (!['cancelled', 'delivered'].includes(order.status)) {
+    // لا بوليصة بعد — نعرض زر إرسال لـ Speedaf
+    btns.push(`<button class="btn btn-sm" style="background:#f97316;color:#fff;font-weight:700" onclick="openSpeedafModal(${order.id})" title="إرسال لـ Speedaf وإنشاء بوليصة">
+      📦 تحويل لـ Speedaf
+    </button>`);
+
+    // Delete from DB (لو مفيش بوليصة)
+    btns.push(`<button class="btn btn-delete btn-sm" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف من الداشبورد">
+      🗑 حذف
     </button>`);
   }
 
-  // Delete from DB — لو عنده بوليصة هيحذف من خلال modal الإجراءات، غير كده هنا
-  if (!order.speedaf_waybill) {
-    btns.push(`<button class="btn btn-delete btn-sm" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف من الداشبورد">
-      🗑 حذف
+  // Cancel (لو مش ملغي ومش مشحون)
+  if (!order.speedaf_waybill && !['cancelled', 'shipping_sent', 'handed_to_courier', 'delivered'].includes(order.status)) {
+    btns.push(`<button class="btn btn-danger btn-sm" onclick="cancelOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="إلغاء الطلب">
+      🚫 إلغاء
     </button>`);
   }
 
@@ -1836,25 +1861,76 @@ async function showOrderDetail(orderId) {
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">المنتجات</div>
     <div style="margin-bottom:20px">${itemsHtml || '<div style="color:var(--text-muted)">لا توجد منتجات</div>'}</div>
 
+    ${order.speedaf_waybill ? `
+    <div style="background:#fff7ed;border:1.5px solid #fdba74;border-radius:10px;padding:12px 16px;margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-weight:700;color:#ea580c;font-size:14px">📦 بيانات شحنة Speedaf Express</div>
+        <span style="background:#ea580c;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">
+          ${escapeHtml(order.speedaf_status || 'قيد الشحن')}
+        </span>
+      </div>
+      <div style="font-size:13px;display:flex;gap:16px;flex-wrap:wrap">
+        <div>رقم بوليصة الشحن: <strong class="font-mono" style="color:#000;font-size:14px">${escapeHtml(order.speedaf_waybill)}</strong></div>
+        ${order.speedaf_status_updated_at ? `<div style="color:var(--text-muted)">آخر تحديث: ${formatTime(order.speedaf_status_updated_at)}</div>` : ''}
+      </div>
+    </div>
+    ` : ''}
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;color:var(--text-muted)">
       ${order.whatsapp_sent_at ? `<div>💬 واتساب أُرسل: <strong>${formatTime(order.whatsapp_sent_at)}</strong></div>` : ''}
       ${order.customer_reply ? `<div>💬 رد العميل: <strong dir="auto">${escapeHtml(order.customer_reply)}</strong></div>` : ''}
       ${order.replied_at ? `<div>⏰ وقت الرد: <strong>${formatTime(order.replied_at)}</strong></div>` : ''}
       ${order.shipping_sent_at ? `<div>🚚 أُرسل للشحن: <strong>${formatTime(order.shipping_sent_at)}</strong></div>` : ''}
       <div>🕐 الطلب: <strong>${formatTime(order.created_at)}</strong></div>
-      <div>🆔 Shopify ID: <strong class="font-mono">${escapeHtml(order.shopify_order_id)}</strong></div>
+      <div>🆔 مصدر الطلب: <strong>${order.source === 'easyorders' ? '⚡ Easy Orders' : '🛍️ Shopify'}</strong></div>
     </div>
 
   `;
 
-  document.getElementById('modal-actions').innerHTML = `
-    <button class="btn btn-ghost" onclick="closeModal('detail-modal')">إغلاق</button>
-    ${!['cancelled','shipping_sent'].includes(order.status) ? `
-      <button class="btn btn-primary btn-sm" onclick="closeModal('detail-modal');resendWhatsApp(${order.id})">💬 إعادة إرسال واتساب</button>
-      <button class="btn btn-success btn-sm" onclick="closeModal('detail-modal');confirmOrder(${order.id},'${escapeHtml(order.order_number)}')">✅ تأكيد يدوي</button>
-      <button class="btn btn-danger btn-sm" onclick="closeModal('detail-modal');cancelOrder(${order.id},'${escapeHtml(order.order_number)}')">🚫 إلغاء</button>
-    ` : ''}
-  `;
+  // الأزرار داخل نافذة تفاصيل الطلب
+  let actionsHtml = `<button class="btn btn-ghost" onclick="closeModal('detail-modal')">إغلاق</button>`;
+
+  if (order.speedaf_waybill) {
+    // له بوليصة Speedaf — إتاحة كافة أزرار Speedaf
+    actionsHtml += `
+      <button class="btn btn-sm" style="background:#7c3aed;color:#fff;font-weight:700" onclick="closeModal('detail-modal');openSpeedafOpsModal(${order.id});speedafAudit();" title="مراجعة واعتماد الشحنة">
+        🔍 المراجعة
+      </button>
+      <button class="btn btn-sm" style="background:#0284c7;color:#fff;font-weight:700" onclick="closeModal('detail-modal');openSpeedafOpsModal(${order.id});speedafPreview();" title="معاينة البوليصة">
+        👁️ معاينة
+      </button>
+      <button class="btn btn-sm" style="background:#ea580c;color:#fff;font-weight:700" onclick="closeModal('detail-modal');openSpeedafOpsModal(${order.id});speedafPrintOnline();" title="طباعة البوليصة">
+        🖨️ طباعة
+      </button>
+      <button class="btn btn-warning btn-sm" onclick="closeModal('detail-modal');openSpeedafOpsModal(${order.id});speedafVoid();" title="إبطال الشحنة">
+        🚫 إبطال
+      </button>
+      <button class="btn btn-delete btn-sm" onclick="closeModal('detail-modal');deleteOrder(${order.id},'${escapeHtml(order.order_number)}')" title="حذف الطلب">
+        🗑 حذف
+      </button>
+    `;
+  } else {
+    // لم يشحن بعد لـ Speedaf
+    if (!['cancelled', 'delivered'].includes(order.status)) {
+      actionsHtml += `
+        <button class="btn btn-sm" style="background:#f97316;color:#fff;font-weight:700" onclick="closeModal('detail-modal');openSpeedafModal(${order.id})">
+          📦 إرسال لـ Speedaf
+        </button>
+      `;
+    }
+    if (!['cancelled', 'shipping_sent'].includes(order.status)) {
+      actionsHtml += `
+        <button class="btn btn-primary btn-sm" onclick="closeModal('detail-modal');resendWhatsApp(${order.id})">💬 واتساب</button>
+        <button class="btn btn-success btn-sm" onclick="closeModal('detail-modal');confirmOrder(${order.id},'${escapeHtml(order.order_number)}')">✅ تأكيد يدوي</button>
+        <button class="btn btn-danger btn-sm" onclick="closeModal('detail-modal');cancelOrder(${order.id},'${escapeHtml(order.order_number)}')">🚫 إلغاء</button>
+      `;
+    }
+    actionsHtml += `
+      <button class="btn btn-delete btn-sm" onclick="closeModal('detail-modal');deleteOrder(${order.id},'${escapeHtml(order.order_number)}')">🗑 حذف</button>
+    `;
+  }
+
+  document.getElementById('modal-actions').innerHTML = actionsHtml;
 
   openModal('detail-modal');
 }
