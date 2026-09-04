@@ -733,9 +733,9 @@ async function sendOrderToSpeedaf(order, locationCodes) {
     // 6. Sender defaults
     const sender = await getSenderDefaults();
 
-    // 7. Options: Allow Open Package
+    // 7. Options: Allow Open Package — السماح بالفتح (مفعل افتراضياً = 1)
     const allowOpenSetting = await getSetting('SPEEDAF_ALLOW_OPEN');
-    const isAllowOpen = allowOpenSetting === 'true' || allowOpenSetting === '1' ? 1 : 0;
+    const isAllowOpen = (allowOpenSetting === 'false' || allowOpenSetting === '0') ? 0 : 1;
 
     // Build finalized Speedaf payload
     const payload = {
@@ -764,7 +764,8 @@ async function sendOrderToSpeedaf(order, locationCodes) {
       goodsTypeName: 'Normal',
       codFee,
       paymentMethod: 'PA02',  // Cash on delivery
-      isAllowOpen,
+      isAllowOpen: isAllowOpen,
+      allowOpen: isAllowOpen,
       insurePrice: 0,
       shippingFee: 0,
       deliveryType: '',
@@ -772,18 +773,46 @@ async function sendOrderToSpeedaf(order, locationCodes) {
       remark: `Order ${order.order_number || ''}`.trim(),
     };
 
-    console.log(`[Speedaf] 📦 Creating shipment for ${order.order_number}: Prov: [${provinceName} (${provinceCode})], City: [${cityName} (${cityCode})], Dist: [${districtName} (${districtCode})], Street: "${cleanAddress}"`);
+    console.log(`[Speedaf] 📦 Creating shipment for ${order.order_number}: Prov: [${provinceName} (${provinceCode})], City: [${cityName} (${cityCode})], Dist: [${districtName} (${districtCode})], AllowOpen: ${isAllowOpen}`);
 
-    const result = await speedafRequest('POST', '/express/order/add', payload);
+    let result = await speedafRequest('POST', '/express/order/add', payload);
+
+    let waybillNo = null;
 
     if (result.success) {
-      // Try to extract waybill number from response
-      const waybillNo = result.data?.data?.waybillNo || result.data?.data?.orderNo || null;
-      console.log(`[Speedaf] ✅ Order created — Waybill: ${waybillNo}`);
+      waybillNo = result.data?.data?.waybillNo || result.data?.data?.orderNo || null;
+    } else {
+      // Check if error is "S.O. is occupied" (Order already exists in Speedaf)
+      const errStr = JSON.stringify(result.raw || result.error || '');
+      if (errStr.includes('S.O. is occupied') || errStr.includes('occupied')) {
+        console.warn(`[Speedaf] ⚠️ Order ${order.order_number} is already occupied in Speedaf. Fetching existing waybill...`);
+        const found = await findSpeedafOrderByNumber(order.order_number);
+        if (found && found.waybillNo) {
+          waybillNo = found.waybillNo;
+          console.log(`[Speedaf] 🎯 Recovered existing waybill: ${waybillNo} for order ${order.order_number}`);
+          result = { success: true, waybillNo, recovered: true };
+        }
+      }
+    }
 
-      // Save waybill to DB
-      if (waybillNo && order.id) {
+    if (waybillNo) {
+      console.log(`[Speedaf] ✅ Shipment active — Waybill: ${waybillNo}`);
+
+      // 1. Save waybill to DB
+      if (order.id) {
         await db.updateSpeedafWaybill(order.id, waybillNo);
+      }
+
+      // 2. Auto-Audit (اعتماد ومراجعة الشحنة تلقائياً وفوراً)
+      console.log(`[Speedaf] 🔍 Auto-auditing order ${order.order_number} (${waybillNo})...`);
+      try {
+        const auditRes = await auditSpeedafOrder(waybillNo, order.order_number);
+        if (auditRes.success) {
+          await db.updateSpeedafStatus(order.id, 'تمت المراجعة');
+          console.log(`[Speedaf] ✅ Auto-audit completed for ${order.order_number}`);
+        }
+      } catch (e) {
+        console.warn(`[Speedaf] Note: Auto-audit error:`, e.message);
       }
 
       return { success: true, waybillNo, raw: result.data };
@@ -798,27 +827,93 @@ async function sendOrderToSpeedaf(order, locationCodes) {
   }
 }
 
+/**
+ * استعلام والبحث عن شحنة برقم طلب العميل (customOrderNo) لاسترجاع رقم البوليصة
+ */
+async function findSpeedafOrderByNumber(orderNumber) {
+  if (!orderNumber) return null;
+  const cleanNum = String(orderNumber).trim();
+
+  // Try 1: queryOrderList with orderNoList
+  try {
+    const res = await speedafRequest('POST', '/express/order/queryOrderList', {
+      pageNo: 1,
+      pageSize: 10,
+      params: {
+        orderNoList: [cleanNum, cleanNum.replace(/^#/, '')]
+      }
+    });
+    if (res.success && res.data?.data?.list?.length > 0) {
+      const match = res.data.data.list.find(o => o.customOrderNo === cleanNum || o.customOrderNo === cleanNum.replace(/^#/, '')) || res.data.data.list[0];
+      return {
+        waybillNo: match.waybillNo || match.mailNo,
+        orderNo: match.orderNo || match.expressOrderId,
+        status: match.orderStatusName || match.orderStatus,
+        raw: match
+      };
+    }
+  } catch (e) {
+    console.warn('[Speedaf] queryOrderList search failed:', e.message);
+  }
+
+  // Try 2: getGeneralOrderList fallback
+  try {
+    const listRes = await speedafRequest('GET', `/express/order/getGeneralOrderList?pageNum=1&pageSize=30`);
+    if (listRes.success && (listRes.data?.data?.list || Array.isArray(listRes.data?.data))) {
+      const list = listRes.data?.data?.list || listRes.data?.data;
+      const match = list.find(o => o.customOrderNo === cleanNum || o.customOrderNo === cleanNum.replace(/^#/, ''));
+      if (match) {
+        return {
+          waybillNo: match.waybillNo || match.mailNo,
+          orderNo: match.orderNo || match.id,
+          status: match.orderStatusName,
+          raw: match
+        };
+      }
+    }
+  } catch (e) {}
+
+  return null;
+}
+
 // ─── Order Audit / Review (المراجعة) ─────────────────────────────────────────
 
 /**
  * مراجعة / اعتماد شحنة في Speedaf (المراجعة)
  * يُستخدم قبل طباعة البوليصة لتأكيد الشحنة
- * @param {string} waybillNo - رقم البوليصة من Speedaf
+ * @param {string} waybillNo - رقم البوليصة أو رقم الطلب
+ * @param {string} customOrderNo - اختياري: رقم طلب العميل (#10)
  */
-async function auditSpeedafOrder(waybillNo) {
+async function auditSpeedafOrder(waybillNo, customOrderNo = null) {
   if (!waybillNo) return { success: false, error: 'Waybill number required' };
-  console.log(`[Speedaf] 🔍 Auditing order: ${waybillNo}`);
+  console.log(`[Speedaf] 🔍 Auditing order: ${waybillNo} (customOrder: ${customOrderNo})`);
 
-  const result = await speedafRequest('POST', '/express/order/audit', { waybillNo });
-  if (result.success && (result.data?.code === 200 || result.data?.success)) {
+  // Try 1: Official Speedaf format with expressOrderIds array
+  let result = await speedafRequest('POST', '/express/order/audit', {
+    expressOrderIds: [waybillNo],
+    waybillNo: waybillNo,
+    customOrderNo: customOrderNo || undefined,
+  });
+  if (result.success && (result.data?.code === 200 || result.data?.code === 0 || result.data?.success)) {
     console.log(`[Speedaf] ✅ Order ${waybillNo} audited successfully`);
     return { success: true, data: result.data };
   }
-  // Some Speedaf endpoints return code 0 for success
-  if (result.success && result.data?.code === 0) {
+
+  // Try 2: Simple waybillNo payload
+  result = await speedafRequest('POST', '/express/order/audit', { waybillNo });
+  if (result.success && (result.data?.code === 200 || result.data?.code === 0 || result.data?.success)) {
     return { success: true, data: result.data };
   }
-  const errMsg = result.data?.message || result.data?.msg || result.error || 'Audit failed';
+
+  // Try 3: With customOrderNo if provided
+  if (customOrderNo) {
+    result = await speedafRequest('POST', '/express/order/audit', { customOrderNo });
+    if (result.success && (result.data?.code === 200 || result.data?.code === 0 || result.data?.success)) {
+      return { success: true, data: result.data };
+    }
+  }
+
+  const errMsg = result.data?.error?.message || result.data?.message || result.data?.msg || result.error || 'Audit failed';
   console.error(`[Speedaf] ❌ Audit failed for ${waybillNo}: ${errMsg}`);
   return { success: false, error: errMsg, raw: result.data };
 }
@@ -832,32 +927,40 @@ async function auditSpeedafOrder(waybillNo) {
  */
 async function cancelSpeedafOrder(waybillNo) {
   if (!waybillNo) return { success: false, error: 'Waybill number required' };
-  console.log(`[Speedaf] 🚫 Cancelling Speedaf order: ${waybillNo}`);
+  console.log(`[Speedaf] 🚫 Cancelling/Invaliding Speedaf order: ${waybillNo}`);
 
-  // Try primary cancel endpoint
-  let result = await speedafRequest('POST', '/express/order/cancel', { waybillNo });
+  // Try 1: Official Speedaf invalid endpoint (/express/order/invalid)
+  let result = await speedafRequest('POST', '/express/order/invalid', {
+    expressOrderIds: [waybillNo],
+    waybillNo: waybillNo,
+  });
   if (result.success && (result.data?.code === 200 || result.data?.code === 0 || result.data?.success)) {
-    console.log(`[Speedaf] ✅ Order ${waybillNo} cancelled in Speedaf`);
+    console.log(`[Speedaf] ✅ Order ${waybillNo} invalidated in Speedaf`);
     return { success: true, data: result.data };
   }
 
-  // Fallback: try with waybillNoList array format (some Speedaf API versions)
-  result = await speedafRequest('POST', '/express/order/cancel', { waybillNoList: [waybillNo] });
+  // Try 2: Simple { waybillNo }
+  result = await speedafRequest('POST', '/express/order/invalid', { waybillNo });
   if (result.success && (result.data?.code === 200 || result.data?.code === 0 || result.data?.success)) {
-    console.log(`[Speedaf] ✅ Order ${waybillNo} cancelled in Speedaf (list format)`);
     return { success: true, data: result.data };
   }
 
-  const errMsg = result.data?.message || result.data?.msg || result.error || 'Cancel failed';
-  console.error(`[Speedaf] ❌ Cancel failed for ${waybillNo}: ${errMsg}`);
+  // Try 3: Cancel endpoint
+  result = await speedafRequest('POST', '/express/order/cancel', { waybillNo });
+  if (result.success && (result.data?.code === 200 || result.data?.code === 0 || result.data?.success)) {
+    return { success: true, data: result.data };
+  }
+
+  const errMsg = result.data?.error?.message || result.data?.message || result.data?.msg || result.error || 'Cancel failed';
+  console.error(`[Speedaf] ❌ Cancel/Invalid failed for ${waybillNo}: ${errMsg}`);
   return { success: false, error: errMsg, raw: result.data };
 }
 
 // ─── Waybill Print / Preview (طباعة / معاينة) ────────────────────────────────
 
 /**
- * جلب بيانات الطباعة لبوليصة Speedaf
- * يُرجع رابط PDF أو HTML للمعاينة والطباعة
+ * جلب بيانات الطباعة والمعاينة لبوليصة Speedaf
+ * يُرجع رابط PDF أو الرابط المباشر للطباعة من Speedaf B-Client
  * @param {string} waybillNo - رقم البوليصة
  * @param {string} printType - نوع الطباعة: 'normal' (130*75) | 'small' (100*100)
  */
@@ -865,42 +968,45 @@ async function getSpeedafPrintData(waybillNo, printType = 'normal') {
   if (!waybillNo) return { success: false, error: 'Waybill number required' };
   console.log(`[Speedaf] 🖨️ Getting print data for: ${waybillNo}`);
 
-  // Try the print endpoint with waybill number
+  // Try 1: Official Speedaf Print API POST with expressOrderIds
+  let result = await speedafRequest('POST', '/express/order/print', {
+    expressOrderIds: [waybillNo],
+    waybillNoList: [waybillNo],
+    waybillNo: waybillNo,
+    printType: printType === 'small' ? 2 : 1,
+  });
+
+  if (result.success && result.data) {
+    const printData = result.data?.data || result.data;
+    const printUrl = printData?.printUrl || printData?.url || printData?.pdfUrl || null;
+    const printHtml = printData?.html || (typeof printData === 'string' && printData.includes('<') ? printData : null);
+    if (printUrl || printHtml) {
+      return { success: true, printUrl, printHtml, raw: printData };
+    }
+  }
+
+  // Try 2: GET with waybillNo parameter
   const params = new URLSearchParams({
     waybillNo,
     printType: printType === 'small' ? '2' : '1',
   });
-
-  let result = await speedafRequest('GET', `/express/order/print?${params.toString()}`);
-  if (result.success && result.data) {
-    // Return print URL or HTML content
-    const printData = result.data?.data || result.data;
-    return {
-      success: true,
-      printUrl: printData?.printUrl || printData?.url || null,
-      printHtml: printData?.html || null,
-      raw: printData,
-    };
-  }
-
-  // Fallback: try getPrintData endpoint
-  result = await speedafRequest('POST', '/express/order/getPrintData', {
-    waybillNoList: [waybillNo],
-    printType: printType === 'small' ? 2 : 1,
-  });
+  result = await speedafRequest('GET', `/express/order/print?${params.toString()}`);
   if (result.success && result.data) {
     const printData = result.data?.data || result.data;
-    return {
-      success: true,
-      printUrl: printData?.printUrl || printData?.url || null,
-      printHtml: printData?.html || null,
-      raw: printData,
-    };
+    const printUrl = printData?.printUrl || printData?.url || printData?.pdfUrl || null;
+    const printHtml = printData?.html || null;
+    if (printUrl || printHtml) {
+      return { success: true, printUrl, printHtml, raw: printData };
+    }
   }
 
-  const errMsg = result.data?.message || result.data?.msg || result.error || 'Print data fetch failed';
-  console.error(`[Speedaf] ❌ Print fetch failed for ${waybillNo}: ${errMsg}`);
-  return { success: false, error: errMsg, raw: result.data };
+  // Direct Speedaf B-Client Tracking/Waybill link fallback
+  return {
+    success: true,
+    printUrl: `https://csp.speedaf.com/#/waybillSearch?waybillNo=${encodeURIComponent(waybillNo)}`,
+    fallback: true,
+    waybillNo
+  };
 }
 
 // ─── Order Tracking ───────────────────────────────────────────────────────────
@@ -1025,6 +1131,7 @@ module.exports = {
   auditSpeedafOrder,
   cancelSpeedafOrder,
   getSpeedafPrintData,
+  findSpeedafOrderByNumber,
   // Stats
   getSpeedafStats,
   // Auto-Login & Captcha

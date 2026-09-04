@@ -735,6 +735,31 @@ router.get('/:id/speedaf-track', async (req, res) => {
   }
 });
 
+// POST /api/orders/:id/speedaf-sync — استرجاع ومزامنة رقم البوليصة من Speedaf لو الطلب معمول مسبقاً
+router.post('/:id/speedaf-sync', async (req, res) => {
+  try {
+    const order = await db.getOrderById(parseInt(req.params.id));
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    const { findSpeedafOrderByNumber, auditSpeedafOrder } = require('../services/speedaf');
+    const found = await findSpeedafOrderByNumber(order.order_number);
+
+    if (found && found.waybillNo) {
+      await db.updateSpeedafWaybill(order.id, found.waybillNo);
+      // Try auto-audit as well
+      await auditSpeedafOrder(found.waybillNo, order.order_number).catch(() => {});
+      await db.updateSpeedafStatus(order.id, 'تمت المراجعة');
+      if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.id });
+
+      return res.json({ success: true, waybillNo: found.waybillNo, status: found.status });
+    }
+
+    res.status(404).json({ success: false, error: 'لم يتم العثور على شحنة مطابقة في Speedaf برقم هذا الطلب' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/orders/speedaf/auto-login — تسجيل دخول تلقائي وحل الكابتشا عبر Gemini
 router.post('/speedaf/auto-login', async (req, res) => {
   try {

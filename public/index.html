@@ -1437,9 +1437,14 @@ function renderActionButtons(order, hasNotes) {
     </button>`);
 
   } else if (!['cancelled', 'delivered'].includes(order.status)) {
-    // لا بوليصة بعد — نعرض زر إرسال لـ Speedaf
+    // لا بوليصة بعد — نعرض زر إرسال لـ Speedaf وزر استرجاع البوليصة لو كانت اتعملت ومسجلتش
     btns.push(`<button class="btn btn-sm" style="background:#f97316;color:#fff;font-weight:700" onclick="openSpeedafModal(${order.id})" title="إرسال لـ Speedaf وإنشاء بوليصة">
       📦 تحويل لـ Speedaf
+    </button>`);
+
+    // زر فحص واسترجاع البوليصة لو كان الأوردر اتعمل مسبقاً في Speedaf
+    btns.push(`<button class="btn btn-ghost btn-sm" onclick="syncSpeedafWaybill(${order.id})" title="فحص ومزامنة بوليصة Speedaf لو الطلب مسجل عندهم مسبقاً" style="color:#f97316;border:1px solid #f97316">
+      🔄 جلب بوليصة Speedaf
     </button>`);
 
     // Delete from DB (لو مفيش بوليصة)
@@ -3520,6 +3525,26 @@ function speedafDeleteOrder() {
   closeModal('speedaf-ops-modal');
   // استخدم نفس دالة deleteOrder الموجودة
   deleteOrder(order.id, order.order_number);
+}
+
+// مزامنة واسترجاع بوليصة Speedaf للأوردر المسجل مسبقاً
+async function syncSpeedafWaybill(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  showToast(`⏳ جارٍ البحث عن بوليصة الطلب ${order ? order.order_number : ''} في Speedaf...`, 'info');
+
+  try {
+    const res = await fetch(`/api/orders/${orderId}/speedaf-sync`, { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success && data.waybillNo) {
+      showToast(`🎉 تم جلب البوليصة بنجاح: ${data.waybillNo}`, 'success');
+      loadOrders();
+    } else {
+      showToast(`❌ ${data.error || 'لم يتم العثور على بوليصة لهذا الطلب في Speedaf'}`, 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+  }
 }
 </script>
 </body>
