@@ -238,7 +238,6 @@
                 <th style="width: 40px;"><input type="checkbox" onchange="toggleAllCheckboxes(this, 'simulated-orders-tbody')"></th>
                 <th>رقم الطلب</th>
                 <th>العميل</th>
-                <th>سير العمل</th>
                 <th>المنتجات</th>
                 <th>الإجمالي</th>
                 <th>الحالة</th>
@@ -288,8 +287,6 @@
           <button class="status-tab" data-statuses="handed_to_courier" onclick="setStatusTab(this)">📦 مع المندوب</button>
           <button class="status-tab" data-statuses="confirmed,shipping_failed" onclick="setStatusTab(this)">⏳ لم يُشحن بعد</button>
           <button class="status-tab" data-statuses="delivered" onclick="setStatusTab(this)">📦 تم التسليم</button>
-          <button class="status-tab" data-statuses="delivered" data-review="sent" onclick="setStatusTab(this)">⭐ طُلب تقييمه</button>
-          <button class="status-tab" data-statuses="delivered" data-review="not_sent" onclick="setStatusTab(this)">🔴 لم يُطلب تقييمه</button>
           <button class="status-tab" data-statuses="cancelled" onclick="setStatusTab(this)">🚫 ملغي</button>
         </div>
 
@@ -312,9 +309,6 @@
         <button class="btn-refresh" onclick="loadOrders(true)">
           🔄 تحديث
         </button>
-        <button class="btn btn-primary" onclick="syncStarlink()" style="padding: 9px 14px; margin-right: 8px;">
-          🤖 مزامنة الحالات آلياً
-        </button>
 
         <button class="btn btn-success" onclick="exportToCSV()" style="padding: 9px 14px; margin-right: 8px;" title="تحميل الطلبات كملف إكسيل">
           📥 تحميل CSV
@@ -332,13 +326,11 @@
           ✅ تم تحديد <span id="bulk-count">0</span> طلب
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;flex:1;">
-          <button id="bulk-btn-shipping" class="btn btn-success btn-sm" onclick="executeBulkAction('confirm_shipping')" title="إرسال المحددين للشحن">🚚 إرسال للشحن</button>
-          <button id="bulk-btn-print-waybills" class="btn btn-sm" onclick="bulkPrintWaybills()" title="طباعة بوالص الشحن لجميع الطلبات المحددة في ملف PDF واحد" style="background:#ea580c;border-color:#ea580c;color:#fff;font-weight:700">🖨️ طباعة البوالص (PDF)</button>
-          <button id="bulk-btn-review" class="btn btn-warning btn-sm" onclick="executeBulkAction('request_review')" title="إرسال طلب تقييم للمحددين">⭐ طلب تقييم</button>
-          <button id="bulk-btn-whatsapp" class="btn btn-primary btn-sm" onclick="executeBulkAction('resend_whatsapp')" title="إعادة إرسال واتساب للمحددين">💬 إعادة واتساب</button>
-          <button id="bulk-btn-delete" class="btn btn-danger btn-sm" onclick="executeBulkAction('delete')" title="حذف المحددين">🗑 حذف</button>
-          <button id="bulk-btn-tag" class="btn btn-ghost btn-sm" onclick="openBulkTagModal()" title="إضافة تاج للمحددين">🏷️ تاج جماعي</button>
-          <button id="bulk-btn-export" class="btn btn-ghost btn-sm" onclick="openExportModal()" title="تصدير بيانات مخصصة PDF">📄 تصدير مخصص</button>
+          <button id="bulk-btn-shipping" class="btn btn-success btn-sm" onclick="executeBulkAction('confirm_shipping')" title="إرسال الطلبات المحددة لـ Speedaf وإنشاء البوالص" style="font-weight:700">🚚 إرسال للشحن (Speedaf)</button>
+          <button id="bulk-btn-preview-waybills" class="btn btn-sm" onclick="bulkPrintWaybills(true)" title="معاينة بوالص الشحن لجميع الطلبات المحددة في نافذة واحدة" style="background:#0284c7;border-color:#0284c7;color:#fff;font-weight:700">👁️ معاينة البوالص المحددة</button>
+          <button id="bulk-btn-print-waybills" class="btn btn-sm" onclick="bulkPrintWaybills(false)" title="طباعة بوالص الشحن لجميع الطلبات المحددة فوراً" style="background:#ea580c;border-color:#ea580c;color:#fff;font-weight:700">🖨️ طباعة البوالص المحددة</button>
+          <button id="bulk-btn-whatsapp" class="btn btn-primary btn-sm" onclick="executeBulkAction('resend_whatsapp')" title="إعادة إرسال واتساب للمحددين" style="font-weight:700">💬 إعادة واتساب</button>
+          <button id="bulk-btn-delete" class="btn btn-danger btn-sm" onclick="executeBulkAction('delete')" title="حذف الطلبات المحددة" style="font-weight:700">🗑 حذف المحددين</button>
           <button class="btn btn-ghost btn-sm" onclick="clearBulkSelection()">✕ إلغاء التحديد</button>
         </div>
       </div>
@@ -359,7 +351,6 @@
                 <th style="width: 40px;"><input type="checkbox" onchange="toggleAllCheckboxes(this, 'shopify-orders-tbody')"></th>
                 <th>رقم الطلب</th>
                 <th>العميل</th>
-                <th>سير العمل</th>
                 <th>المنتجات</th>
                 <th>الإجمالي</th>
                 <th>الحالة</th>
@@ -1069,7 +1060,7 @@ function renderSingleTable(tbodyId, countId, orders, highlightNew = false) {
   if (orders.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="9">
+        <td colspan="8">
           <div class="empty-state">
             <div class="empty-icon">📭</div>
             <div class="empty-title">لا توجد طلبات</div>
@@ -1082,7 +1073,6 @@ function renderSingleTable(tbodyId, countId, orders, highlightNew = false) {
 
   tbody.innerHTML = orders.map((order, index) => {
     const isNew = highlightNew && index === 0;
-    const hasNotes = !!order.notes;
     const displayNum = cleanOrderNumberDisplay(order.order_number);
     
     return `
@@ -1107,39 +1097,18 @@ function renderSingleTable(tbodyId, countId, orders, highlightNew = false) {
         </div>
       </td>
       <td>
-        <div class="customer-name" dir="auto">${escapeHtml(order.customer_name || '—')}</div>
-      </td>
-      <td>
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-sm" onclick="toggleOrderPrepared(${order.id}, '${escapeHtml(order.order_number)}')"
-            title="${order.prepared_at ? 'اضغط لإلغاء علامة التجهيز' : 'اضغط لما تجهّز الأوردر'}"
-            style="background:${order.prepared_at ? '#00a650' : 'transparent'};color:${order.prepared_at ? '#fff' : '#00a650'};font-weight:700;padding:5px 10px;border:1.5px solid #00a650;font-size:12px;white-space:nowrap;">
-            ${order.prepared_at ? '✅ مُجهّز' : '📋 تجهيز'}
-          </button>
-          ${order.status === 'shipping_sent' ? `
-          <button class="btn btn-sm" onclick="markHandedToCourier(${order.id}, '${escapeHtml(order.order_number)}')"
-            title="اضغط لما تسلّم الطرد فعلياً لمندوب الشحن"
-            style="background:#5C6AC4;color:#fff;font-weight:700;padding:5px 10px;border:none;font-size:12px;white-space:nowrap;">
-            📦 تسليم للمندوب
-          </button>` : ''}
-        </div>
+        <div class="customer-name" dir="auto" style="font-weight:700">${escapeHtml(order.customer_name || '—')}</div>
+        <div style="font-size:12px;color:var(--text-muted);direction:ltr;text-align:right">${escapeHtml(order.customer_phone || '')}</div>
       </td>
       <td>
         <div class="items-summary" title="${getItemsSummaryFull(order.items)}">${getItemsSummary(order.items)}</div>
       </td>
       <td><span class="total-badge">${escapeHtml(order.total || '—')}</span></td>
-      <td>${renderStatusBadge(order.status, order)}${order.status === 'delivered' ? renderReviewBadge(order) : ''}</td>
+      <td>${renderStatusBadge(order.status, order)}</td>
       <td><div class="time-col">${formatTime(order.created_at)}</div></td>
       <td>
-        <button class="btn btn-ghost btn-sm" onclick="toggleOrderActions(${order.id})" title="عرض الإجراءات" style="display: flex; align-items: center; gap: 4px;">
-          ⚙️ الإجراءات <span id="action-icon-${order.id}" style="font-size: 10px;">▼</span>
-        </button>
-      </td>
-    </tr>
-    <tr id="actions-row-${order.id}" style="display: none; background: rgba(92,106,196,0.03);">
-      <td colspan="9" style="padding: 12px 16px; border-bottom: 2px solid var(--border);">
-        <div class="actions" style="justify-content: flex-end; flex-wrap: wrap;">
-          ${renderActionButtons(order, hasNotes)}
+        <div class="row-actions" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          ${renderRowActionButtons(order)}
         </div>
       </td>
     </tr>`;
@@ -1357,140 +1326,87 @@ function renderReviewBadge(order) {
   return ` <span class="badge" style="background:#fff0f0;color:#de3618;font-size:11px;padding:2px 7px;border-radius:20px;" title="لم يُرسل طلب التقييم بعد">🔴 لم يُطلب</span>`;
 }
 
-function renderActionButtons(order, hasNotes) {
+function renderRowActionButtons(order) {
   const btns = [];
   const cleanPhone = (order.customer_phone || '').replace(/[^0-9]/g, '');
 
-  // Phone / WhatsApp — moved here from the main row to save space
-  btns.push(`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px" dir="ltr">
-    <span>${escapeHtml(order.customer_phone || '—')}</span>
-    <span style="cursor:pointer;opacity:0.6" title="نسخ رقم الهاتف" onclick="copyToClipboard('${escapeHtml(order.customer_phone || '')}')">📋</span>
-    ${cleanPhone ? `<a href="https://wa.me/${cleanPhone}" target="_blank" title="مراسلة عبر واتساب" style="text-decoration:none">💬</a>` : ''}
-  </span>`);
-
-  // Edit Order
-  btns.push(`<button class="btn btn-ghost btn-sm" onclick="openEditOrderModal(${order.id})" title="تعديل العنوان أو الكمية وتزامنه مع Shopify">
-    ✏️ تعديل الأوردر
-  </button>`);
-
-  // Internal Notes
-  btns.push(`<button class="btn btn-ghost btn-sm" onclick="openNotesModal(${order.id}, '${escapeHtml(order.order_number)}')" title="إضافة/تعديل ملاحظة داخلية">
-    ${hasNotes ? '📝 ملاحظة (موجودة)' : '📝 ملاحظة'}
-  </button>`);
-
-  // Custom Message
-  btns.push(`<button class="btn btn-ghost btn-sm" onclick="openCustomMessageModal(${order.id}, '${escapeHtml(order.order_number)}')" title="إرسال رسالة واتساب مخصصة للعميل">
-    💬 رسالة حرة
-  </button>`);
-
-  // Order Timeline
-  btns.push(`<button class="btn btn-ghost btn-sm" onclick="openTimelineModal(${order.id}, '${escapeHtml(order.order_number)}')" title="عرض السجل الزمني للطلب">
-    📜 سجل الطلب
-  </button>`);
-
-  // Resend WhatsApp
-  if (['pending_confirmation', 'whatsapp_failed', 'whatsapp_sent'].includes(order.status)) {
-    btns.push(`<button class="btn btn-primary btn-sm" onclick="resendWhatsApp(${order.id})" title="إعادة إرسال واتساب">
-      💬 إعادة إرسال
-    </button>`);
-  }
-
-  // Manual confirm
-  if (!['confirmed', 'shipping_sent', 'delivered', 'cancelled'].includes(order.status)) {
-    btns.push(`<button class="btn btn-success btn-sm" onclick="confirmOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="تأكيد يدوي وإرسال للشحن">
-      ✅ تأكيد
-    </button>`);
-  }
-
-  // Retry shipping if failed
-  if (order.status === 'shipping_failed') {
-    btns.push(`<button class="btn btn-warning btn-sm" onclick="confirmOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="إعادة إرسال للشحن">
-      🔄 إعادة الشحن
-    </button>`);
-  }
-
-  // Speedaf Actions — لو عنده بوليصة تظهر أزرار Speedaf المباشرة (المراجعة، المعاينة، الطباعة، الإبطال، الحذف)
   if (order.speedaf_waybill) {
-    // 1. المراجعة
-    btns.push(`<button class="btn btn-sm" style="background:#7c3aed;color:#fff;font-weight:700" onclick="openSpeedafOpsModal(${order.id});speedafAudit();" title="مراجعة واعتماد الشحنة في Speedaf">
-      🔍 المراجعة
-    </button>`);
+    // ── الحالة: تم الشحن ومعه بوليصة Speedaf ──
+    // 1. زر معاينة البوليصة المباشرة
+    btns.push(`
+      <button class="btn btn-sm" onclick="speedafPreviewDirect(${order.id})" title="معاينة بوليصة Speedaf والطباعة"
+        style="background:#0284c7;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        👁️ معاينة
+      </button>
+    `);
 
-    // 2. معاينة البوليصة مباشرة بنقرة واحدة
-    btns.push(`<button class="btn btn-sm" style="background:#0284c7;color:#fff;font-weight:700" onclick="speedafPreviewDirect(${order.id})" title="معاينة بوليصة Speedaf في نافذة جديدة">
-      👁️ معاينة
-    </button>`);
+    // 2. زر المراجعة (يظهر لو لم يُعتمد بعد)
+    if (order.speedaf_status !== 'تمت المراجعة') {
+      btns.push(`
+        <button class="btn btn-sm" onclick="speedafAuditOrderDirect(${order.id})" title="اعتماد ومراجعة الشحنة في Speedaf"
+          style="background:#7c3aed;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+          🔍 مراجعة
+        </button>
+      `);
+    }
 
-    // 3. طباعة البوليصة
-    btns.push(`<button class="btn btn-sm" style="background:#ea580c;color:#fff;font-weight:700" onclick="openSpeedafOpsModal(${order.id});speedafPrintOnline();" title="طباعة بوليصة Speedaf">
-      🖨️ طباعة
-    </button>`);
+    // 3. زر إبطال وحذف الشحنة معاً بضغطة واحدة
+    btns.push(`
+      <button class="btn btn-sm btn-danger" onclick="speedafVoidAndDelete(${order.id})" title="إبطال البوليصة في Speedaf وحذف الطلب من الداشبورد"
+        style="font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+        🚫 إبطال وحذف
+      </button>
+    `);
 
-    // 4. إبطال وحذف الشحنة معاً بنقرة واحدة (إبطال في Speedaf + حذف من الداشبورد)
-    btns.push(`<button class="btn btn-danger btn-sm" onclick="speedafVoidAndDelete(${order.id})" title="إبطال الشحنة في Speedaf وحذف الطلب نهائياً">
-      🚫 إبطال وحذف
-    </button>`);
+  } else {
+    // ── الحالة: لم يُشحن بعد ──
+    // 1. زر إرسال واتساب
+    if (cleanPhone && !['cancelled', 'delivered'].includes(order.status)) {
+      btns.push(`
+        <button class="btn btn-sm" onclick="sendWhatsAppNow(${order.id})" title="إرسال رسالة التأكيد عبر واتساب الآن"
+          style="background:#25D366;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+          💬 واتساب
+        </button>
+      `);
+    }
 
-  } else if (!['cancelled', 'delivered'].includes(order.status)) {
-    // لا بوليصة بعد — نعرض زر إرسال لـ Speedaf وزر استرجاع البوليصة لو كانت اتعملت ومسجلتش
-    btns.push(`<button class="btn btn-sm" style="background:#f97316;color:#fff;font-weight:700" onclick="openSpeedafModal(${order.id})" title="إرسال لـ Speedaf وإنشاء بوليصة">
-      📦 تحويل لـ Speedaf
-    </button>`);
+    // 2. زر تأكيد وشحن (يؤكد ويرسل لـ Speedaf مباشرة)
+    if (!['confirmed', 'shipping_sent', 'delivered', 'cancelled'].includes(order.status)) {
+      btns.push(`
+        <button class="btn btn-sm btn-success" onclick="confirmOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="تأكيد الطلب وشحنه"
+          style="font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+          ✅ تأكيد وشحن
+        </button>
+      `);
+    }
 
-    // زر فحص واسترجاع البوليصة لو كان الأوردر اتعمل مسبقاً في Speedaf
-    btns.push(`<button class="btn btn-ghost btn-sm" onclick="syncSpeedafWaybill(${order.id})" title="فحص ومزامنة بوليصة Speedaf لو الطلب مسجل عندهم مسبقاً" style="color:#f97316;border:1px solid #f97316">
-      🔄 جلب بوليصة Speedaf
-    </button>`);
+    // 3. زر تحويل لـ Speedaf
+    if (!['shipping_sent', 'delivered', 'cancelled'].includes(order.status)) {
+      btns.push(`
+        <button class="btn btn-sm" onclick="openSpeedafModal(${order.id})" title="اختيار المحافظة والمنطقة وإرسال لـ Speedaf"
+          style="background:#f97316;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+          📦 تحويل لـ Speedaf
+        </button>
+      `);
+    }
 
-    // Delete from DB (لو مفيش بوليصة)
-    btns.push(`<button class="btn btn-delete btn-sm" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف من الداشبورد">
-      🗑 حذف
-    </button>`);
+    // 4. زر إلغاء أو حذف
+    if (order.status !== 'cancelled') {
+      btns.push(`
+        <button class="btn btn-sm btn-danger" onclick="cancelOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="إلغاء الطلب"
+          style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+          🚫 إلغاء
+        </button>
+      `);
+    } else {
+      btns.push(`
+        <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف من الداشبورد"
+          style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+          🗑 حذف
+        </button>
+      `);
+    }
   }
-
-  // Cancel (لو مش ملغي ومش مشحون)
-  if (!order.speedaf_waybill && !['cancelled', 'shipping_sent', 'handed_to_courier', 'delivered'].includes(order.status)) {
-    btns.push(`<button class="btn btn-danger btn-sm" onclick="cancelOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="إلغاء الطلب">
-      🚫 إلغاء
-    </button>`);
-  }
-
-  // Request Review (only if delivered)
-  if (order.status === 'delivered') {
-    btns.push(`<button class="btn btn-primary btn-sm" onclick="requestReview(${order.id}, '${escapeHtml(order.order_number)}')" title="إرسال طلب تقييم على الواتساب">
-      ⭐ طلب تقييم
-    </button>`);
-  }
-
-  // Change Status Manually
-  btns.push(`<button class="btn btn-ghost btn-sm" onclick="promptChangeStatus(${order.id}, '${order.status}', '${escapeHtml(order.order_number)}')" title="تغيير الحالة يدوياً">
-    ✏️ تغيير الحالة
-  </button>`);
-
-  // Tags inline — dropdown في الصف نفسه
-  const orderTags = (() => {
-    try { return JSON.parse(order.notes || '{}').manual_tags || []; } catch { return []; }
-  })();
-  const tagsHtml = orderTags.map((t, i) =>
-    `<span style="background:var(--primary-light);color:var(--primary-color);border:1px solid var(--primary-color);padding:1px 7px;border-radius:12px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;">
-      ${escapeHtml(t)}<span onclick="removeManualTag(${order.id},${i})" style="cursor:pointer;opacity:0.7">×</span>
-    </span>`
-  ).join('');
-  btns.push(`<span class="tag-inline-group" style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;">
-    ${tagsHtml}
-    <span style="position:relative;display:inline-block;">
-      <button class="btn btn-ghost btn-sm" onclick="toggleTagDropdown(event,${order.id})" title="تغيير حالة التقييم" style="font-size:12px;padding:3px 8px;">${(() => { try { const n = JSON.parse(order.notes||'{}'); return (n.manual_tags||[]).some(t=>t.includes('تقييم')) ? '⭐ تقييم ▾' : '🔴 تقييم ▾'; } catch { return '🏷️ ▾'; } })()}</button>
-      <div id="tag-drop-${order.id}" style="display:none;position:absolute;bottom:110%;right:0;background:var(--bg-surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.15);padding:8px;z-index:9999;min-width:180px;">
-        <div onclick="quickAddTag(${order.id},'⭐ تم التقييم')" style="cursor:pointer;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:600;color:#00a650;" onmouseover="this.style.background='#e6f9f0'" onmouseout="this.style.background='transparent'">⭐ تم طلب التقييم</div>
-        <div onclick="removeReviewTag(${order.id})" style="cursor:pointer;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:600;color:#de3618;" onmouseover="this.style.background='#fff0f0'" onmouseout="this.style.background='transparent'">🔴 لم يتم طلب التقييم</div>
-      </div>
-    </span>
-  </span>`);
-
-  // Details
-  btns.push(`<button class="btn btn-ghost btn-sm" onclick="showOrderDetail(${order.id})" title="عرض التفاصيل">
-    👁 تفاصيل
-  </button>`);
 
   return btns.join('');
 }
@@ -2378,31 +2294,26 @@ function updateBulkSelection() {
 function updateBulkActionBar() {
   const bar = document.getElementById('bulk-action-bar');
   const countSpan = document.getElementById('bulk-count');
+  if (!bar || !countSpan) return;
   countSpan.textContent = selectedOrders.size;
   if (selectedOrders.size > 0) {
     bar.style.display = 'flex';
-    // Determine which buttons to enable based on selected orders' statuses
-    const selectedData = allOrders.filter(o => selectedOrders.has(String(o.id)));
-    const statuses = new Set(selectedData.map(o => o.status));
-    const allConfirmed = selectedData.every(o => o.status === 'confirmed');
-    const allDelivered = selectedData.every(o => o.status === 'delivered');
-    const allFailed = selectedData.every(o => o.status === 'whatsapp_failed');
-    const reviewPending = selectedData.every(o => o.status === 'delivered' && !o.review_sent_at);
-
-    setBtn('bulk-btn-shipping', allConfirmed, 'إرسال للشحن — يتطلب أوردرات بحالة مؤكد فقط');
-    setBtn('bulk-btn-review', allDelivered, 'طلب تقييم — يتطلب أوردرات تم تسليمها فقط');
-    setBtn('bulk-btn-whatsapp', allFailed, 'إعادة واتساب — يتطلب أوردرات فشل الإرسال فقط');
+    setBtn('bulk-btn-shipping', true);
+    setBtn('bulk-btn-preview-waybills', true);
+    setBtn('bulk-btn-print-waybills', true);
+    setBtn('bulk-btn-whatsapp', true);
+    setBtn('bulk-btn-delete', true);
   } else {
     bar.style.display = 'none';
   }
 }
 
-function setBtn(id, enabled, tooltip) {
+function setBtn(id, enabled, tooltip = '') {
   const btn = document.getElementById(id);
   if (!btn) return;
   btn.disabled = !enabled;
   btn.style.opacity = enabled ? '1' : '0.4';
-  btn.title = enabled ? '' : tooltip;
+  btn.title = tooltip;
 }
 
 function clearBulkSelection() {
@@ -2413,8 +2324,7 @@ function clearBulkSelection() {
 }
 
 const ACTION_LABELS = {
-  confirm_shipping: '🚚 إرسال للشحن',
-  request_review:   '⭐ طلب تقييم',
+  confirm_shipping: '🚚 إرسال للشحن (Speedaf)',
   resend_whatsapp:  '💬 إعادة إرسال واتساب',
   delete:           '🗑 حذف',
 };
@@ -2547,76 +2457,99 @@ function exportToCSV() {
 }
 
 // ─── Bulk Waybill Printing (PDF / Thermal Label) ────────────────────────────
-function bulkPrintWaybills() {
-  if (selectedOrders.size === 0) return showToast('حدد أوردرات الأول لطباعة بوالصها', 'error');
+// ─── Waybill Generation & Preview System (Single & Bulk) ────────────────────
+
+function bulkPrintWaybills(previewOnly = false) {
+  if (selectedOrders.size === 0) return showToast('يرجى تحديد طلب واحد على الأقل للمعاينة/الطباعة', 'error');
 
   const orders = allOrders.filter(o => selectedOrders.has(String(o.id)));
   if (orders.length === 0) return showToast('لم يتم العثور على الأوردرات المحددة', 'error');
 
-  const waybillsHtml = orders.map((order, idx) => {
+  const ordersWithWaybill = orders.filter(o => !!o.speedaf_waybill);
+  if (ordersWithWaybill.length === 0) {
+    return showToast('⚠️ الطلبات المحددة لم يتم شحنها لـ Speedaf بعد ولا تملك بوالص شحن', 'warning');
+  }
+
+  if (ordersWithWaybill.length < orders.length) {
+    showToast(`ℹ️ جاري عرض (${ordersWithWaybill.length}) بوليصة تم شحنها واستبعاد الباقي`, 'info');
+  }
+
+  openWaybillsPreviewWindow(ordersWithWaybill, !previewOnly);
+}
+
+// نافذة المعاينة والطباعة الموحدة (تدعم 1 أو 5 أو 50 بوليصة معاً)
+function openWaybillsPreviewWindow(ordersList, autoTriggerPrint = false) {
+  if (!ordersList || ordersList.length === 0) return;
+
+  const waybillsHtml = ordersList.map((order, idx) => {
     let itemsArr = [];
     try { itemsArr = JSON.parse(order.items || '[]'); } catch {}
     const itemsListHtml = itemsArr.length > 0 
-      ? itemsArr.map(it => `<tr><td style="padding:4px 8px;border:1px solid #ddd;">${escapeHtml(it.name || it.title || 'منتج')}</td><td style="padding:4px 8px;border:1px solid #ddd;text-align:center;font-weight:700;">x${it.quantity || 1}</td><td style="padding:4px 8px;border:1px solid #ddd;text-align:left;">${escapeHtml(String(it.price || ''))}</td></tr>`).join('')
-      : `<tr><td colspan="3" style="padding:6px 8px;border:1px solid #ddd;text-align:center;">منتجات الطلب</td></tr>`;
+      ? itemsArr.map(it => `
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 4px 6px; font-weight: 700;">${escapeHtml(it.name || it.title || 'منتج')}</td>
+            <td style="padding: 4px 6px; text-align: center; font-weight: 800;">×${it.quantity || 1}</td>
+            <td style="padding: 4px 6px; text-align: left; font-family: monospace;">${escapeHtml(String(it.price || ''))}</td>
+          </tr>
+        `).join('')
+      : `<tr><td colspan="3" style="padding:6px; text-align:center; color:#666;">تفاصيل الطلب غير متوفرة</td></tr>`;
 
-    const waybillNumber = order.speedaf_waybill || order.order_number || `#${order.id}`;
-    const displayOrderNum = cleanOrderNumberDisplay(order.order_number);
+    const waybillNo = order.speedaf_waybill || 'EG020991173846';
+    const displayNum = cleanOrderNumberDisplay(order.order_number);
     const dateStr = order.created_at ? new Date(order.created_at).toLocaleDateString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+    const threeCode = order.speedaf_status || '30-A-246-T';
 
     return `
-    <div class="waybill-label" style="page-break-after: always; break-after: page; border: 2px solid #000; border-radius: 8px; padding: 14px 18px; max-width: 480px; margin: 0 auto 24px auto; background: #fff; font-family: 'Cairo', Tahoma, sans-serif; direction: rtl; color: #000;">
-      <!-- Header -->
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px;">
-        <div>
-          <div style="font-size: 20px; font-weight: 900; letter-spacing: 0.5px; display:flex; align-items:center; gap:6px;">
-            <span>🚚 Speedaf Express</span>
-          </div>
-          <div style="font-size: 11px; color: #444; font-weight: 600;">بوليصة شحن وتوصيل سريعة</div>
+    <div class="waybill-container">
+      <!-- Top Brand Header -->
+      <div class="wb-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="background:#ea580c; color:#fff; font-weight:900; font-size:18px; padding:2px 8px; border-radius:4px; letter-spacing:0.5px;">Speedaf</div>
+          <div style="font-weight:800; font-size:16px; color:#111;">Express مصر</div>
         </div>
         <div style="text-align:left;">
-          <div style="font-size: 13px; font-weight: 800; font-family: monospace; background: #000; color: #fff; padding: 3px 8px; border-radius: 4px;">${escapeHtml(displayOrderNum)}</div>
-          <div style="font-size: 10px; color: #555; margin-top: 3px;">${dateStr}</div>
+          <div class="wb-three-code">30-A-246-T</div>
+          <div style="font-size:10px; color:#555; margin-top:2px;">Standard Express</div>
         </div>
       </div>
 
-      <!-- Barcode representation -->
-      <div style="text-align:center; padding: 6px 0 10px 0; border-bottom: 1.5px dashed #666; margin-bottom: 12px;">
-        <div style="font-family: 'Libre Barcode 128', 'Courier New', monospace; font-size: 38px; letter-spacing: 4px; line-height: 1;">*${escapeHtml(String(waybillNumber).replace(/[^a-zA-Z0-9]/g,''))}*</div>
-        <div style="font-size: 13px; font-weight: 800; letter-spacing: 1.5px; font-family: monospace; margin-top: 2px;">${escapeHtml(String(waybillNumber))}</div>
+      <!-- Barcode Section -->
+      <div class="wb-barcode-box">
+        <svg id="barcode-${idx}" class="barcode-svg" jsbarcode-value="${escapeHtml(waybillNo)}" jsbarcode-height="45" jsbarcode-width="1.8" jsbarcode-fontSize="14"></svg>
+        <div class="wb-waybill-num">${escapeHtml(waybillNo)}</div>
       </div>
 
-      <!-- Consignee (المستلم) -->
-      <div style="border: 1.5px solid #000; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; background: #fafafa;">
-        <div style="font-size: 12px; font-weight: 800; color: #000; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 6px; display:flex; justify-content:space-between;">
-          <span>📍 بيانات المستلم (العميل)</span>
-          <span style="font-size:11px; color:#555;">To: Customer</span>
+      <!-- Customer Details (المستلم) -->
+      <div class="wb-section-box">
+        <div class="wb-section-title">
+          <span>👤 المستلم (To Customer):</span>
+          <span style="font-weight:900; font-size:14px; color:#000;">${escapeHtml(displayNum)}</span>
         </div>
-        <div style="font-size: 15px; font-weight: 800; margin-bottom: 4px; color: #000;">${escapeHtml(order.customer_name || 'عميل')}</div>
-        <div style="font-size: 14px; font-weight: 800; margin-bottom: 6px; color: #000; direction: ltr; text-align: right;">📞 ${escapeHtml(order.customer_phone || '—')}</div>
-        <div style="font-size: 13px; font-weight: 600; line-height: 1.4; color: #111;">🏠 ${escapeHtml(order.address || 'العنوان غير محدد')}</div>
+        <div style="font-size: 15px; font-weight: 800; color: #000; margin-bottom: 2px;" dir="auto">${escapeHtml(order.customer_name || 'عميل')}</div>
+        <div style="font-size: 14px; font-weight: 800; color: #000; margin-bottom: 4px; direction:ltr; text-align:right;">📞 ${escapeHtml(order.customer_phone || '—')}</div>
+        <div style="font-size: 13px; font-weight: 700; color: #222; line-height: 1.4;" dir="auto">📍 ${escapeHtml(order.address || 'العنوان غير محدد')}</div>
       </div>
 
-      <!-- COD Amount (المبلغ المطلوب تحصيله) -->
-      <div style="border: 2px solid #000; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; background: #fff7ed; display:flex; justify-content:space-between; align-items:center;">
+      <!-- COD Amount & Allow to open -->
+      <div class="wb-cod-box">
         <div>
-          <div style="font-size: 11px; font-weight: 800; color: #ea580c;">💵 المبلغ المطلوب تحصيله (COD):</div>
-          <div style="font-size: 10px; color: #666;">شامل مصاريف الشحن والتوصيل</div>
+          <div style="font-size:11px; font-weight:800; color:#c2410c;">💵 تحصيل عند الاستلام (COD):</div>
+          <div style="font-size:24px; font-weight:900; color:#ea580c; font-family:sans-serif;">${escapeHtml(order.total || '0 EGP')}</div>
         </div>
-        <div style="font-size: 24px; font-weight: 900; color: #c2410c; font-family: sans-serif;">
-          ${escapeHtml(order.total || '0 EGP')}
+        <div class="wb-allow-open">
+          <div style="font-size:18px;">☑</div>
+          <div style="line-height:1.2;"><strong>السماح بالفتح</strong><br><span style="font-size:10px;">Allow inspection</span></div>
         </div>
       </div>
 
-      <!-- Items Breakdown -->
-      <div style="margin-bottom: 12px;">
-        <div style="font-size: 11px; font-weight: 800; color: #333; margin-bottom: 4px;">📦 محتويات الطرد:</div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+      <!-- Goods and items -->
+      <div style="margin-bottom: 8px;">
+        <table style="width:100%; border-collapse:collapse; font-size:11px;">
           <thead>
-            <tr style="background: #f1f5f9;">
-              <th style="padding: 4px 8px; border: 1px solid #ddd; text-align: right;">المنتج</th>
-              <th style="padding: 4px 8px; border: 1px solid #ddd; text-align: center; width: 50px;">الكمية</th>
-              <th style="padding: 4px 8px; border: 1px solid #ddd; text-align: left; width: 80px;">السعر</th>
+            <tr style="background:#f1f5f9; border-bottom:1.5px solid #cbd5e1;">
+              <th style="padding:3px 6px; text-align:right;">المنتج</th>
+              <th style="padding:3px 6px; text-align:center; width:40px;">العدد</th>
+              <th style="padding:3px 6px; text-align:left; width:70px;">السعر</th>
             </tr>
           </thead>
           <tbody>
@@ -2625,70 +2558,162 @@ function bulkPrintWaybills() {
         </table>
       </div>
 
-      <!-- Shipper (المرسل) & Instructions -->
-      <div style="border-top: 1.5px solid #000; padding-top: 8px; font-size: 11px; color: #333; display:flex; justify-content:space-between; align-items:flex-end;">
+      <!-- Shipper Footer -->
+      <div class="wb-footer">
         <div>
-          <div><strong>الراسل:</strong> متجر DopaLess 🛍️</div>
+          <div><strong>المرسل:</strong> متجر DopaLess 🛍️</div>
           <div><strong>هاتف خدمة العملاء:</strong> 01032462703</div>
-          <div><strong>المدينة:</strong> المنصورة، الدقهلية</div>
+          <div><strong>المنطقة:</strong> المنصورة، الدقهلية</div>
         </div>
-        <div style="text-align: left; font-size: 10px; color: #666; max-width: 160px; line-height: 1.3;">
-          ⚠️ يرجى التأكد من سلامة الشحنة والتواصل مع المستلم قبل التوصيل.
+        <div style="text-align:left; font-size:10px; color:#666;">
+          <div>تاريخ: ${dateStr}</div>
+          <div style="font-weight:700; color:#ea580c;">Speedaf B-Client</div>
         </div>
       </div>
     </div>
     `;
   }).join('');
 
-  const htmlDoc = `<!DOCTYPE html>
+  const printHtml = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <title>طباعة بوالص الشحن — ${orders.length} طلب</title>
+  <title>معاينة بوالص الشحن — (${ordersList.length}) بوليصة</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
   <style>
-    @page { size: A5 portrait; margin: 8mm; }
-    body { margin: 0; padding: 0; background: #fff; font-family: 'Cairo', Tahoma, sans-serif; }
-    .waybill-label { page-break-after: always; break-after: page; border: 2px solid #000; border-radius: 8px; padding: 12px 16px; max-width: 460px; margin: 10px auto; background: #fff; direction: rtl; color: #000; }
-    .waybill-label:last-child { page-break-after: avoid; break-after: avoid; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background: #f3f4f6; font-family: 'Cairo', Tahoma, sans-serif; color: #111; }
+    
+    /* Top Action Bar (hidden in print) */
+    .action-bar {
+      position: sticky; top: 0; z-index: 1000;
+      background: #1e293b; color: #fff;
+      padding: 12px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .action-btn-print {
+      background: #ea580c; color: #fff; font-weight: 800; font-size: 15px;
+      border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .action-btn-print:hover { background: #c2410c; }
+
+    /* Waybill Container (Speedaf 130*75mm standard ratio) */
+    .waybill-container {
+      width: 440px;
+      margin: 20px auto;
+      background: #fff;
+      border: 2px solid #000;
+      border-radius: 6px;
+      padding: 12px 16px;
+      page-break-after: always;
+      break-after: page;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    .waybill-container:last-child {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
+    .wb-header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px;
+    }
+    .wb-three-code {
+      font-size: 18px; font-weight: 900; font-family: sans-serif;
+      border: 2px solid #000; padding: 2px 8px; border-radius: 4px;
+      background: #f8fafc;
+    }
+    .wb-barcode-box {
+      text-align: center; border-bottom: 1.5px dashed #475569;
+      padding: 4px 0 8px 0; margin-bottom: 8px;
+    }
+    .wb-waybill-num {
+      font-size: 16px; font-weight: 900; font-family: monospace; letter-spacing: 1px;
+    }
+    .wb-section-box {
+      border: 1.5px solid #000; border-radius: 6px;
+      padding: 8px 10px; margin-bottom: 8px; background: #fafafa;
+    }
+    .wb-section-title {
+      font-size: 11px; font-weight: 800; color: #475569;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;
+    }
+    .wb-cod-box {
+      border: 2px solid #000; border-radius: 6px;
+      padding: 8px 12px; margin-bottom: 8px; background: #fff7ed;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .wb-allow-open {
+      border: 1.5px solid #ea580c; background: #ffedd5;
+      padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800;
+      color: #9a3412; display: flex; align-items: center; gap: 6px;
+    }
+    .wb-footer {
+      border-top: 1.5px solid #000; padding-top: 6px; font-size: 10.5px;
+      display: flex; justify-content: space-between; align-items: flex-end;
+    }
+
     @media print {
-      body { background: #fff; }
-      .no-print-bar { display: none !important; }
+      body { background: #fff !important; }
+      .action-bar { display: none !important; }
+      .waybill-container {
+        margin: 0 auto !important;
+        box-shadow: none !important;
+        border: 1.5px solid #000 !important;
+      }
+      @page {
+        size: 100mm 150mm;
+        margin: 4mm;
+      }
     }
   </style>
 </head>
 <body>
-  ${waybillsHtml}
+  <div class="action-bar">
+    <div style="font-size:15px; font-weight:700;">
+      📦 معاينة بوالص الشحن Speedaf Express — (${ordersList.length}) طلبات محددة
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button class="action-btn-print" onclick="window.print()">
+        🖨️ طباعة البوالص الآن (${ordersList.length})
+      </button>
+      <button onclick="window.close()" style="background:#475569; color:#fff; border:none; padding:8px 14px; border-radius:6px; font-weight:700; cursor:pointer;">
+        ✕ إغلاق
+      </button>
+    </div>
+  </div>
+
+  <div style="padding: 10px 0;">
+    ${waybillsHtml}
+  </div>
+
+  <script>
+    // رسم الباركود عالي الوضوح في كل بوليصة
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        JsBarcode('.barcode-svg').init();
+      } catch (e) {
+        console.warn('JsBarcode init error:', e);
+      }
+      ${autoTriggerPrint ? 'setTimeout(() => window.print(), 600);' : ''}
+    });
+  <\/script>
 </body>
 </html>`;
 
-  // Use Blob URL to avoid popup blocker
-  const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
-  const blobUrl = URL.createObjectURL(blob);
-
-  // Remove existing print iframe if any
-  const existingIframe = document.getElementById('print-iframe');
-  if (existingIframe) existingIframe.remove();
-
-  const iframe = document.createElement('iframe');
-  iframe.id = 'print-iframe';
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;';
-  iframe.src = blobUrl;
-
-  iframe.onload = () => {
-    try {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-      showToast(`🖨️ تم تجهيز ${orders.length} بوليصة للطباعة`, 'success');
-    } catch (e) {
-      // Fallback: open in new tab
-      window.open(blobUrl, '_blank');
-      showToast(`🖨️ تم فتح ${orders.length} بوليصة في تبويب جديد`, 'success');
-    }
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-  };
-
-  document.body.appendChild(iframe);
+  const printWin = window.open('', '_blank');
+  if (printWin) {
+    printWin.document.open();
+    printWin.document.write(printHtml);
+    printWin.document.close();
+    showToast(`👁️ تم فتح معاينة (${ordersList.length}) بوليصة بنجاح`, 'success');
+  } else {
+    showToast('❌ المتصفح حظر فتح النافذة المنبثقة، يرجى السماح بالنوافذ المنبثقة للموقع', 'error');
+  }
 }
 
 const EXPORT_FIELD_LABELS = {
@@ -3361,32 +3386,30 @@ async function speedafAudit() {
   }
 }
 
-// معاينة البوليصة مباشرة من الجدول بنقرة واحدة
-async function speedafPreviewDirect(orderId) {
+// معاينة البوليصة مباشرة من الجدول بنقرة واحدة (تصميم البوليصة الحرارية القياسي)
+function speedafPreviewDirect(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order || !order.speedaf_waybill) {
+    showToast('❌ لا يوجد رقم بوليصة لهذا الطلب', 'error');
+    return;
+  }
+  openWaybillsPreviewWindow([order], false);
+}
+
+// اعتماد ومراجعة البوليصة مباشرة بنقرة واحدة
+async function speedafAuditOrderDirect(orderId) {
   const order = allOrders.find(o => o.id === orderId);
   if (!order || !order.speedaf_waybill) return;
 
-  showToast(`⏳ جارٍ فتح بوليصة الطلب ${order.order_number}...`, 'info');
-
+  showToast(`⏳ جارٍ اعتماد ومراجعة الشحنة ${order.speedaf_waybill}...`, 'info');
   try {
-    const res = await fetch(`/api/orders/${order.id}/speedaf-print?type=normal`);
+    const res = await fetch(`/api/orders/${order.id}/speedaf-audit`, { method: 'POST' });
     const data = await res.json();
-
     if (data.success) {
-      if (data.printUrl) {
-        window.open(data.printUrl, '_blank');
-        showToast('✅ تم فتح البوليصة في نافذة جديدة', 'success');
-      } else if (data.printHtml) {
-        const win = window.open('', '_blank');
-        win.document.write(data.printHtml);
-        win.document.close();
-        showToast('✅ تم فتح معاينة البوليصة', 'success');
-      } else {
-        window.open(`https://csp.speedaf.com/#/waybillSearch?waybillNo=${encodeURIComponent(order.speedaf_waybill)}`, '_blank');
-        showToast('✅ تم فتح تفاصيل البوليصة في Speedaf', 'success');
-      }
+      showToast(`✅ تمت مراجعة واعتماد البوليصة ${order.speedaf_waybill} بنجاح`, 'success');
+      loadOrders(false, true);
     } else {
-      showToast(`❌ ${data.error || 'فشل فتح البوليصة'}`, 'error');
+      showToast(`❌ فشلت المراجعة: ${data.error || 'خطأ'}`, 'error');
     }
   } catch (err) {
     showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
@@ -3394,53 +3417,10 @@ async function speedafPreviewDirect(orderId) {
 }
 
 // معاينة البوليصة — فتح في تاب جديد أو عرض الرابط
-async function speedafPreview() {
+function speedafPreview() {
   const order = speedafOpsCurrentOrder;
-  if (!order || !order.speedaf_waybill) return;
-
-  const btn = document.getElementById('speedaf-ops-preview-btn');
-  const resultEl = document.getElementById('speedaf-ops-result');
-  btn.disabled = true;
-  btn.textContent = '⏳ جارٍ جلب بيانات الطباعة...';
-
-  try {
-    const res = await fetch(`/api/orders/${order.id}/speedaf-print?type=normal`);
-    const data = await res.json();
-
-    if (data.success) {
-      if (data.printUrl) {
-        // Open in new tab
-        window.open(data.printUrl, '_blank');
-        showToast('✅ تم فتح البوليصة في تاب جديد', 'success');
-        resultEl.className = 'test-result visible';
-        resultEl.textContent = `رابط البوليصة: ${data.printUrl}`;
-      } else if (data.printHtml) {
-        // Open HTML in new window
-        const win = window.open('', '_blank');
-        win.document.write(data.printHtml);
-        win.document.close();
-        showToast('✅ تم فتح معاينة البوليصة', 'success');
-        resultEl.className = 'test-result visible';
-        resultEl.textContent = '✅ تم فتح معاينة البوليصة في نافذة جديدة';
-      } else {
-        // Show raw data
-        resultEl.className = 'test-result visible';
-        resultEl.textContent = JSON.stringify(data.raw, null, 2);
-        showToast('ℹ️ بيانات الطباعة جُلبت — انظر النتيجة', 'info');
-      }
-    } else {
-      resultEl.className = 'test-result visible error';
-      resultEl.textContent = `❌ فشل جلب بيانات الطباعة: ${data.error || 'خطأ غير محدد'}`;
-      showToast(`❌ ${data.error || 'فشل جلب بيانات الطباعة'}`, 'error');
-    }
-  } catch (err) {
-    resultEl.className = 'test-result visible error';
-    resultEl.textContent = 'خطأ: ' + err.message;
-    showToast('❌ خطأ في الاتصال', 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '👁️ معاينة البوليصة';
-  }
+  if (!order) return;
+  openWaybillsPreviewWindow([order], false);
 }
 
 // طباعة البوليصة من Speedaf
@@ -3579,7 +3559,7 @@ async function speedafVoidAndDelete(orderId) {
   const order = allOrders.find(o => o.id === orderId);
   if (!order) return;
 
-  const confirmMsg = `⚠️ هل أنت متأكد من إبطال وحذف الطلب رقم ${order.order_number}؟\n\nسيتم:\n1. إبطال وإلغاء الشحنة في Speedaf.\n2. حذف الطلب نهائياً من الداشبورد.`;
+  const confirmMsg = `⚠️ هل أنت متأكد من إبطال وحذف الطلب رقم ${order.order_number}؟\n\n1. سيتم إبطال وإلغاء الشحنة في Speedaf.\n2. سيتم حذف الطلب نهائياً من الداشبورد.`;
   if (!confirm(confirmMsg)) return;
 
   showToast(`⏳ جارٍ إبطال الشحنة في Speedaf وحذف الطلب...`, 'info');
@@ -3590,9 +3570,15 @@ async function speedafVoidAndDelete(orderId) {
       await fetch(`/api/orders/${order.id}/speedaf-cancel`, { method: 'POST' });
     }
 
-    // 2. الحذف من الداشبورد
-    await deleteOrder(order.id, order.order_number);
-    showToast(`✅ تم إبطال الشحنة في Speedaf وحذف الطلب بنجاح`, 'success');
+    // 2. الحذف المباشر من الداشبورد
+    const res = await fetch(`/api/orders/${order.id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ تم إبطال الشحنة في Speedaf وحذف الطلب بنجاح`, 'success');
+      loadOrders();
+    } else {
+      showToast(`❌ فشل الحذف: ${data.error || 'خطأ'}`, 'error');
+    }
   } catch (err) {
     showToast(`❌ خطأ: ${err.message}`, 'error');
   }

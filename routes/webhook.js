@@ -369,13 +369,14 @@ async function processIncomingWhatsAppMessage(senderPhone, textMessage, explicit
     }
 
     console.log(`[WA Webhook] 🎯 Order found — status: ${order.status} | order: ${order.order_number}`);
+    const targetPhone = order.customer_phone || cleanPhone;
 
     if (order.status === 'delivered') {
       const starCount = (textMessage.match(/⭐/g) || []).length;
       if (starCount > 0) {
         await db.updateOrderRating(String(order.shopify_order_id), starCount);
         const { sendWhatsAppMessage } = require('../services/whatsapp');
-        await sendWhatsAppMessage(order.customer_phone, 'شكراً لتقييمك يا فندم! سعداء بخدمتك دايماً 💖');
+        await sendWhatsAppMessage(targetPhone, 'شكراً لتقييمك يا فندم! سعداء بخدمتك دايماً 💖');
       }
       return;
     }
@@ -427,10 +428,10 @@ async function processIncomingWhatsAppMessage(senderPhone, textMessage, explicit
           await db.updateOrderStatus(shopifyOrderId, 'shipping_sent', { shipping_sent_at: now });
           updateSourceStatus(order, 'shipping_sent').catch(e => {});
           if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: shopifyOrderId, status: 'shipping_sent' });
-          await sendWhatsAppMessage(cleanPhone, '✅ تم تأكيد طلبك بنجاح وجاري تجهيزه للشحن! 🚚\nسيقوم المندوب بالتواصل معك قريباً.');
+          await sendWhatsAppMessage(targetPhone, '✅ تم تأكيد طلبك بنجاح وجاري تجهيزه للشحن! 🚚\nسيقوم المندوب بالتواصل معك قريباً.');
         } else {
           if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: shopifyOrderId, status: 'confirmed' });
-          await sendWhatsAppMessage(cleanPhone, '✅ تم تأكيد طلبك بنجاح وجاري تجهيزه للشحن! 🚚\nسيقوم المندوب بالتواصل معك قريباً.');
+          await sendWhatsAppMessage(targetPhone, '✅ تم تأكيد طلبك بنجاح وجاري تجهيزه للشحن! 🚚\nسيقوم المندوب بالتواصل معك قريباً.');
           // Notify merchant to assign shipping manually
           notifyOwner(`⚠️ تأكيد أوردر بدون شحن تلقائي\nالأوردر: ${order.order_number}\nالعميل: ${order.customer_name}\nالعنوان: ${order.address}\n👉 حدد المحافظة يدوياً من الداشبورد`).catch(() => {});
         }
@@ -446,21 +447,22 @@ async function processIncomingWhatsAppMessage(senderPhone, textMessage, explicit
           updateSourceStatus(order, 'shipping_sent').catch(e => {});
           if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: shopifyOrderId, status: 'shipping_sent' });
           const { sendWhatsAppMessage } = require('../services/whatsapp');
-          await sendWhatsAppMessage(cleanPhone, '✅ تم تأكيد طلبك بنجاح وجاري تجهيزه للشحن! 🚚\nسيقوم المندوب بالتواصل معك قريباً.');
+          await sendWhatsAppMessage(targetPhone, '✅ تم تأكيد طلبك بنجاح وجاري تجهيزه للشحن! 🚚\nسيقوم المندوب بالتواصل معك قريباً.');
         } else {
           console.error(`[WA Webhook] ❌ Starlink failed: ${starlinkResult.error}`);
           await db.updateOrderStatus(shopifyOrderId, 'shipping_failed');
           updateSourceStatus(order, 'shipping_failed').catch(e => {});
           if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: shopifyOrderId, status: 'shipping_failed' });
           const { sendWhatsAppMessage } = require('../services/whatsapp');
-          await sendWhatsAppMessage(cleanPhone, 'عذراً، حدث خطأ تقني أثناء تحويل طلبك للشحن. سيقوم فريقنا بالتواصل معك قريباً.');
+          await sendWhatsAppMessage(targetPhone, 'عذراً، حدث خطأ تقني أثناء تحويل طلبك للشحن. سيقوم فريقنا بالتواصل معك قريباً.');
         }
       } else {
         if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: shopifyOrderId, status: 'confirmed' });
         const { sendWhatsAppMessage } = require('../services/whatsapp');
-        await sendWhatsAppMessage(cleanPhone, '✅ تم تأكيد طلبك بنجاح وجاري تجهيزه للشحن! 🚚\nسيقوم المندوب بالتواصل معك قريباً.');
+        await sendWhatsAppMessage(targetPhone, '✅ تم تأكيد طلبك بنجاح وجاري تجهيزه للشحن! 🚚\nسيقوم المندوب بالتواصل معك قريباً.');
       }
       await db.deleteSession(cleanPhone);
+      if (targetPhone && targetPhone !== cleanPhone) await db.deleteSession(targetPhone);
 
     } else if (isNegative) {
       console.log(`[WA Webhook] ❌ Cancelling order ${order.order_number}`);
@@ -469,8 +471,9 @@ async function processIncomingWhatsAppMessage(senderPhone, textMessage, explicit
       await cancelInSource(order, 'customer').catch(e => console.warn('[WA Webhook] Cancel error:', e.message));
       if (global.broadcastSSE) global.broadcastSSE({ type: 'status_update', orderId: shopifyOrderId, status: 'cancelled' });
       const { sendWhatsAppMessage } = require('../services/whatsapp');
-      await sendWhatsAppMessage(cleanPhone, '❌ تم تسجيل طلب إلغاء/تعديل الأوردر. سيتواصل معك أحد ممثلي خدمة العملاء في أقرب وقت.');
+      await sendWhatsAppMessage(targetPhone, '❌ تم تسجيل طلب إلغاء/تعديل الأوردر. سيتواصل معك أحد ممثلي خدمة العملاء في أقرب وقت.');
       await db.deleteSession(cleanPhone);
+      if (targetPhone && targetPhone !== cleanPhone) await db.deleteSession(targetPhone);
     } else {
       console.log(`[WA Webhook] ❓ Unrecognized reply: "${textMessage}"`);
     }

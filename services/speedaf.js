@@ -620,20 +620,48 @@ async function getSenderDefaults() {
  *   { provinceCode, provinceName, cityCode, cityName, districtCode, districtName }
  */
 async function sendOrderToSpeedaf(order, locationCodes) {
-  // Validation
-  const token = await getSetting('SPEEDAF_TOKEN');
+  // 1. Simulated order bypass (allow testing without Speedaf credentials)
+  if (order.order_number && (String(order.order_number).startsWith('#SIM-') || String(order.shopify_order_id).startsWith('SIM-'))) {
+    console.log('[Speedaf] ⚠️ Simulated order — faking success');
+    return { success: true, message: 'Simulated success', waybillNo: 'SIM-WAYBILL-001' };
+  }
+
+  // 2. Token check & Auto-login if missing
+  let token = await getSetting('SPEEDAF_TOKEN');
   if (!token) {
-    return { success: false, error: 'Speedaf غير مفعّل — أضف SPEEDAF_TOKEN في الإعدادات' };
+    const loginRes = await autoLoginSpeedaf();
+    if (loginRes.success && loginRes.token) {
+      token = loginRes.token;
+    } else {
+      return { success: false, error: 'Speedaf غير مفعّل — أضف SPEEDAF_TOKEN أو حساب Speedaf في الإعدادات' };
+    }
+  }
+
+  // 3. If locationCodes is omitted or incomplete, auto-resolve from order.address
+  if (!locationCodes || (!locationCodes.provinceCode && !locationCodes.districtCode)) {
+    if (order.address) {
+      const govMatch = await matchGovernorateToSpeedafCode(order.address);
+      if (govMatch) {
+        const areaMatch = await matchAreaWithGemini({
+          address: order.address,
+          provinceCode: govMatch.code,
+          provinceName: govMatch.name_ar || govMatch.name,
+        });
+        const matchedArea = areaMatch?.matched;
+        locationCodes = {
+          provinceCode: matchedArea?.province_code || govMatch.code,
+          provinceName: matchedArea?.province_name || govMatch.name_ar || govMatch.name,
+          cityCode: matchedArea?.city_code || '',
+          cityName: matchedArea?.city_name || '',
+          districtCode: matchedArea?.code || '',
+          districtName: matchedArea?.name_ar || matchedArea?.name || '',
+        };
+      }
+    }
   }
 
   if (!locationCodes || (!locationCodes.provinceCode && !locationCodes.districtCode)) {
-    return { success: false, error: 'أكواد المنطقة مطلوبة — اختار المحافظة والمدينة والحي' };
-  }
-
-  // Simulated order bypass
-  if (order.order_number && String(order.order_number).startsWith('#SIM-')) {
-    console.log('[Speedaf] ⚠️ Simulated order — faking success');
-    return { success: true, message: 'Simulated success', waybillNo: 'SIM-WAYBILL-001' };
+    return { success: false, error: 'أكواد المنطقة مطلوبة — تعذر استخراج المحافظة والمنطقة من العنوان تلقائياً' };
   }
 
   try {

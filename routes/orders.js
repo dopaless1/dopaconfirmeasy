@@ -1085,28 +1085,27 @@ router.post('/bulk-action', async (req, res) => {
           await db.updateOrderStatus(order.shopify_order_id, 'confirmed', { customer_reply: 'bulk_manual_confirm', replied_at: now });
           updateSourceStatus(order, 'confirmed').catch(e => {});
 
-          const shippingMode = await db.getSetting('SHIPPING_MODE');
+          if (order.speedaf_waybill) {
+            await db.updateOrderStatus(order.shopify_order_id, 'shipping_sent');
+            successCount++;
+            continue;
+          }
+
           let result = { success: true };
 
-          if (shippingMode === 'speedaf_auto' && !String(order.shopify_order_id).startsWith('SIM-')) {
-            let govMatch = null;
-            if (order.address) {
-              const parts = order.address.split(/[-–,،]/).map(s => s.trim()).filter(Boolean);
-              if (parts.length > 0) govMatch = await matchGovernorateToSpeedafCode(parts[0]);
+          // إرسال مباشر لـ Speedaf لكل طلب من المحددين
+          if (!String(order.shopify_order_id).startsWith('SIM-')) {
+            try {
+              const { sendOrderToSpeedaf } = require('../services/speedaf');
+              result = await sendOrderToSpeedaf(order);
+            } catch (err) {
+              result = { success: false, error: err.message };
             }
-            if (govMatch) {
-              result = await sendOrderToSpeedaf(order, { provinceCode: govMatch.code, provinceName: govMatch.name });
-            }
-          } else if (shippingMode === 'starlink_auto') {
-            result = await sendOrderToStarlink(order.raw_payload);
           }
-          // manual: just confirmed, no shipping call
 
-          if (result.success) {
-            if (shippingMode !== 'manual') {
-              await db.updateOrderStatus(order.shopify_order_id, 'shipping_sent', { shipping_sent_at: new Date().toISOString() });
-              updateSourceStatus(order, 'shipping_sent').catch(e => {});
-            }
+          if (result && result.success) {
+            await db.updateOrderStatus(order.shopify_order_id, 'shipping_sent', { shipping_sent_at: new Date().toISOString() });
+            updateSourceStatus(order, 'shipping_sent').catch(e => {});
             successCount++;
           } else {
             await db.updateOrderStatus(order.shopify_order_id, 'shipping_failed');
