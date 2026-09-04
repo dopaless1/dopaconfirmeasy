@@ -1416,8 +1416,8 @@ function renderActionButtons(order, hasNotes) {
       🔍 المراجعة
     </button>`);
 
-    // 2. معاينة البوليصة
-    btns.push(`<button class="btn btn-sm" style="background:#0284c7;color:#fff;font-weight:700" onclick="openSpeedafOpsModal(${order.id});speedafPreview();" title="معاينة بوليصة Speedaf في نافذة جديدة">
+    // 2. معاينة البوليصة مباشرة بنقرة واحدة
+    btns.push(`<button class="btn btn-sm" style="background:#0284c7;color:#fff;font-weight:700" onclick="speedafPreviewDirect(${order.id})" title="معاينة بوليصة Speedaf في نافذة جديدة">
       👁️ معاينة
     </button>`);
 
@@ -1426,14 +1426,9 @@ function renderActionButtons(order, hasNotes) {
       🖨️ طباعة
     </button>`);
 
-    // 4. إبطال الشحنة في Speedaf
-    btns.push(`<button class="btn btn-warning btn-sm" onclick="openSpeedafOpsModal(${order.id});speedafVoid();" title="إبطال وإلغاء البوليصة في Speedaf">
-      🚫 إبطال
-    </button>`);
-
-    // 5. حذف
-    btns.push(`<button class="btn btn-delete btn-sm" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف الطلب">
-      🗑 حذف
+    // 4. إبطال وحذف الشحنة معاً بنقرة واحدة (إبطال في Speedaf + حذف من الداشبورد)
+    btns.push(`<button class="btn btn-danger btn-sm" onclick="speedafVoidAndDelete(${order.id})" title="إبطال الشحنة في Speedaf وحذف الطلب نهائياً">
+      🚫 إبطال وحذف
     </button>`);
 
   } else if (!['cancelled', 'delivered'].includes(order.status)) {
@@ -3366,6 +3361,38 @@ async function speedafAudit() {
   }
 }
 
+// معاينة البوليصة مباشرة من الجدول بنقرة واحدة
+async function speedafPreviewDirect(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order || !order.speedaf_waybill) return;
+
+  showToast(`⏳ جارٍ فتح بوليصة الطلب ${order.order_number}...`, 'info');
+
+  try {
+    const res = await fetch(`/api/orders/${order.id}/speedaf-print?type=normal`);
+    const data = await res.json();
+
+    if (data.success) {
+      if (data.printUrl) {
+        window.open(data.printUrl, '_blank');
+        showToast('✅ تم فتح البوليصة في نافذة جديدة', 'success');
+      } else if (data.printHtml) {
+        const win = window.open('', '_blank');
+        win.document.write(data.printHtml);
+        win.document.close();
+        showToast('✅ تم فتح معاينة البوليصة', 'success');
+      } else {
+        window.open(`https://csp.speedaf.com/#/waybillSearch?waybillNo=${encodeURIComponent(order.speedaf_waybill)}`, '_blank');
+        showToast('✅ تم فتح تفاصيل البوليصة في Speedaf', 'success');
+      }
+    } else {
+      showToast(`❌ ${data.error || 'فشل فتح البوليصة'}`, 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+  }
+}
+
 // معاينة البوليصة — فتح في تاب جديد أو عرض الرابط
 async function speedafPreview() {
   const order = speedafOpsCurrentOrder;
@@ -3544,6 +3571,30 @@ async function syncSpeedafWaybill(orderId) {
     }
   } catch (err) {
     showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+  }
+}
+
+// إبطال وحذف الشحنة معاً (إبطال في Speedaf + حذف من الداشبورد)
+async function speedafVoidAndDelete(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  const confirmMsg = `⚠️ هل أنت متأكد من إبطال وحذف الطلب رقم ${order.order_number}؟\n\nسيتم:\n1. إبطال وإلغاء الشحنة في Speedaf.\n2. حذف الطلب نهائياً من الداشبورد.`;
+  if (!confirm(confirmMsg)) return;
+
+  showToast(`⏳ جارٍ إبطال الشحنة في Speedaf وحذف الطلب...`, 'info');
+
+  try {
+    // 1. إرسال أمر الإبطال والحذف لـ Speedaf
+    if (order.speedaf_waybill) {
+      await fetch(`/api/orders/${order.id}/speedaf-cancel`, { method: 'POST' });
+    }
+
+    // 2. الحذف من الداشبورد
+    await deleteOrder(order.id, order.order_number);
+    showToast(`✅ تم إبطال الشحنة في Speedaf وحذف الطلب بنجاح`, 'success');
+  } catch (err) {
+    showToast(`❌ خطأ: ${err.message}`, 'error');
   }
 }
 </script>

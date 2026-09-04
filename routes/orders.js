@@ -781,10 +781,13 @@ router.post('/:id/speedaf-audit', async (req, res) => {
       return res.status(400).json({ success: false, error: 'لا يوجد رقم بوليصة Speedaf لهذا الطلب' });
     }
 
-    const result = await auditSpeedafOrder(order.speedaf_waybill);
+    const result = await auditSpeedafOrder(order.speedaf_waybill, order.order_number);
     if (result.success) {
       // Update speedaf_status in DB
       await db.updateSpeedafStatus(order.id, 'تمت المراجعة');
+      if (result.waybillNo && result.waybillNo !== order.speedaf_waybill) {
+        await db.updateSpeedafWaybill(order.id, result.waybillNo);
+      }
       if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.id });
       if (db.logActivity) db.logActivity(req.username, req.userRole, 'speedaf_audit', `order #${order.order_number} waybill ${order.speedaf_waybill}`);
     }
@@ -794,7 +797,7 @@ router.post('/:id/speedaf-audit', async (req, res) => {
   }
 });
 
-// POST /api/orders/:id/speedaf-cancel — إبطال بوليصة في Speedaf
+// POST /api/orders/:id/speedaf-cancel — إبطال وحذف الشحنة في Speedaf
 router.post('/:id/speedaf-cancel', async (req, res) => {
   try {
     const order = await db.getOrderById(parseInt(req.params.id));
@@ -803,7 +806,7 @@ router.post('/:id/speedaf-cancel', async (req, res) => {
       return res.status(400).json({ success: false, error: 'لا يوجد رقم بوليصة Speedaf لهذا الطلب' });
     }
 
-    const result = await cancelSpeedafOrder(order.speedaf_waybill);
+    const result = await cancelSpeedafOrder(order.speedaf_waybill, order.order_number);
     if (result.success) {
       await db.updateSpeedafStatus(order.id, 'مُبطل');
       // Also update internal status back to confirmed so they can resend
