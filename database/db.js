@@ -263,6 +263,7 @@ async function initializeSchema() {
   try { await client.execute('ALTER TABLE orders ADD COLUMN speedaf_waybill TEXT'); } catch (e) {}
   try { await client.execute('ALTER TABLE orders ADD COLUMN speedaf_status TEXT'); } catch (e) {}
   try { await client.execute('ALTER TABLE orders ADD COLUMN speedaf_status_updated_at TEXT'); } catch (e) {}
+  try { await client.execute('ALTER TABLE orders ADD COLUMN speedaf_tracks TEXT'); } catch (e) {}
 
   // Performance: index on status so background-job queries (WHERE status = 'whatsapp_failed')
   // don't do a full table scan as the orders table grows.
@@ -1180,6 +1181,21 @@ async function updateSpeedafStatus(orderId, speedafStatus) {
   });
 }
 
+async function updateSpeedafTracks(orderId, tracksJson, speedafStatus = null) {
+  const client = await ready();
+  if (speedafStatus) {
+    await client.execute({
+      sql: "UPDATE orders SET speedaf_tracks = ?, speedaf_status = ?, speedaf_status_updated_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+      args: [tracksJson, speedafStatus, orderId],
+    });
+  } else {
+    await client.execute({
+      sql: "UPDATE orders SET speedaf_tracks = ?, speedaf_status_updated_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+      args: [tracksJson, orderId],
+    });
+  }
+}
+
 async function getOrdersWithActiveSpeedaf() {
   const client = await ready();
   const res = await client.execute({
@@ -1286,5 +1302,6 @@ module.exports = {
   // Speedaf tracking
   updateSpeedafWaybill,
   updateSpeedafStatus,
+  updateSpeedafTracks,
   getOrdersWithActiveSpeedaf,
 };

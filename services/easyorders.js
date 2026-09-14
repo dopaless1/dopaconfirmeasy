@@ -238,32 +238,53 @@ function parseEasyOrder(data) {
     };
   }) : [];
 
-  // Total
+  // Shipping Cost
+  const shippingCost = parseFloat(
+    order.shipping_cost ??
+    order.shipping_fee ??
+    order.delivery_cost ??
+    order.delivery_fee ??
+    order.shipping_price ??
+    order.shipping ??
+    order.expense ??
+    0
+  ) || 0;
+
+  // Total (الإجمالي النهائي شامل الشحن)
   let totalNum = parseFloat(
-    order.total ||
-    order.total_price ||
-    order.total_amount ||
-    order.final_total ||
-    order.grand_total ||
-    order.order_total ||
-    order.amount ||
-    order.net_total ||
-    order.price ||
-    order.cost ||
+    order.total_cost ??
+    order.grand_total ??
+    order.final_total ??
+    order.total ??
+    order.total_price ??
+    order.total_amount ??
+    order.order_total ??
+    order.net_total ??
+    order.amount ??
     0
   );
 
-  // If total is 0 but we have items, compute sum
-  if ((!totalNum || totalNum === 0) && items.length > 0) {
-    const itemsSum = items.reduce((sum, i) => {
-      const priceVal = parseFloat(String(i.price).replace(/[^0-9.]/g, '')) || 0;
-      return sum + (priceVal * (i.quantity || 1));
-    }, 0);
-    const shippingCost = parseFloat(order.shipping_cost || order.delivery_cost || order.shipping_fee || order.delivery_fee || order.shipping_price || 0) || 0;
-    totalNum = itemsSum + shippingCost;
+  // إذا لم يتوفر إجمالي شامل أو كان المتاح فقط cost (سعر المنتجات بدون شحن)
+  if (!totalNum || totalNum === 0) {
+    const costNum = parseFloat(order.cost ?? order.price ?? 0) || 0;
+    if (costNum > 0) {
+      totalNum = costNum + shippingCost;
+    } else if (items.length > 0) {
+      const itemsSum = items.reduce((sum, i) => {
+        const priceVal = parseFloat(String(i.price).replace(/[^0-9.]/g, '')) || 0;
+        return sum + (priceVal * (i.quantity || 1));
+      }, 0);
+      totalNum = itemsSum + shippingCost;
+    }
+  } else if (shippingCost > 0) {
+    // تحقق إضافي: لو totalNum يساوي تماماً سعر المنتجات فقط (cost) ولم يُحسب الشحن فيه
+    const rawCost = parseFloat(order.cost ?? 0) || 0;
+    if (rawCost > 0 && Math.abs(totalNum - rawCost) < 0.01) {
+      totalNum = rawCost + shippingCost;
+    }
   }
 
-  const total = `${totalNum || 0} ${currency}`.trim();
+  const total = `${(totalNum || 0).toFixed(2).replace(/\.00$/, '')} ${currency}`.trim();
 
   // Address parsing
   const governorate = (

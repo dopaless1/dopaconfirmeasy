@@ -826,6 +826,13 @@
         🔍 المراجعة — اعتماد الشحنة
       </button>
 
+      <!-- خط سير وتتبع الشحنة -->
+      <button id="speedaf-ops-timeline-btn" class="btn btn-sm"
+        style="background:#059669;border-color:#059669;color:#fff;font-weight:700;padding:12px 16px;font-size:14px;justify-content:center;"
+        onclick="speedafShowTimeline()">
+        📍 خط سير وتتبع الشحنة بالتفصيل
+      </button>
+
       <!-- معاينة البوليصة -->
       <button id="speedaf-ops-preview-btn" class="btn btn-sm"
         style="background:#0ea5e9;border-color:#0ea5e9;color:#fff;font-weight:700;padding:12px 16px;font-size:14px;justify-content:center;"
@@ -862,6 +869,41 @@
 
     <div style="margin-top:14px;text-align:center;">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('speedaf-ops-modal')">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Speedaf Tracking Timeline Modal ─────────────────── -->
+<div class="modal-overlay" id="speedaf-tracking-modal" style="z-index: 10000;">
+  <div class="modal" style="max-width: 560px; max-height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 12px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: #064e3b; color: #fff;">
+      <div style="font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 18px;">🚚</span>
+        <span>خط سير شحنة Speedaf</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('speedaf-tracking-modal')" style="color:#a7f3d0;font-size:18px;">✕</button>
+    </div>
+
+    <div style="padding: 16px 20px; background: #f0fdf4; border-bottom: 1px solid #bbf7d0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+      <div>
+        <div style="font-size: 11px; font-weight:700; color:#166534; text-transform:uppercase;">رقم البوليصة</div>
+        <div style="font-size: 16px; font-weight: 800; font-family: monospace; color:#064e3b;" id="tracking-modal-waybill">—</div>
+      </div>
+      <div style="text-align:left;">
+        <div style="font-size: 11px; font-weight:700; color:#166534; text-transform:uppercase;">حالة الشحنة</div>
+        <div id="tracking-modal-status" style="font-size: 13px; font-weight: 800; color:#047857;">—</div>
+      </div>
+      <button class="btn btn-sm" onclick="refreshSpeedafTimelineNow()" style="background:#059669;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;">
+        🔄 تحديث فوري
+      </button>
+    </div>
+
+    <div id="tracking-modal-body" style="flex:1; overflow-y:auto; padding:20px; background:#fafafa;">
+      <!-- Timeline events injected here -->
+    </div>
+
+    <div style="padding: 12px 20px; background: #fff; border-top: 1px solid #e5e7eb; text-align: left;">
+      <button class="btn btn-ghost" onclick="closeModal('speedaf-tracking-modal')">إغلاق</button>
     </div>
   </div>
 </div>
@@ -1910,6 +1952,9 @@ async function showOrderDetail(orderId) {
   if (order.speedaf_waybill) {
     // له بوليصة Speedaf — إتاحة كافة أزرار Speedaf
     actionsHtml += `
+      <button class="btn btn-sm" style="background:#059669;color:#fff;font-weight:700" onclick="closeModal('detail-modal');openSpeedafTrackingModal(${order.id});" title="عرض خط سير وتتبع الشحنة بالتفصيل">
+        📍 خط السير
+      </button>
       <button class="btn btn-sm" style="background:#7c3aed;color:#fff;font-weight:700" onclick="closeModal('detail-modal');openSpeedafOpsModal(${order.id});speedafAudit();" title="مراجعة واعتماد الشحنة">
         🔍 المراجعة
       </button>
@@ -2578,328 +2623,154 @@ function bulkPrintWaybills(previewOnly = false) {
   openWaybillsPreviewWindow(ordersWithWaybill, !previewOnly);
 }
 
-// نافذة المعاينة والطباعة الموحدة (تدعم 1 أو 5 أو 50 بوليصة معاً)
-function openWaybillsPreviewWindow(ordersList, autoTriggerPrint = false) {
+// نافذة المعاينة والطباعة الموحدة
+function openWaybillsPreviewWindow(ordersList, autoTriggerPrint) {
   if (!ordersList || ordersList.length === 0) return;
+  if (autoTriggerPrint === undefined) autoTriggerPrint = false;
 
-  const waybillsHtml = ordersList.map((order, idx) => {
-    let itemsArr = [];
-    try { itemsArr = JSON.parse(order.items || '[]'); } catch {}
-    const itemsListHtml = itemsArr.length > 0 
-      ? itemsArr.map(it => `
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 4px 6px; font-weight: 700;">${escapeHtml(it.name || it.title || 'منتج')}</td>
-            <td style="padding: 4px 6px; text-align: center; font-weight: 800;">×${it.quantity || 1}</td>
-            <td style="padding: 4px 6px; text-align: left; font-family: monospace;">${escapeHtml(String(it.price || ''))}</td>
-          </tr>
-        `).join('')
-      : `<tr><td colspan="3" style="padding:6px; text-align:center; color:#666;">تفاصيل الطلب غير متوفرة</td></tr>`;
+  const waybillsHtml = ordersList.map(function(order) {
+    var itemsArr = [];
+    try { itemsArr = JSON.parse(order.items || '[]'); } catch(e) {}
+    var itemsListHtml = itemsArr.length > 0
+      ? itemsArr.map(function(it) {
+          return '<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:4px 6px;font-weight:700;">' +
+            escapeHtml(it.name || it.title || 'منتج') +
+            '</td><td style="padding:4px 6px;text-align:center;font-weight:800;">x' + (it.quantity || 1) +
+            '</td><td style="padding:4px 6px;text-align:left;font-family:monospace;">' +
+            escapeHtml(String(it.price || '')) + '</td></tr>';
+        }).join('')
+      : '<tr><td colspan="3" style="padding:6px;text-align:center;color:#666;">تفاصيل الطلب غير متوفرة</td></tr>';
 
-    const waybillNo = order.speedaf_waybill || 'EG020991173846';
-    const displayNum = cleanOrderNumberDisplay(order.order_number);
-    const dateStr = order.created_at ? new Date(order.created_at).toLocaleDateString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
-    const threeCode = order.speedaf_status || '30-A-246-T';
+    var waybillNo = order.speedaf_waybill || '';
+    var displayNum = cleanOrderNumberDisplay(order.order_number);
+    var dateStr = order.created_at ? new Date(order.created_at).toLocaleDateString('ar-EG') : '';
 
-    return `
-    <div class="waybill-container">
-      <!-- Top Brand Header -->
-      <div class="wb-header">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div style="background:#ea580c; color:#fff; font-weight:900; font-size:18px; padding:2px 8px; border-radius:4px; letter-spacing:0.5px;">Speedaf</div>
-          <div style="font-weight:800; font-size:16px; color:#111;">Express مصر</div>
-        </div>
-        <div style="text-align:left;">
-          <div class="wb-three-code">30-A-246-T</div>
-          <div style="font-size:10px; color:#555; margin-top:2px;">Standard Express</div>
-        </div>
-      </div>
-
-      <!-- Barcode Section -->
-      <div class="wb-barcode-box">
-        <svg id="barcode-${idx}" class="barcode-svg" jsbarcode-value="${escapeHtml(waybillNo)}" jsbarcode-height="45" jsbarcode-width="1.8" jsbarcode-fontSize="14"></svg>
-        <div class="wb-waybill-num">${escapeHtml(waybillNo)}</div>
-      </div>
-
-      <!-- Customer Details (المستلم) -->
-      <div class="wb-section-box">
-        <div class="wb-section-title">
-          <span>👤 المستلم (To Customer):</span>
-          <span style="font-weight:900; font-size:14px; color:#000;">${escapeHtml(displayNum)}</span>
-        </div>
-        <div style="font-size: 15px; font-weight: 800; color: #000; margin-bottom: 2px;" dir="auto">${escapeHtml(order.customer_name || 'عميل')}</div>
-        <div style="font-size: 14px; font-weight: 800; color: #000; margin-bottom: 4px; direction:ltr; text-align:right;">📞 ${escapeHtml(order.customer_phone || '—')}</div>
-        <div style="font-size: 13px; font-weight: 700; color: #222; line-height: 1.4;" dir="auto">📍 ${escapeHtml(order.address || 'العنوان غير محدد')}</div>
-      </div>
-
-      <!-- COD Amount & Allow to open -->
-      <div class="wb-cod-box">
-        <div>
-          <div style="font-size:11px; font-weight:800; color:#c2410c;">💵 تحصيل عند الاستلام (COD):</div>
-          <div style="font-size:24px; font-weight:900; color:#ea580c; font-family:sans-serif;">${escapeHtml(order.total || '0 EGP')}</div>
-        </div>
-        <div class="wb-allow-open">
-          <div style="font-size:18px;">☑</div>
-          <div style="line-height:1.2;"><strong>السماح بالفتح</strong><br><span style="font-size:10px;">Allow inspection</span></div>
-        </div>
-      </div>
-
-      <!-- Goods and items -->
-      <div style="margin-bottom: 8px;">
-        <table style="width:100%; border-collapse:collapse; font-size:11px;">
-          <thead>
-            <tr style="background:#f1f5f9; border-bottom:1.5px solid #cbd5e1;">
-              <th style="padding:3px 6px; text-align:right;">المنتج</th>
-              <th style="padding:3px 6px; text-align:center; width:40px;">العدد</th>
-              <th style="padding:3px 6px; text-align:left; width:70px;">السعر</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsListHtml}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Shipper Footer -->
-      <div class="wb-footer">
-        <div>
-          <div><strong>المرسل:</strong> متجر DopaLess 🛍️</div>
-          <div><strong>هاتف خدمة العملاء:</strong> 01032462703</div>
-          <div><strong>المنطقة:</strong> المنصورة، الدقهلية</div>
-        </div>
-        <div style="text-align:left; font-size:10px; color:#666;">
-          <div>تاريخ: ${dateStr}</div>
-          <div style="font-weight:700; color:#ea580c;">Speedaf B-Client</div>
-        </div>
-      </div>
-    </div>
-    `;
+    return '<div class="waybill-container">' +
+      '<div class="wb-header">' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<div style="background:#ea580c;color:#fff;font-weight:900;font-size:18px;padding:2px 8px;border-radius:4px;">Speedaf</div>' +
+          '<div style="font-weight:800;font-size:16px;color:#111;">Express Egypt</div>' +
+        '</div>' +
+        '<div style="text-align:left;">' +
+          '<div class="wb-three-code">30-A-246-T</div>' +
+          '<div style="font-size:10px;color:#555;margin-top:2px;">Standard Express</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="wb-barcode-box">' +
+        '<svg class="barcode-svg" data-waybill="' + escapeHtml(waybillNo) + '"></svg>' +
+        '<div class="wb-waybill-num">' + escapeHtml(waybillNo) + '</div>' +
+      '</div>' +
+      '<div class="wb-section-box">' +
+        '<div class="wb-section-title">' +
+          '<span>المستلم (To Customer):</span>' +
+          '<span style="font-weight:900;font-size:14px;color:#000;">' + escapeHtml(displayNum) + '</span>' +
+        '</div>' +
+        '<div style="font-size:15px;font-weight:800;color:#000;margin-bottom:2px;" dir="auto">' + escapeHtml(order.customer_name || 'عميل') + '</div>' +
+        '<div style="font-size:14px;font-weight:800;color:#000;margin-bottom:4px;direction:ltr;text-align:right;">' + escapeHtml(order.customer_phone || '') + '</div>' +
+        '<div style="font-size:13px;font-weight:700;color:#222;line-height:1.4;" dir="auto">' + escapeHtml(order.address || '') + '</div>' +
+      '</div>' +
+      '<div class="wb-cod-box">' +
+        '<div>' +
+          '<div style="font-size:11px;font-weight:800;color:#c2410c;">تحصيل عند الاستلام (COD):</div>' +
+          '<div style="font-size:24px;font-weight:900;color:#ea580c;">' + escapeHtml(order.total || '0 EGP') + '</div>' +
+        '</div>' +
+        '<div class="wb-allow-open">' +
+          '<div style="font-size:18px;">&#9745;</div>' +
+          '<div style="line-height:1.2;"><strong>السماح بالفتح</strong><br><span style="font-size:10px;">Allow inspection</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-bottom:8px;"><table style="width:100%;border-collapse:collapse;font-size:11px;">' +
+        '<thead><tr style="background:#f1f5f9;border-bottom:1.5px solid #cbd5e1;">' +
+          '<th style="padding:3px 6px;text-align:right;">المنتج</th>' +
+          '<th style="padding:3px 6px;text-align:center;width:40px;">العدد</th>' +
+          '<th style="padding:3px 6px;text-align:left;width:70px;">السعر</th>' +
+        '</tr></thead>' +
+        '<tbody>' + itemsListHtml + '</tbody></table></div>' +
+      '<div class="wb-footer">' +
+        '<div>' +
+          '<div><strong>المرسل:</strong> DopaLess</div>' +
+          '<div><strong>هاتف:</strong> 01032462703</div>' +
+          '<div><strong>المنطقة:</strong> المنصورة، الدقهلية</div>' +
+        '</div>' +
+        '<div style="text-align:left;font-size:10px;color:#666;">' +
+          '<div>' + dateStr + '</div>' +
+          '<div style="font-weight:700;color:#ea580c;">Speedaf B-Client</div>' +
+        '</div>' +
+      '</div>' +
+      '</div>';
   }).join('');
 
-  const printHtml = `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8">
-  <title>معاينة بوالص الشحن — (${ordersList.length}) بوليصة</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 0; background: #f3f4f6; font-family: 'Cairo', Tahoma, sans-serif; color: #111; }
-    
-    /* Top Action Bar (hidden in print) */
-    .action-bar {
-      position: sticky; top: 0; z-index: 1000;
-      background: #1e293b; color: #fff;
-      padding: 12px 24px;
-      display: flex; justify-content: space-between; align-items: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    .action-btn-print {
-      background: #ea580c; color: #fff; font-weight: 800; font-size: 15px;
-      border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer;
-      display: flex; align-items: center; gap: 6px;
-    }
-    .action-btn-print:hover { background: #c2410c; }
+  var autoStr = autoTriggerPrint ? 'setTimeout(function(){ window.print(); }, 1500);' : '';
 
-    /* Waybill Container (Speedaf 130*75mm standard ratio) */
-    .waybill-container {
-      width: 440px;
-      margin: 20px auto;
-      background: #fff;
-      border: 2px solid #000;
-      border-radius: 6px;
-      padding: 12px 16px;
-      page-break-after: always;
-      break-after: page;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-    }
-    .waybill-container:last-child {
-      page-break-after: avoid;
-      break-after: avoid;
-    }
+  var styles = '* { box-sizing: border-box; } body { margin:0;padding:0;background:#f3f4f6;font-family:Tahoma,Arial,sans-serif;color:#111; } ' +
+    '.action-bar { position:sticky;top:0;z-index:1000;background:#1e293b;color:#fff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center; } ' +
+    '.btn-p { background:#ea580c;color:#fff;font-weight:800;font-size:15px;border:none;padding:8px 20px;border-radius:6px;cursor:pointer; } ' +
+    '.waybill-container { width:440px;margin:20px auto;background:#fff;border:2px solid #000;border-radius:6px;padding:12px 16px;page-break-after:always;break-after:page; } ' +
+    '.waybill-container:last-child { page-break-after:avoid;break-after:avoid; } ' +
+    '.wb-header { display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:8px; } ' +
+    '.wb-three-code { font-size:18px;font-weight:900;border:2px solid #000;padding:2px 8px;border-radius:4px; } ' +
+    '.wb-barcode-box { text-align:center;border-bottom:1.5px dashed #475569;padding:4px 0 8px 0;margin-bottom:8px; } ' +
+    '.wb-waybill-num { font-size:16px;font-weight:900;font-family:monospace;letter-spacing:1px; } ' +
+    '.wb-section-box { border:1.5px solid #000;border-radius:6px;padding:8px 10px;margin-bottom:8px; } ' +
+    '.wb-section-title { font-size:11px;font-weight:800;color:#475569;display:flex;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin-bottom:4px; } ' +
+    '.wb-cod-box { border:2px solid #000;border-radius:6px;padding:8px 12px;margin-bottom:8px;background:#fff7ed;display:flex;justify-content:space-between;align-items:center; } ' +
+    '.wb-allow-open { border:1.5px solid #ea580c;background:#ffedd5;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:800;color:#9a3412;display:flex;align-items:center;gap:6px; } ' +
+    '.wb-footer { border-top:1.5px solid #000;padding-top:6px;font-size:10.5px;display:flex;justify-content:space-between;align-items:flex-end; } ' +
+    '@media print { body { background:#fff!important; } .action-bar { display:none!important; } .waybill-container { margin:0 auto!important; } @page { size:100mm 150mm;margin:4mm; } }';
 
-    .wb-header {
-      display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px;
-    }
-    .wb-three-code {
-      font-size: 18px; font-weight: 900; font-family: sans-serif;
-      border: 2px solid #000; padding: 2px 8px; border-radius: 4px;
-      background: #f8fafc;
-    }
-    .wb-barcode-box {
-      text-align: center; border-bottom: 1.5px dashed #475569;
-      padding: 4px 0 8px 0; margin-bottom: 8px;
-    }
-    .wb-waybill-num {
-      font-size: 16px; font-weight: 900; font-family: monospace; letter-spacing: 1px;
-    }
-    .wb-section-box {
-      border: 1.5px solid #000; border-radius: 6px;
-      padding: 8px 10px; margin-bottom: 8px; background: #fafafa;
-    }
-    .wb-section-title {
-      font-size: 11px; font-weight: 800; color: #475569;
-      display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;
-    }
-    .wb-cod-box {
-      border: 2px solid #000; border-radius: 6px;
-      padding: 8px 12px; margin-bottom: 8px; background: #fff7ed;
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .wb-allow-open {
-      border: 1.5px solid #ea580c; background: #ffedd5;
-      padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800;
-      color: #9a3412; display: flex; align-items: center; gap: 6px;
-    }
-    .wb-footer {
-      border-top: 1.5px solid #000; padding-top: 6px; font-size: 10.5px;
-      display: flex; justify-content: space-between; align-items: flex-end;
-    }
-
-    @media print {
-      body { background: #fff !important; }
-      .action-bar { display: none !important; }
-      .waybill-container {
-        margin: 0 auto !important;
-        box-shadow: none !important;
-        border: 1.5px solid #000 !important;
-      }
-      @page {
-        size: 100mm 150mm;
-        margin: 4mm;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="action-bar">
-    <div style="font-size:15px; font-weight:700;">
-      📦 معاينة بوالص الشحن Speedaf Express — (${ordersList.length}) طلبات محددة
-    </div>
-    <div style="display:flex; gap:10px;">
-      <button class="action-btn-print" onclick="window.print()">
-        🖨️ طباعة البوالص الآن (${ordersList.length})
-      </button>
-      <button onclick="window.close()" style="background:#475569; color:#fff; border:none; padding:8px 14px; border-radius:6px; font-weight:700; cursor:pointer;">
-        ✕ إغلاق
-      </button>
-    </div>
-  </div>
-
-  <div style="padding: 10px 0;">
-    ${waybillsHtml}
-  </div>
-
-  <script>
-    // رسم الباركود عالي الوضوح في كل بوليصة
-    window.addEventListener('DOMContentLoaded', () => {
-      try {
-        JsBarcode('.barcode-svg').init();
-      } catch (e) {
-        console.warn('JsBarcode init error:', e);
-      }
-      ${autoTriggerPrint ? 'setTimeout(() => window.print(), 600);' : ''}
-    });
-  <\/script>
-</body>
-</html>`;
+  var printHtml = '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">' +
+    '<title>بوالص الشحن — ' + ordersList.length + ' بوليصة</title>' +
+    '<style>' + styles + '</style></head><body>' +
+    '<div class="action-bar">' +
+      '<div style="font-size:15px;font-weight:700;">&#128230; بوالص Speedaf Express — ' + ordersList.length + ' بوليصة</div>' +
+      '<div style="display:flex;gap:10px;">' +
+        '<button class="btn-p" onclick="window.print()">&#128438; طباعة الآن</button>' +
+        '<button onclick="window.close()" style="background:#475569;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-weight:700;cursor:pointer;">&#10005; إغلاق</button>' +
+      '</div></div>' +
+    '<div style="padding:10px 0;">' + waybillsHtml + '</div>' +
+    '<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>' +
+    '<script>' +
+      'function renderBarcodes(){' +
+        'document.querySelectorAll(".barcode-svg").forEach(function(s){' +
+          'var w=s.getAttribute("data-waybill");' +
+          'if(w&&w.length>3&&window.JsBarcode){' +
+            'try{JsBarcode(s,w,{height:45,width:1.8,fontSize:14,displayValue:false});}catch(e){}' +
+          '}' +
+        '});' +
+      '}' +
+      'if(typeof JsBarcode!=="undefined"){renderBarcodes();}' +
+      'else{var sc=document.querySelector(\'script[src*="jsbarcode"]\');if(sc)sc.onload=renderBarcodes;}' +
+      autoStr +
+    '<\/script></body></html>';
 
   currentPrintHtml = printHtml;
-  currentPreviewOrdersList = ordersList;
 
-  // 1. عرض البوالص داخل المودال الداخلي مباشرة (مستحيل حظره بأي متصفح)
-  const modalBody = document.getElementById('waybill-modal-body');
-  const modalTitle = document.getElementById('waybill-modal-title');
-  const modalCount = document.getElementById('waybill-modal-count');
-
-  if (modalBody) {
-    modalBody.innerHTML = waybillsHtml;
-    if (modalTitle) modalTitle.textContent = `معاينة بوالص الشحن Speedaf Express (${ordersList.length} طلب)`;
-    if (modalCount) modalCount.textContent = `إجمالي البوالص المعروضة: ${ordersList.length}`;
-    openModal('waybill-preview-modal');
-
-    // رسم الباركود في جميع البوالص المعروضة
-    setTimeout(() => {
-      try {
-        if (window.JsBarcode) {
-          JsBarcode('#waybill-modal-body .barcode-svg').init();
-        }
-      } catch (e) {
-        console.warn('JsBarcode init error:', e);
-      }
-    }, 50);
-
-    showToast(`👁️ تم فتح معاينة (${ordersList.length}) بوليصة بنجاح`, 'success');
-
-    if (autoTriggerPrint) {
-      setTimeout(() => printModalWaybills(), 400);
-    }
+  var pw = window.open('', '_blank');
+  if (pw) {
+    pw.document.open();
+    pw.document.write(printHtml);
+    pw.document.close();
+    showToast('تم فتح (' + ordersList.length + ') بوليصة في تاب جديد — اضغط طباعة', 'success');
   } else {
-    // Fallback if modal container missing
-    const printWin = window.open('', '_blank');
-    if (printWin) {
-      printWin.document.open();
-      printWin.document.write(printHtml);
-      printWin.document.close();
-    }
+    showToast('المتصفح حجب فتح التاب — يرجى السماح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة', 'error');
   }
 }
 
 let currentPrintHtml = '';
 let currentPreviewOrdersList = [];
 
-// طباعة بوالص الشحن المعروضة في المودال باستخدام iframe مخفي بدون أي نوافذ منبثقة
 function printModalWaybills() {
-  const modalBody = document.getElementById('waybill-modal-body');
-  if (!modalBody || !modalBody.innerHTML.trim()) {
-    showToast('⚠️ لا توجد بوالص معروضة للطباعة', 'warning');
-    return;
-  }
-
-  showToast('🖨️ جارٍ تجهيز أمر الطباعة...', 'info');
-
-  let printFrame = document.getElementById('waybill-print-frame');
-  if (!printFrame) {
-    printFrame = document.createElement('iframe');
-    printFrame.id = 'waybill-print-frame';
-    printFrame.style.position = 'fixed';
-    printFrame.style.right = '0';
-    printFrame.style.bottom = '0';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    printFrame.style.border = '0';
-    document.body.appendChild(printFrame);
-  }
-
-  const doc = printFrame.contentWindow.document;
-  doc.open();
-  doc.write(currentPrintHtml || `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>طباعة البوالص</title></head><body>${modalBody.innerHTML}</body></html>`);
-  doc.close();
-
-  setTimeout(() => {
-    try {
-      printFrame.contentWindow.focus();
-      printFrame.contentWindow.print();
-    } catch (e) {
-      console.error('Print iframe error:', e);
-      window.print();
-    }
-  }, 450);
+  if (!currentPrintHtml) { showToast('افتح معاينة بوليصة أولاً', 'warning'); return; }
+  var pw = window.open('', '_blank');
+  if (pw) { pw.document.open(); pw.document.write(currentPrintHtml); pw.document.close(); }
+  else { showToast('المتصفح حجب النافذة — السماح بالنوافذ المنبثقة ثم أعد المحاولة', 'error'); }
 }
 
-// فتح البوالص في تاب جديد مستقل لمن يرغب
 function openWaybillsInNewTab() {
   if (!currentPrintHtml) return;
-  const printWin = window.open('', '_blank');
-  if (printWin) {
-    printWin.document.open();
-    printWin.document.write(currentPrintHtml);
-    printWin.document.close();
-  } else {
-    showToast('❌ المتصفح حظر فتح التاب المستقل، يمكنك استخدام زر الطباعة مباشرة', 'warning');
-  }
+  var pw = window.open('', '_blank');
+  if (pw) { pw.document.open(); pw.document.write(currentPrintHtml); pw.document.close(); }
+  else { showToast('المتصفح حجب النافذة', 'warning'); }
 }
 
 const EXPORT_FIELD_LABELS = {
@@ -3525,12 +3396,148 @@ function openSpeedafOpsModal(orderId) {
 
   // Show/hide buttons based on waybill presence
   const hasWaybill = !!order.speedaf_waybill;
+  const timelineBtn = document.getElementById('speedaf-ops-timeline-btn');
+  if (timelineBtn) timelineBtn.style.display = hasWaybill ? '' : 'none';
   document.getElementById('speedaf-ops-audit-btn').style.display = hasWaybill ? '' : 'none';
   document.getElementById('speedaf-ops-preview-btn').style.display = hasWaybill ? '' : 'none';
   document.getElementById('speedaf-ops-print-btn').style.display = hasWaybill ? '' : 'none';
   document.getElementById('speedaf-ops-void-btn').style.display = hasWaybill ? '' : 'none';
 
   openModal('speedaf-ops-modal');
+}
+
+let speedafTrackingCurrentOrderId = null;
+
+function speedafShowTimeline() {
+  const order = speedafOpsCurrentOrder;
+  if (!order) return;
+  closeModal('speedaf-ops-modal');
+  openSpeedafTrackingModal(order.id);
+}
+
+async function openSpeedafTrackingModal(orderId) {
+  speedafTrackingCurrentOrderId = orderId;
+  const order = allOrders.find(o => o.id === orderId);
+  const waybillNo = order ? order.speedaf_waybill : '—';
+  
+  document.getElementById('tracking-modal-waybill').textContent = waybillNo;
+  document.getElementById('tracking-modal-status').textContent = order?.speedaf_status || 'قيد التحميل...';
+  
+  const bodyEl = document.getElementById('tracking-modal-body');
+  
+  // Render cached tracks first if available
+  let cachedTracks = [];
+  if (order && order.speedaf_tracks) {
+    try { cachedTracks = JSON.parse(order.speedaf_tracks); } catch(e) {}
+  }
+
+  if (cachedTracks.length > 0) {
+    renderTrackingEvents(cachedTracks, bodyEl);
+  } else {
+    bodyEl.innerHTML = `
+      <div style="text-align:center;padding:32px 16px;color:var(--text-muted);">
+        <div style="font-size:32px;margin-bottom:8px;">⏳</div>
+        <div style="font-weight:700;">جارٍ جلب خط سير الشحنة من Speedaf...</div>
+      </div>
+    `;
+  }
+
+  openModal('speedaf-tracking-modal');
+  // Fetch fresh data in background
+  await fetchSpeedafTimeline(orderId);
+}
+
+async function refreshSpeedafTimelineNow() {
+  if (!speedafTrackingCurrentOrderId) return;
+  const bodyEl = document.getElementById('tracking-modal-body');
+  bodyEl.innerHTML = `
+    <div style="text-align:center;padding:32px 16px;color:var(--text-muted);">
+      <div style="font-size:32px;margin-bottom:8px;">⏳</div>
+      <div style="font-weight:700;">جارٍ تحديث خط السير الآن...</div>
+    </div>
+  `;
+  await fetchSpeedafTimeline(speedafTrackingCurrentOrderId);
+}
+
+async function fetchSpeedafTimeline(orderId) {
+  try {
+    const res = await fetch(`/api/orders/${orderId}/speedaf-track`);
+    const data = await res.json();
+    const bodyEl = document.getElementById('tracking-modal-body');
+    
+    if (data.success && data.tracks && data.tracks.length > 0) {
+      document.getElementById('tracking-modal-status').textContent = data.orderStatus || 'قيد الشحن';
+      renderTrackingEvents(data.tracks, bodyEl);
+      
+      // Update local order
+      const localOrder = allOrders.find(o => o.id === orderId);
+      if (localOrder) {
+        localOrder.speedaf_tracks = JSON.stringify(data.tracks);
+        if (data.orderStatus) localOrder.speedaf_status = data.orderStatus;
+      }
+    } else if (data.success && (!data.tracks || data.tracks.length === 0)) {
+      bodyEl.innerHTML = `
+        <div style="text-align:center;padding:40px 16px;background:#fff;border-radius:10px;border:1px dashed #cbd5e1;">
+          <div style="font-size:36px;margin-bottom:8px;">📦</div>
+          <div style="font-weight:700;color:#334155;font-size:15px;margin-bottom:6px;">تم إصدار البوليصة</div>
+          <div style="color:#64748b;font-size:13px;">لم يقم المندوب باستلام الشحنة أو مسحها ضوئياً بعد، سيظهر خط السير فور استلام الشحنة.</div>
+        </div>
+      `;
+    } else {
+      bodyEl.innerHTML = `
+        <div style="text-align:center;padding:30px 16px;color:#dc2626;">
+          ❌ ${data.error || 'تعذر تحميل بيانات خط السير'}
+        </div>
+      `;
+    }
+  } catch (err) {
+    const bodyEl = document.getElementById('tracking-modal-body');
+    bodyEl.innerHTML = `
+      <div style="text-align:center;padding:30px 16px;color:#dc2626;">
+        ❌ خطأ في الاتصال: ${err.message}
+      </div>
+    `;
+  }
+}
+
+function renderTrackingEvents(tracks, containerEl) {
+  if (!tracks || tracks.length === 0) {
+    containerEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);">لا توجد حركات مسجلة</div>';
+    return;
+  }
+
+  const html = `
+    <div style="position:relative;padding-right:20px;border-right:2px solid #cbd5e1;margin-right:10px;">
+      ${tracks.map((t, idx) => {
+        const isLatest = idx === 0;
+        const bulletColor = isLatest ? '#059669' : '#94a3b8';
+        const badgeBg = isLatest ? '#ecfdf5' : '#f8fafc';
+        const badgeBorder = isLatest ? '#a7f3d0' : '#e2e8f0';
+
+        return `
+          <div style="position:relative;margin-bottom:20px;">
+            <!-- Circle bullet -->
+            <div style="position:absolute;right:-27px;top:4px;width:12px;height:12px;border-radius:50%;background:${bulletColor};border:2px solid #fff;box-shadow:0 0 0 2px ${bulletColor};"></div>
+            
+            <div style="background:${badgeBg};border:1px solid ${badgeBorder};border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px;">
+                <span style="font-weight:800;color:${isLatest ? '#065f46' : '#1e293b'};font-size:13.5px;">
+                  ${escapeHtml(t.actionName || 'حركة شحنة')}
+                </span>
+                <span style="font-size:12px;color:#64748b;direction:ltr;font-family:monospace;">
+                  ${escapeHtml(t.time || '')}
+                </span>
+              </div>
+              <div style="font-size:13px;color:#334155;line-height:1.5;direction:auto;" dir="auto">
+                ${escapeHtml(t.message || t.msgLoc || '')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+  containerEl.innerHTML = html;
 }
 
 // المراجعة — اعتماد الشحنة في Speedaf
@@ -3572,25 +3579,39 @@ async function speedafAudit() {
   }
 }
 
-// معاينة البوليصة مباشرة من الجدول بنقرة واحدة (تصميم البوليصة الحرارية القياسي)
-async function speedafPreviewDirect(orderId) {
-  let order = allOrders.find(o => String(o.id) === String(orderId));
-  if (!order) {
-    try {
-      const res = await fetch(`/api/orders/${orderId}`);
-      const data = await res.json();
-      if (data && data.order) order = data.order;
-    } catch (e) {}
-  }
-  if (!order) {
-    showToast('❌ لم يتم العثور على بيانات الطلب', 'error');
-    return;
-  }
-  if (!order.speedaf_waybill) {
+// معاينة البوليصة مباشرة من الجدول بنقرة واحدة
+// IMPORTANT: window.open يجب يستدعي مباشرة داخل click handler قبل أي await
+// لذلك: نفتح التاب أولاً، نعبيه بعدين
+function speedafPreviewDirect(orderId) {
+  const order = allOrders.find(o => String(o.id) === String(orderId));
+  if (order && !order.speedaf_waybill) {
     showToast('⚠️ لا توجد بوليصة شحن مسجلة لهذا الطلب بعد', 'warning');
     return;
   }
-  openWaybillsPreviewWindow([order], false);
+  if (order && order.speedaf_waybill) {
+    // الأوردر موجود في الذاكرة — نفتح مباشرة
+    openWaybillsPreviewWindow([order], false);
+    return;
+  }
+  // الأوردر مش في الذاكرة — نفتح تاب فاضي أولاً ثم نجيب البيانات ونملاه
+  var pw = window.open('', '_blank');
+  if (!pw) {
+    showToast('❌ المتصفح حجب فتح النافذة — يرجى السماح بالنوافذ المنبثقة لهذا الموقع', 'error');
+    return;
+  }
+  pw.document.write('<html dir="rtl"><body style="font-family:Tahoma;padding:20px;"><h3>⏳ جارٍ تحميل البوليصة...</h3></body></html>');
+  fetch('/api/orders/' + orderId)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      // route returns order directly (not wrapped)
+      var o = data.order || data;
+      if (!o || !o.id) { pw.document.write('<p>❌ لم يتم العثور على الطلب</p>'); return; }
+      if (!o.speedaf_waybill) { pw.document.write('<p>⚠️ لا توجد بوليصة شحن لهذا الطلب</p>'); return; }
+      currentPrintHtml = '';
+      openWaybillsPreviewWindow([o], false);
+      pw.close();
+    })
+    .catch(function(e){ pw.document.write('<p>❌ خطأ في الاتصال: ' + e.message + '</p>'); });
 }
 
 // إبطال الشحنة فقط في Speedaf دون حذف الطلب من الداشبورد

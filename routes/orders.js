@@ -720,16 +720,42 @@ router.post('/speedaf/smart-match', async (req, res) => {
   }
 });
 
-// GET /api/orders/:id/speedaf-track — تتبع شحنة واحدة
+// GET /api/orders/:id/speedaf-track — تتبع شحنة واحدة بالتفصيل (خط السير والمراحل)
 router.get('/:id/speedaf-track', async (req, res) => {
   try {
     const order = await db.getOrderById(parseInt(req.params.id));
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (!order.speedaf_waybill) return res.status(400).json({ error: 'لا يوجد رقم بوليصة Speedaf لهذا الطلب' });
     
-    const { trackOrder } = require('../services/speedaf');
-    const result = await trackOrder(order.speedaf_waybill);
-    res.json(result);
+    const { getSpeedafTrackingTimeline, trackOrder } = require('../services/speedaf');
+    
+    // 1. جلب خط السير التفصيلي
+    const timelineRes = await getSpeedafTrackingTimeline(order.speedaf_waybill);
+    
+    if (timelineRes.success && timelineRes.tracks && timelineRes.tracks.length > 0) {
+      await db.updateSpeedafTracks(order.id, JSON.stringify(timelineRes.tracks), timelineRes.orderStatus || null);
+      return res.json({
+        success: true,
+        waybillNo: order.speedaf_waybill,
+        orderStatus: timelineRes.orderStatus || order.speedaf_status,
+        tracks: timelineRes.tracks,
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    // 2. Fallback: لو مفيش خط سير بعد، نجيب تفاصيل الشحنة العادية
+    const basicRes = await trackOrder(order.speedaf_waybill);
+    let parsedSavedTracks = [];
+    try { parsedSavedTracks = JSON.parse(order.speedaf_tracks || '[]'); } catch(e) {}
+
+    res.json({
+      success: true,
+      waybillNo: order.speedaf_waybill,
+      orderStatus: basicRes.order?.orderStatusName || order.speedaf_status || 'قيد المعالجة',
+      tracks: parsedSavedTracks,
+      order: basicRes.order || null,
+      note: 'لم تتوفر حركات جديدة بعد في خط السير'
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

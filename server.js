@@ -500,6 +500,27 @@ async function startServer() {
     // ─── Background Jobs (Auto-Retry, Order Timeout, Daily Report) ──────────
     const { startBackgroundJobs } = require('./services/backgroundJobs');
     startBackgroundJobs();
+
+    // ─── Speedaf Session Check & Auto Re-login at startup ────────────────────
+    (async () => {
+      try {
+        const { autoLoginSpeedaf, testSpeedafConnection } = require('./services/speedaf');
+        const token = await db.getSetting('SPEEDAF_TOKEN');
+        let isValid = false;
+        if (token) {
+          const test = await testSpeedafConnection();
+          isValid = test.success;
+        }
+        if (!isValid) {
+          console.log('[Speedaf] 🔑 Validating / refreshing Speedaf session at boot...');
+          await autoLoginSpeedaf(3);
+        } else {
+          console.log('[Speedaf] ✅ Active session verified successfully at boot.');
+        }
+      } catch (e) {
+        console.warn('[Speedaf] Startup session check skipped:', e.message);
+      }
+    })();
   });
 }
 

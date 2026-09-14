@@ -1095,6 +1095,62 @@ async function trackOrder(waybillNo) {
 }
 
 /**
+ * جلب خط سير وتتبع الشحنة بالتفصيل (الأحداث، التواريخ، خط السير الكامل والمندوب)
+ * يستخدم الـ API المباشر: POST /v1/api/express/track/getExpressTrack
+ */
+async function getSpeedafTrackingTimeline(waybillNo) {
+  if (!waybillNo) return { success: false, error: 'Waybill number required', tracks: [] };
+  const cleanWb = String(waybillNo).trim();
+  
+  const result = await speedafRequest('POST', '/v1/api/express/track/getExpressTrack', {
+    mailNoList: [cleanWb]
+  });
+
+  if (result.success && Array.isArray(result.data?.data) && result.data.data.length > 0) {
+    const item = result.data.data[0];
+    const tracks = (item.tracks || []).map(t => ({
+      time: t.time,
+      action: t.action,
+      actionName: t.actionName,
+      message: t.msgLoc || t.msgEng || t.message,
+      messageAr: t.msgLoc || t.msgEng || t.message,
+      rawMsg: t.message,
+    }));
+    return {
+      success: true,
+      waybillNo: cleanWb,
+      orderStatus: item.orderStatus || item.orderStatusName,
+      tracks,
+    };
+  }
+
+  // Fallback endpoint if needed
+  try {
+    const fb = await speedafRequest('POST', '/v1/api/express/track/queryTrack', {
+      waybillNoList: [cleanWb]
+    });
+    if (fb.success && Array.isArray(fb.data?.data) && fb.data.data.length > 0) {
+      const item = fb.data.data[0];
+      const tracks = (item.trackTraceList || item.tracks || []).map(t => ({
+        time: t.time || t.traceTime,
+        action: t.action || t.traceType,
+        actionName: t.actionName || t.traceTypeName,
+        message: t.msgLoc || t.msgEng || t.message || t.traceDesc,
+        messageAr: t.msgLoc || t.msgEng || t.message || t.traceDesc,
+      }));
+      return {
+        success: true,
+        waybillNo: cleanWb,
+        orderStatus: item.orderStatus || item.orderStatusName,
+        tracks,
+      };
+    }
+  } catch (e) {}
+
+  return { success: false, error: result.error || 'No tracking events found', tracks: [] };
+}
+
+/**
  * جلب قائمة الشحنات (paginated)
  */
 async function getOrderList(pageNum = 1, pageSize = 50) {
@@ -1106,7 +1162,7 @@ async function getOrderList(pageNum = 1, pageSize = 50) {
 }
 
 /**
- * تتبع كل الشحنات النشطة وتحديث حالاتها في DB
+ * تتبع كل الشحنات النشطة وتحديث حالاتها وخط سيرها في DB
  * بيتنده من الـ background job كل 30 دقيقة
  */
 async function trackAllActiveOrders() {
@@ -1121,26 +1177,40 @@ async function trackAllActiveOrders() {
 
   for (const order of activeOrders) {
     try {
-      const result = await trackOrder(order.speedaf_waybill);
-      if (result.success && result.order) {
-        const speedafStatus = result.order.orderStatusName || result.order.orderStatus || '';
-        const currentStatus = order.speedaf_status || '';
+      // 1. Fetch detailed tracking timeline
+      const trackRes = await getSpeedafTrackingTimeline(order.speedaf_waybill);
+      let speedafStatus = '';
 
-        if (speedafStatus && speedafStatus !== currentStatus) {
-          await db.updateSpeedafStatus(order.id, speedafStatus);
-          console.log(`[Speedaf] 📦 Order ${order.order_number}: ${currentStatus} → ${speedafStatus}`);
-          updated++;
+      if (trackRes.success && trackRes.tracks && trackRes.tracks.length > 0) {
+        // Save full tracking events to database
+        const latestTrack = trackRes.tracks[0];
+        speedafStatus = trackRes.orderStatus || latestTrack.actionName || '';
+        await db.updateSpeedafTracks(order.id, JSON.stringify(trackRes.tracks), speedafStatus || null);
+      } else {
+        // Fallback to getOrder metadata if timeline is still empty
+        const result = await trackOrder(order.speedaf_waybill);
+        if (result.success && result.order) {
+          speedafStatus = result.order.orderStatusName || result.order.orderStatus || '';
+          if (speedafStatus) {
+            await db.updateSpeedafStatus(order.id, speedafStatus);
+          }
+        }
+      }
 
-          // Map Speedaf status to internal status
-          const internalStatus = mapSpeedafToInternalStatus(speedafStatus);
-          if (internalStatus && internalStatus !== order.status) {
-            await db.updateOrderStatus(order.shopify_order_id || order.easyorders_id, internalStatus);
-            const { updateSourceStatus } = require('./sourceAdapter');
-            await updateSourceStatus(order, internalStatus);
+      const currentStatus = order.speedaf_status || '';
+      if (speedafStatus && speedafStatus !== currentStatus) {
+        console.log(`[Speedaf] 📦 Order ${order.order_number}: ${currentStatus} → ${speedafStatus}`);
+        updated++;
 
-            if (global.broadcastSSE) {
-              global.broadcastSSE({ type: 'status_update', orderId: order.shopify_order_id || order.id, status: internalStatus });
-            }
+        // Map Speedaf status to internal status
+        const internalStatus = mapSpeedafToInternalStatus(speedafStatus);
+        if (internalStatus && internalStatus !== order.status) {
+          await db.updateOrderStatus(order.shopify_order_id || order.easyorders_id, internalStatus);
+          const { updateSourceStatus } = require('./sourceAdapter');
+          await updateSourceStatus(order, internalStatus);
+
+          if (global.broadcastSSE) {
+            global.broadcastSSE({ type: 'status_update', orderId: order.shopify_order_id || order.id, status: internalStatus });
           }
         }
       }
@@ -1196,6 +1266,7 @@ module.exports = {
   matchAreaWithGemini,
   // Tracking
   trackOrder,
+  getSpeedafTrackingTimeline,
   trackAllActiveOrders,
   getOrderList,
   // Order Operations
