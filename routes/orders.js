@@ -856,7 +856,7 @@ router.get('/:id/speedaf-print', async (req, res) => {
     }
 
     const printType = req.query.type || 'normal'; // 'normal' | 'small'
-    const result = await getSpeedafPrintData(order.speedaf_waybill, printType);
+    const result = await getSpeedafPrintData(order.speedaf_waybill, printType, order.order_number);
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

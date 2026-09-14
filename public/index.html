@@ -3579,39 +3579,58 @@ async function speedafAudit() {
   }
 }
 
-// معاينة البوليصة مباشرة من الجدول بنقرة واحدة
-// IMPORTANT: window.open يجب يستدعي مباشرة داخل click handler قبل أي await
-// لذلك: نفتح التاب أولاً، نعبيه بعدين
-function speedafPreviewDirect(orderId) {
+// معاينة وطباعة بوليصة Speedaf الرسمية بنقرة واحدة (PDF الأصلي من Speedaf)
+async function speedafPreviewDirect(orderId) {
   const order = allOrders.find(o => String(o.id) === String(orderId));
   if (order && !order.speedaf_waybill) {
     showToast('⚠️ لا توجد بوليصة شحن مسجلة لهذا الطلب بعد', 'warning');
     return;
   }
-  if (order && order.speedaf_waybill) {
-    // الأوردر موجود في الذاكرة — نفتح مباشرة
-    openWaybillsPreviewWindow([order], false);
-    return;
+
+  // فتح نافذة جديدة فوراً لتجنب حظر النوافذ المنبثقة من المتصفح
+  const pw = window.open('', '_blank');
+  if (pw) {
+    pw.document.write(`
+      <html dir="rtl">
+        <head><title>معاينة بوليصة Speedaf الرسمية</title></head>
+        <body style="font-family:Tahoma,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8fafc;">
+          <div style="text-align:center;padding:24px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);">
+            <div style="font-size:36px;margin-bottom:12px;">📄</div>
+            <h3 style="margin:0 0 8px 0;color:#0f172a;">جارٍ جلب البوليصة الرسمية من Speedaf...</h3>
+            <p style="color:#64748b;font-size:13px;margin:0;">يرجى الانتظار ثوانٍ معدودة لتحميل ملف الـ PDF الأصلي</p>
+          </div>
+        </body>
+      </html>
+    `);
   }
-  // الأوردر مش في الذاكرة — نفتح تاب فاضي أولاً ثم نجيب البيانات ونملاه
-  var pw = window.open('', '_blank');
-  if (!pw) {
-    showToast('❌ المتصفح حجب فتح النافذة — يرجى السماح بالنوافذ المنبثقة لهذا الموقع', 'error');
-    return;
+
+  try {
+    const res = await fetch(`/api/orders/${orderId}/speedaf-print`);
+    const data = await res.json();
+
+    if (data.success && (data.printUrl || data.labelUrl)) {
+      const pdfUrl = data.printUrl || data.labelUrl;
+      if (pw) {
+        pw.location.href = pdfUrl;
+      } else {
+        window.open(pdfUrl, '_blank');
+      }
+      showToast('📄 تم فتح بوليصة Speedaf الرسمية', 'success');
+    } else {
+      if (pw) {
+        pw.document.write(`
+          <html dir="rtl"><body style="font-family:Tahoma,sans-serif;padding:40px;text-align:center;color:#dc2626;">
+            <h3>❌ تعذر استخراج البوليصة الرسمية</h3>
+            <p>${escapeHtml(data.error || 'يرجى مراجعة الشحنة أو التأكد من اعتمادها أولاً')}</p>
+          </body></html>
+        `);
+      }
+      showToast('❌ تعذر جلب البوليصة الرسمية: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    if (pw) pw.close();
+    showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
   }
-  pw.document.write('<html dir="rtl"><body style="font-family:Tahoma;padding:20px;"><h3>⏳ جارٍ تحميل البوليصة...</h3></body></html>');
-  fetch('/api/orders/' + orderId)
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      // route returns order directly (not wrapped)
-      var o = data.order || data;
-      if (!o || !o.id) { pw.document.write('<p>❌ لم يتم العثور على الطلب</p>'); return; }
-      if (!o.speedaf_waybill) { pw.document.write('<p>⚠️ لا توجد بوليصة شحن لهذا الطلب</p>'); return; }
-      currentPrintHtml = '';
-      openWaybillsPreviewWindow([o], false);
-      pw.close();
-    })
-    .catch(function(e){ pw.document.write('<p>❌ خطأ في الاتصال: ' + e.message + '</p>'); });
 }
 
 // إبطال الشحنة فقط في Speedaf دون حذف الطلب من الداشبورد
@@ -3657,69 +3676,18 @@ async function speedafAuditOrderDirect(orderId) {
   }
 }
 
-// معاينة البوليصة — فتح في تاب جديد أو عرض الرابط
+// معاينة البوليصة الرسمية من نافذة الإجراءات
 function speedafPreview() {
   const order = speedafOpsCurrentOrder;
   if (!order) return;
-  openWaybillsPreviewWindow([order], false);
+  speedafPreviewDirect(order.id);
 }
 
-// طباعة البوليصة من Speedaf
-async function speedafPrintOnline() {
+// طباعة البوليصة الرسمية من Speedaf
+function speedafPrintOnline() {
   const order = speedafOpsCurrentOrder;
   if (!order || !order.speedaf_waybill) return;
-
-  const btn = document.getElementById('speedaf-ops-print-btn');
-  const resultEl = document.getElementById('speedaf-ops-result');
-  btn.disabled = true;
-  btn.textContent = '⏳ جارٍ جلب بيانات الطباعة...';
-
-  try {
-    const res = await fetch(`/api/orders/${order.id}/speedaf-print?type=normal`);
-    const data = await res.json();
-
-    if (data.success) {
-      if (data.printUrl) {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = data.printUrl;
-        document.body.appendChild(iframe);
-        setTimeout(() => {
-          try { iframe.contentWindow.print(); } catch {}
-        }, 1000);
-        setTimeout(() => document.body.removeChild(iframe), 5000);
-        showToast('🖨️ جارٍ طباعة البوليصة...', 'success');
-        resultEl.className = 'test-result visible';
-        resultEl.textContent = `🖨️ طباعة ${order.speedaf_waybill}`;
-      } else if (data.printHtml) {
-        const win = window.open('', '_blank');
-        win.document.write(`<html><head><title>بوليصة ${order.speedaf_waybill}</title>
-          <style>body{margin:0;padding:0;} @media print { button { display:none; } }</style>
-        </head><body>${data.printHtml}
-          <script>window.onload=function(){window.print()}<\/script>
-        </body></html>`);
-        win.document.close();
-        showToast('🖨️ تم فتح نافذة الطباعة', 'success');
-        resultEl.className = 'test-result visible';
-        resultEl.textContent = '🖨️ تم فتح نافذة الطباعة';
-      } else {
-        resultEl.className = 'test-result visible';
-        resultEl.textContent = '⚠️ لا يوجد رابط طباعة مباشر — البيانات الخام:\n' + JSON.stringify(data.raw, null, 2);
-        showToast('⚠️ لا يوجد رابط طباعة مباشر من Speedaf', 'warning');
-      }
-    } else {
-      resultEl.className = 'test-result visible error';
-      resultEl.textContent = `❌ ${data.error || 'فشل جلب بيانات الطباعة'}`;
-      showToast(`❌ ${data.error || 'فشل'}`, 'error');
-    }
-  } catch (err) {
-    resultEl.className = 'test-result visible error';
-    resultEl.textContent = 'خطأ: ' + err.message;
-    showToast('❌ خطأ في الاتصال', 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🖨️ طباعة البوليصة (من Speedaf)';
-  }
+  speedafPreviewDirect(order.id);
 }
 
 // إبطال البوليصة في Speedaf

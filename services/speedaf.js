@@ -1030,53 +1030,102 @@ async function cancelSpeedafOrder(orderIdentifier, customOrderNo = null) {
 // ─── Waybill Print / Preview (طباعة / معاينة) ────────────────────────────────
 
 /**
- * جلب بيانات الطباعة والمعاينة لبوليصة Speedaf
- * يُرجع رابط PDF أو الرابط المباشر للطباعة من Speedaf B-Client
+ * جلب بيانات طباعة ومعاينة بوليصة Speedaf الرسمية من Speedaf مباشرة
+ * يستخدم الـ API الرسمي: POST /express/order/printWithoutPreview
  * @param {string} waybillNo - رقم البوليصة
- * @param {string} printType - نوع الطباعة: 'normal' (130*75) | 'small' (100*100)
+ * @param {string|number} orderId - معرف الطلب الداخلي أو رقم الطلب
+ * @param {string} printType - نوع الطباعة
  */
-async function getSpeedafPrintData(waybillNo, printType = 'normal') {
+async function getSpeedafPrintData(waybillNo, printType = 'normal', orderHint = null) {
   if (!waybillNo) return { success: false, error: 'Waybill number required' };
-  console.log(`[Speedaf] 🖨️ Getting print data for: ${waybillNo}`);
+  const cleanWb = String(waybillNo).trim();
+  console.log(`[Speedaf] 🖨️ Getting official print data for: ${cleanWb}`);
 
-  // Try 1: Official Speedaf Print API POST with expressOrderIds
-  let result = await speedafRequest('POST', '/express/order/print', {
-    expressOrderIds: [waybillNo],
-    waybillNoList: [waybillNo],
-    waybillNo: waybillNo,
-    printType: printType === 'small' ? 2 : 1,
-  });
-
-  if (result.success && result.data) {
-    const printData = result.data?.data || result.data;
-    const printUrl = printData?.printUrl || printData?.url || printData?.pdfUrl || null;
-    const printHtml = printData?.html || (typeof printData === 'string' && printData.includes('<') ? printData : null);
-    if (printUrl || printHtml) {
-      return { success: true, printUrl, printHtml, raw: printData };
+  try {
+    // 1. استخراج الـ ID الرقمي للشحنة في Speedaf
+    let numericId = null;
+    
+    // إذا كان orderHint يحتوي على الرقم
+    if (orderHint && /^\d+$/.test(String(orderHint)) && Number(orderHint) > 1000000) {
+      numericId = Number(orderHint);
     }
+
+    // استعلام عن تفاصيل الشحنة لجلب الـ numeric id الخاص بـ Speedaf
+    if (!numericId) {
+      const qRes = await speedafRequest('POST', '/express/order/queryOrderList', {
+        pageNo: 1,
+        pageSize: 5,
+        params: {
+          billCodes: cleanWb
+        }
+      });
+      if (qRes.success && qRes.data?.data?.list?.length > 0) {
+        numericId = qRes.data.data.list[0].id;
+      }
+    }
+
+    // محاولة بحث برقم الطلب إذا لم نجد بالـ waybill
+    if (!numericId && orderHint) {
+      const found = await findSpeedafOrderByNumber(orderHint);
+      if (found?.raw?.id) {
+        numericId = found.raw.id;
+      }
+    }
+
+    // 2. إذا حصلنا على الـ numericId، نطلب البوليصة الرسمية فوراً عبر printWithoutPreview
+    if (numericId) {
+      const printRes = await speedafRequest('POST', '/express/order/printWithoutPreview', {
+        ids: [numericId],
+        labelType: 18, // 18 = Arabic official waybill format, 1 = Triple
+        blBrowserPrint: true
+      });
+
+      if (printRes.success && Array.isArray(printRes.data?.data) && printRes.data.data.length > 0) {
+        const item = printRes.data.data[0];
+        const labelUrl = item.labelUrl;
+        if (labelUrl) {
+          console.log(`[Speedaf] 🎯 Official PDF Waybill URL generated: ${labelUrl}`);
+          return {
+            success: true,
+            printUrl: labelUrl,
+            labelUrl: labelUrl,
+            waybillNo: cleanWb,
+            isOfficialPdf: true
+          };
+        }
+      }
+    }
+
+    // Fallback: نجرب بـ customOrderNo لو موجود
+    if (orderHint) {
+      const printRes2 = await speedafRequest('POST', '/express/order/printWithoutPreview', {
+        customOrderNo: String(orderHint).trim(),
+        labelType: 18,
+        blBrowserPrint: true
+      });
+      if (printRes2.success && Array.isArray(printRes2.data?.data) && printRes2.data.data.length > 0) {
+        const labelUrl = printRes2.data.data[0].labelUrl;
+        if (labelUrl) {
+          return {
+            success: true,
+            printUrl: labelUrl,
+            labelUrl: labelUrl,
+            waybillNo: cleanWb,
+            isOfficialPdf: true
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Speedaf] Error in getSpeedafPrintData:', err.message);
   }
 
-  // Try 2: GET with waybillNo parameter
-  const params = new URLSearchParams({
-    waybillNo,
-    printType: printType === 'small' ? '2' : '1',
-  });
-  result = await speedafRequest('GET', `/express/order/print?${params.toString()}`);
-  if (result.success && result.data) {
-    const printData = result.data?.data || result.data;
-    const printUrl = printData?.printUrl || printData?.url || printData?.pdfUrl || null;
-    const printHtml = printData?.html || null;
-    if (printUrl || printHtml) {
-      return { success: true, printUrl, printHtml, raw: printData };
-    }
-  }
-
-  // Direct Speedaf B-Client Tracking/Waybill link fallback
+  // رابط التتبع المباشر في Speedaf B-Client كحل أخير
   return {
     success: true,
-    printUrl: `https://csp.speedaf.com/#/waybillSearch?waybillNo=${encodeURIComponent(waybillNo)}`,
+    printUrl: `https://csp.speedaf.com/#/waybillSearch?waybillNo=${encodeURIComponent(cleanWb)}`,
     fallback: true,
-    waybillNo
+    waybillNo: cleanWb
   };
 }
 
@@ -1096,13 +1145,13 @@ async function trackOrder(waybillNo) {
 
 /**
  * جلب خط سير وتتبع الشحنة بالتفصيل (الأحداث، التواريخ، خط السير الكامل والمندوب)
- * يستخدم الـ API المباشر: POST /v1/api/express/track/getExpressTrack
+ * يستخدم الـ API المباشر: POST /express/track/getExpressTrack
  */
 async function getSpeedafTrackingTimeline(waybillNo) {
   if (!waybillNo) return { success: false, error: 'Waybill number required', tracks: [] };
   const cleanWb = String(waybillNo).trim();
   
-  const result = await speedafRequest('POST', '/v1/api/express/track/getExpressTrack', {
+  const result = await speedafRequest('POST', '/express/track/getExpressTrack', {
     mailNoList: [cleanWb]
   });
 
@@ -1126,7 +1175,7 @@ async function getSpeedafTrackingTimeline(waybillNo) {
 
   // Fallback endpoint if needed
   try {
-    const fb = await speedafRequest('POST', '/v1/api/express/track/queryTrack', {
+    const fb = await speedafRequest('POST', '/express/track/queryTrack', {
       waybillNoList: [cleanWb]
     });
     if (fb.success && Array.isArray(fb.data?.data) && fb.data.data.length > 0) {
