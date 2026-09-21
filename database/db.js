@@ -525,8 +525,8 @@ async function getAllOrders(filters = {}) {
   }
 
   const sortOrder = filters.sort === 'asc' ? 'ASC' : 'DESC';
-  // Sorting by actual Shopify creation time ensures correct order regardless of import batches
-  sql += ` ORDER BY COALESCE(json_extract(raw_payload, '$.created_at'), created_at) ${sortOrder}`;
+  // Sorting: active/pending/shipped/delivered first, cancelled orders at the bottom
+  sql += ` ORDER BY CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END ASC, COALESCE(json_extract(raw_payload, '$.created_at'), created_at) ${sortOrder}`;
 
   if (filters.limit) {
     sql += ' LIMIT ?';

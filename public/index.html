@@ -186,10 +186,10 @@
           <p class="page-subtitle">إدارة وتتبع طلبات العملاء في الوقت الفعلي</p>
         </div>
       </div>
-      <div class="topbar-right" style="display: flex; gap: 10px; align-items: center;">
-        <div class="auto-refresh-badge" id="refresh-badge">
-          <div class="refresh-spinner"></div>
-          <span>تحديث تلقائي كل 15 ثانية</span>
+      <div class="topbar-right" style="display: flex; gap: 12px; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #059669; font-weight: 700; background: #ecfdf5; padding: 5px 12px; border-radius: 20px; border: 1px solid #a7f3d0;">
+          <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 2px rgba(16,185,129,0.3);"></span>
+          <span>مزامنة لحظية مباشرة</span>
         </div>
         <button class="btn btn-ghost btn-sm" onclick="logout()" style="color: var(--error); border: 1px solid var(--error);">🚪 تسجيل الخروج</button>
       </div>
@@ -277,8 +277,8 @@
         </div>
       </div>
 
-      <!-- Simulated / Experimental Orders Table -->
-      <div class="table-card" style="margin-bottom: 24px;">
+      <!-- Simulated / Experimental Orders Table (Hidden) -->
+      <div class="table-card" style="margin-bottom: 24px; display: none;">
         <div class="table-header" onclick="toggleSimulatedOrders()" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
           <div class="table-title">
             🧪 الطلبات التجريبية والمحاكاة
@@ -336,13 +336,11 @@
         <!-- Status Tabs -->
         <div id="status-tabs" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:4px;">
           <button class="status-tab active" data-statuses="" onclick="setStatusTab(this)">📋 الكل</button>
-          <button class="status-tab" data-statuses="pending_confirmation,whatsapp_sent" onclick="setStatusTab(this)">💬 مؤكد واتساب</button>
-          <button class="status-tab" data-statuses="whatsapp_failed" onclick="setStatusTab(this)">❌ فشل واتساب</button>
-          <button class="status-tab" data-statuses="shipping_sent" onclick="setStatusTab(this)">🚚 تم تبليغ الشحن</button>
-          <button class="status-tab" data-statuses="handed_to_courier" onclick="setStatusTab(this)">📦 مع المندوب</button>
-          <button class="status-tab" data-statuses="confirmed,shipping_failed" onclick="setStatusTab(this)">⏳ لم يُشحن بعد</button>
+          <button class="status-tab" data-statuses="pending_confirmation,whatsapp_sent,whatsapp_failed" onclick="setStatusTab(this)">💬 بانتظار التأكيد</button>
+          <button class="status-tab" data-statuses="confirmed,shipping_failed" onclick="setStatusTab(this)">⏳ جاهز للشحن</button>
+          <button class="status-tab" data-statuses="shipping_sent,handed_to_courier" onclick="setStatusTab(this)">🚚 مع المندوب / في الطريق</button>
           <button class="status-tab" data-statuses="delivered" onclick="setStatusTab(this)">📦 تم التسليم</button>
-          <button class="status-tab" data-statuses="cancelled" onclick="setStatusTab(this)">🚫 ملغي</button>
+          <button class="status-tab" data-statuses="cancelled" onclick="setStatusTab(this)">🚫 مرتجع / ملغي</button>
         </div>
 
         <select class="filter-select" id="date-filter" onchange="loadOrders()">
@@ -365,22 +363,47 @@
           🔄 تحديث
         </button>
 
-        <button class="btn btn-success" onclick="exportToCSV()" style="padding: 9px 14px; margin-right: 8px;" title="تحميل الطلبات كملف إكسيل">
+        <button class="btn btn-primary" id="btn-sync-speedaf" onclick="syncSpeedafNow()" style="padding: 9px 14px; margin-right: 6px; background: #0284c7; border-color: #0284c7; color: #fff; font-weight: 700; border-radius: 8px;" title="مزامنة لحظية لخطوط السير والحالات مع شركة الشحن Speedaf">
+          🚚 مزامنة مع الشحن
+        </button>
+
+        <button class="btn btn-success" onclick="exportToCSV()" style="padding: 9px 14px; margin-right: 6px;" title="تحميل الطلبات كملف إكسيل">
           📥 تحميل CSV
         </button>
 
         <!-- Sound toggle -->
-        <button class="btn btn-ghost" onclick="toggleSound()" id="sound-toggle-btn" style="padding: 9px 14px; margin-right: 8px;" title="تشغيل/إيقاف إشعارات الصوت">
+        <button class="btn btn-ghost" onclick="toggleSound()" id="sound-toggle-btn" style="padding: 9px 14px; margin-right: 6px;" title="تشغيل/إيقاف إشعارات الصوت">
           🔊 التنبيهات
         </button>
       </div>
 
       <!-- Bulk Action Bar -->
-      <div id="bulk-action-bar" style="display:none; background:var(--bg-surface); padding:12px 20px; border-radius:var(--radius-md); box-shadow:0 2px 8px rgba(0,0,0,0.1); margin-bottom:16px; gap:12px; flex-wrap:wrap; align-items:center; border:1.5px solid var(--primary-light);">
-        <div style="font-weight:700; color:var(--primary-color); font-size:15px; min-width:120px;">
-          ✅ تم تحديد <span id="bulk-count">0</span> طلب
+      <div id="bulk-action-bar" style="display:none; background:var(--bg-surface); padding:14px 20px; border-radius:var(--radius-md); box-shadow:0 2px 10px rgba(0,0,0,0.1); margin-bottom:16px; gap:14px; flex-direction:column; border:1.5px solid var(--primary-light);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; width:100%;">
+          <div style="font-weight:800; color:var(--primary-color); font-size:15px; min-width:130px;">
+            ✅ تم تحديد <span id="bulk-count">0</span> طلب
+          </div>
+          
+          <!-- Financial Calculations -->
+          <div id="bulk-financial-summary" style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 14px; border-radius:8px; font-size:13px;">
+            <div>
+              <span style="color:#64748b;font-weight:600;">📦 إجمالي التحصيل: </span>
+              <strong style="color:#0f172a;" id="bulk-total-cod">0 EGP</strong>
+            </div>
+            <div style="color:#cbd5e1;">|</div>
+            <div>
+              <span style="color:#64748b;font-weight:600;">🚚 تكلفة الشحن: </span>
+              <strong style="color:#ea580c;" id="bulk-total-shipping">0 EGP</strong>
+            </div>
+            <div style="color:#cbd5e1;">|</div>
+            <div>
+              <span style="color:#64748b;font-weight:600;">💰 سعر المنتجات (الصافي لك): </span>
+              <strong style="color:#16a34a;font-size:14px;" id="bulk-total-net">0 EGP</strong>
+            </div>
+          </div>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;flex:1;">
+
+        <div style="display:flex;flex-wrap:wrap;gap:8px;width:100%;">
           <button id="bulk-btn-shipping" class="btn btn-success btn-sm" onclick="executeBulkAction('confirm_shipping')" title="إرسال الطلبات المحددة لـ Speedaf وإنشاء البوالص" style="font-weight:700">🚚 إرسال للشحن (Speedaf)</button>
           <button id="bulk-btn-preview-waybills" class="btn btn-sm" onclick="bulkPrintWaybills(true)" title="معاينة بوالص الشحن لجميع الطلبات المحددة في نافذة واحدة" style="background:#0284c7;border-color:#0284c7;color:#fff;font-weight:700">👁️ معاينة البوالص المحددة</button>
           <button id="bulk-btn-print-waybills" class="btn btn-sm" onclick="bulkPrintWaybills(false)" title="طباعة بوالص الشحن لجميع الطلبات المحددة فوراً" style="background:#ea580c;border-color:#ea580c;color:#fff;font-weight:700">🖨️ طباعة البوالص المحددة</button>
@@ -561,8 +584,8 @@
       <button class="btn btn-ghost btn-sm" onclick="closeModal('edit-order-modal')">✕ إغلاق</button>
     </div>
 
-    <div style="font-size:12px;color:var(--text-muted);background:var(--bg-base);padding:10px 14px;border-radius:8px;margin-bottom:18px">
-      💡 أي تعديل هنا بيتزامن مباشرة مع نفس الأوردر في Shopify.
+    <div id="edit-order-tip" style="font-size:12px;color:var(--text-muted);background:var(--bg-base);padding:10px 14px;border-radius:8px;margin-bottom:18px">
+      💡 أي تعديل هنا بيتزامن مباشرة مع المتجر وقاعدة البيانات.
     </div>
 
     <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:10px">📍 بيانات العميل والعنوان</div>
@@ -601,13 +624,13 @@
 
     <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:10px">📦 المنتجات والكميات</div>
     <div id="edit-items-list" style="margin-bottom:20px"></div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:20px">
-      لتغيير المنتج نفسه (مش الكمية بس)، عدّله من Shopify مباشرة دلوقتي.
+    <div id="edit-items-note" style="font-size:11px;color:var(--text-muted);margin-bottom:20px">
+      لتغيير الكمية، عدلها من الخانة مباشرة.
     </div>
 
     <div style="display:flex;justify-content:flex-end;gap:10px">
       <button class="btn btn-ghost" onclick="closeModal('edit-order-modal')">إلغاء</button>
-      <button class="btn btn-primary" onclick="saveOrderEdit()" id="save-edit-order-btn">💾 حفظ ومزامنة مع Shopify</button>
+      <button class="btn btn-primary" onclick="saveOrderEdit()" id="save-edit-order-btn">💾 حفظ التعديل</button>
     </div>
     <input type="hidden" id="edit-order-id">
   </div>
@@ -973,9 +996,40 @@ async function preloadDashboardSettings() {
     const res = await fetch('/api/settings');
     if (!res.ok) return;
     const settings = await res.json();
-    // حفظ الإعدادات في memory للاستخدام عند الحاجة
     window._dopaSettings = settings;
+    applyOrderSourceLayout(settings.ORDER_SOURCE || 'easyorders');
   } catch {}
+}
+
+function applyOrderSourceLayout(configuredSource) {
+  const tabsBar = document.getElementById('source-tabs-bar');
+  const shopifyImportBtn = document.getElementById('btn-import');
+  const easyImportBtn = document.getElementById('btn-import-eo');
+  const titleIcon = document.getElementById('main-table-title-icon');
+  const titleText = document.getElementById('main-table-title-text');
+
+  if (configuredSource === 'easyorders') {
+    if (tabsBar) tabsBar.style.display = 'none';
+    if (shopifyImportBtn) shopifyImportBtn.style.display = 'none';
+    if (easyImportBtn) easyImportBtn.style.display = 'flex';
+    if (titleIcon) titleIcon.textContent = '⚡';
+    if (titleText) titleText.textContent = 'طلبات متجر Easy Orders';
+    currentDashboardSource = 'easyorders';
+  } else if (configuredSource === 'shopify') {
+    if (tabsBar) tabsBar.style.display = 'none';
+    if (shopifyImportBtn) shopifyImportBtn.style.display = 'flex';
+    if (easyImportBtn) easyImportBtn.style.display = 'none';
+    if (titleIcon) titleIcon.textContent = '🛍️';
+    if (titleText) titleText.textContent = 'طلبات متجر Shopify';
+    currentDashboardSource = 'shopify';
+  } else { // 'both'
+    if (tabsBar) tabsBar.style.display = 'flex';
+    if (shopifyImportBtn) shopifyImportBtn.style.display = 'flex';
+    if (easyImportBtn) easyImportBtn.style.display = 'flex';
+    if (titleIcon) titleIcon.textContent = '📦';
+    if (titleText) titleText.textContent = 'جميع الطلبات (Easy Orders + Shopify)';
+    currentDashboardSource = 'all';
+  }
 }
 
 // ─── Auto Refresh ─────────────────────────
@@ -992,15 +1046,19 @@ function setupSSE() {
       try {
         const data = JSON.parse(e.data);
         // Handle all event types from backend
-          const refreshTypes = [
-            'order_update',   // old name
-            'order_updated',  // webhook cancel/delete
-            'order_deleted',  // webhook delete
-            'status_update',  // whatsapp confirm/cancel
-            'new_order',      // new order arrived
-          ];
+        const refreshTypes = [
+          'order_update',
+          'order_updated',
+          'order_deleted',
+          'status_update',
+          'new_order',
+          'orders_synced',
+          'speedaf_updated',
+        ];
         if (refreshTypes.includes(data.type)) {
-          playNotificationSound();
+          if (data.type === 'new_order') {
+            playNotificationSound();
+          }
           loadOrders(false, true);
           loadAnalytics();
         }
@@ -1010,14 +1068,6 @@ function setupSSE() {
       // SSE reconnects automatically
     };
   } catch (e) {}
-
-  // Backup auto-refresh every 25s if tab is visible to ensure dashboard stays synced
-  setInterval(() => {
-    if (document.visibilityState === 'visible') {
-      loadOrders(false, true);
-      loadAnalytics();
-    }
-  }, 25000);
 }
 
 // ─── Filter Logic (Tabs) ────────────────────
@@ -1305,7 +1355,19 @@ function renderStatusBadge(status, order = {}) {
     'needs_follow_up':      ['badge-follow-up', '🔔', 'يحتاج متابعة'],
   };
   const [cls, icon, label] = statusMap[status] || ['badge-pending', '❓', status];
-  return `<span class="badge ${cls}">${icon} ${label}</span>`;
+
+  let issueBadge = '';
+  const spStatus = (order.speedaf_status || '').toLowerCase();
+  if (spStatus.includes('rescheduled') || spStatus.includes('issue') || spStatus.includes('problem') || spStatus.includes('exception') || spStatus.includes('تأجيل') || spStatus.includes('رفض')) {
+    issueBadge = `
+      <div style="margin-top:4px;">
+        <span class="badge" style="background:#fff1f2;color:#e11d48;border:1px solid #fecdd3;font-size:11px;font-weight:800;padding:2px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:3px;" title="تم تأجيل موعد التسليم أو يوجد مشكلة/إعادة توجيه في خط السير">
+          ⚠️ تأجيل / مشكلة تسليم
+        </span>
+      </div>`;
+  }
+
+  return `<span class="badge ${cls}">${icon} ${label}</span>${issueBadge}`;
 }
 
 async function sendWhatsAppNow(orderId) {
@@ -1464,92 +1526,178 @@ function renderReviewBadge(order) {
 function renderRowActionButtons(order) {
   const btns = [];
   const cleanPhone = (order.customer_phone || '').replace(/[^0-9]/g, '');
+  const orderNumSafe = escapeHtml(order.order_number || '');
+  const status = order.status;
 
-  if (order.speedaf_waybill) {
-    // ── الحالة: تم الشحن ومعه بوليصة Speedaf ──
-    // 1. زر معاينة البوليصة المباشرة
+  // ── مرحلة 5: تم التسليم ──
+  if (status === 'delivered') {
+    // 1. زر إرسال تقييم
     btns.push(`
-      <button class="btn btn-sm" onclick="speedafPreviewDirect(${order.id})" title="معاينة بوليصة Speedaf والطباعة"
-        style="background:#0284c7;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-        👁️ معاينة
+      <button class="btn btn-sm" onclick="requestReview(${order.id}, '${orderNumSafe}')" title="إرسال رسالة طلب التقييم للعميل"
+        style="background:#f59e0b;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        ⭐ إرسال تقييم
       </button>
     `);
-
-    // 2. زر المراجعة (يظهر لو لم يُعتمد بعد)
-    if (order.speedaf_status !== 'تمت المراجعة') {
+    // 2. زر خط السير (لو بوليصة موجودة)
+    if (order.speedaf_waybill) {
       btns.push(`
-        <button class="btn btn-sm" onclick="speedafAuditOrderDirect(${order.id})" title="اعتماد ومراجعة الشحنة في Speedaf"
-          style="background:#7c3aed;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-          🔍 مراجعة
+        <button class="btn btn-sm" onclick="openSpeedafTrackingModal(${order.id})" title="عرض خط السير ومحطات التتبع"
+          style="background:#0ea5e9;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+          📍 خط السير
         </button>
       `);
     }
-
-    // 3. زر إبطال الشحنة في Speedaf فقط (دون حذف الطلب)
+    // 3. زر الحذف
     btns.push(`
-      <button class="btn btn-sm" onclick="speedafVoidDirect(${order.id}, '${escapeHtml(order.order_number)}')" title="إبطال البوليصة في Speedaf (دون حذف الطلب)"
-        style="background:#d97706;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-        🚫 إبطال
-      </button>
-    `);
-
-    // 4. زر حذف الطلب من الداشبورد
-    btns.push(`
-      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف الطلب من الداشبورد"
+      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${orderNumSafe}')" title="حذف من الداشبورد"
         style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
         🗑 حذف
       </button>
     `);
-
-  } else {
-    // ── الحالة: لم يُشحن بعد ──
-    // 1. زر إرسال واتساب
-    if (cleanPhone && !['cancelled', 'delivered'].includes(order.status)) {
-      btns.push(`
-        <button class="btn btn-sm" onclick="sendWhatsAppNow(${order.id})" title="إرسال رسالة التأكيد عبر واتساب الآن"
-          style="background:#25D366;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-          💬 واتساب
-        </button>
-      `);
-    }
-
-    // 2. زر تأكيد وشحن (يؤكد ويرسل لـ Speedaf مباشرة)
-    if (!['confirmed', 'shipping_sent', 'delivered', 'cancelled'].includes(order.status)) {
-      btns.push(`
-        <button class="btn btn-sm btn-success" onclick="confirmOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="تأكيد الطلب وشحنه"
-          style="font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-          ✅ تأكيد وشحن
-        </button>
-      `);
-    }
-
-    // 3. زر تحويل لـ Speedaf
-    if (!['shipping_sent', 'delivered', 'cancelled'].includes(order.status)) {
-      btns.push(`
-        <button class="btn btn-sm" onclick="openSpeedafModal(${order.id})" title="اختيار المحافظة والمنطقة وإرسال لـ Speedaf"
-          style="background:#f97316;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-          📦 تحويل لـ Speedaf
-        </button>
-      `);
-    }
-
-    // 4. زر إلغاء أو حذف
-    if (order.status !== 'cancelled') {
-      btns.push(`
-        <button class="btn btn-sm btn-danger" onclick="cancelOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="إلغاء الطلب"
-          style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-          🚫 إلغاء
-        </button>
-      `);
-    } else {
-      btns.push(`
-        <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${escapeHtml(order.order_number)}')" title="حذف من الداشبورد"
-          style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-          🗑 حذف
-        </button>
-      `);
-    }
+    return btns.join('');
   }
+
+  // ── مرحلة 6: ملغي / مرتجع ──
+  if (status === 'cancelled') {
+    if (order.speedaf_waybill) {
+      btns.push(`
+        <button class="btn btn-sm" onclick="openSpeedafTrackingModal(${order.id})" title="عرض خط السير"
+          style="background:#0ea5e9;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+          📍 خط السير
+        </button>
+      `);
+    }
+    btns.push(`
+      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${orderNumSafe}')" title="حذف من الداشبورد"
+        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+        🗑 حذف
+      </button>
+    `);
+    return btns.join('');
+  }
+
+  // ── مرحلة 4: المندوب استلم / في الطريق (مع بوليصة Speedaf) ──
+  if (['handed_to_courier', 'shipping_sent'].includes(status) && order.speedaf_waybill) {
+    // 1. زر خط السير
+    btns.push(`
+      <button class="btn btn-sm" onclick="openSpeedafTrackingModal(${order.id})" title="عرض خط سير الشحنة المباشر"
+        style="background:#0ea5e9;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        📍 خط السير
+      </button>
+    `);
+    // 2. زر معاينة وطباعة البوليصة الرسمية
+    btns.push(`
+      <button class="btn btn-sm" onclick="speedafPreviewDirect(${order.id})" title="معاينة بوليصة Speedaf الرسمية والطباعة"
+        style="background:#0284c7;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        👁️ معاينة
+      </button>
+    `);
+    // 3. زر تم التسليم يدوياً
+    btns.push(`
+      <button class="btn btn-sm" onclick="markDeliveredDirect(${order.id}, '${orderNumSafe}')" title="تسجيل تم التسليم للعميل"
+        style="background:#10b981;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        📦 تم التسليم
+      </button>
+    `);
+    // 4. زر مرتجع
+    btns.push(`
+      <button class="btn btn-sm" onclick="markReturnedDirect(${order.id}, '${orderNumSafe}')" title="تسجيل كمرتجع"
+        style="background:#ef4444;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        ↩️ مرتجع
+      </button>
+    `);
+    // 5. زر حذف
+    btns.push(`
+      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${orderNumSafe}')" title="حذف من الداشبورد"
+        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+        🗑 حذف
+      </button>
+    `);
+    return btns.join('');
+  }
+
+  // ── مرحلة 3: بوليصة صدرت ولكن لم يستلمها المندوب بعد ──
+  if (order.speedaf_waybill) {
+    // 1. زر معاينة وطباعة البوليصة الرسمية
+    btns.push(`
+      <button class="btn btn-sm" onclick="speedafPreviewDirect(${order.id})" title="معاينة بوليصة Speedaf الرسمية والطباعة"
+        style="background:#0284c7;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        👁️ معاينة
+      </button>
+    `);
+    // 2. زر خط السير
+    btns.push(`
+      <button class="btn btn-sm" onclick="openSpeedafTrackingModal(${order.id})" title="عرض خط السير"
+        style="background:#0ea5e9;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        📍 خط السير
+      </button>
+    `);
+    // 3. زر إبطال البوليصة في Speedaf
+    btns.push(`
+      <button class="btn btn-sm" onclick="speedafVoidDirect(${order.id}, '${orderNumSafe}')" title="إبطال البوليصة في Speedaf"
+        style="background:#d97706;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        🚫 إبطال
+      </button>
+    `);
+    // 4. زر حذف
+    btns.push(`
+      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${orderNumSafe}')" title="حذف من الداشبورد"
+        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+        🗑 حذف
+      </button>
+    `);
+    return btns.join('');
+  }
+
+  // ── مرحلة 2: مؤكد أو فشل شحنه (جاهز للإرسال لـ Speedaf) ──
+  if (['confirmed', 'shipping_failed'].includes(status)) {
+    // 1. زر تحويل وإرسال لـ Speedaf
+    btns.push(`
+      <button class="btn btn-sm" onclick="openSpeedafModal(${order.id})" title="اختيار المحافظة والمنطقة وإرسال لـ Speedaf"
+        style="background:#f97316;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        🚚 إرسال لـ Speedaf
+      </button>
+    `);
+    // 2. زر إلغاء
+    btns.push(`
+      <button class="btn btn-sm btn-danger" onclick="cancelOrder(${order.id}, '${orderNumSafe}')" title="إلغاء الطلب"
+        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+        🚫 إلغاء
+      </button>
+    `);
+    return btns.join('');
+  }
+
+  // ── مرحلة 1: بانتظار التأكيد / رسالة واتساب أُرسلت / فشل واتساب ──
+  if (cleanPhone) {
+    btns.push(`
+      <button class="btn btn-sm" onclick="sendWhatsAppNow(${order.id})" title="إرسال رسالة التأكيد عبر واتساب"
+        style="background:#25D366;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        💬 واتساب
+      </button>
+    `);
+  }
+  // زر تأكيد يدوي
+  btns.push(`
+    <button class="btn btn-sm btn-success" onclick="confirmOrder(${order.id}, '${orderNumSafe}')" title="تأكيد الطلب"
+      style="font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+      ✅ تأكيد
+    </button>
+  `);
+  // زر تحويل لـ Speedaf
+  btns.push(`
+    <button class="btn btn-sm" onclick="openSpeedafModal(${order.id})" title="إرسال مباشر لـ Speedaf"
+      style="background:#f97316;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+      🚚 شحن
+    </button>
+  `);
+  // زر إلغاء
+  btns.push(`
+    <button class="btn btn-sm btn-danger" onclick="cancelOrder(${order.id}, '${orderNumSafe}')" title="إلغاء الطلب"
+      style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
+      🚫 إلغاء
+    </button>
+  `);
 
   return btns.join('');
 }
@@ -1739,9 +1887,14 @@ function markHandedToCourier(orderId, orderNumber) {
 }
 
 function cancelOrder(orderId, orderNumber) {
+  const order = allOrders.find(o => String(o.id) === String(orderId));
+  const isEO = order && (order.source === 'easyorders' || order.source === 'easy_orders');
+  const isShopify = order && order.source === 'shopify';
+  const platformName = isEO ? 'Easy Orders' : (isShopify ? 'Shopify' : 'المتجر');
+
   openConfirmDialog(
     `🚫 إلغاء الطلب ${orderNumber}`,
-    `هل تريد إلغاء هذا الطلب على Shopify؟ سيتم تحديث حالة الطلب فوراً.`,
+    `هل تريد إلغاء هذا الطلب على ${platformName}؟ سيتم تحديث حالة الطلب فوراً.`,
     async () => {
       try {
         const res = await fetch(`/api/orders/${orderId}/cancel`, { method: 'POST' });
@@ -1749,7 +1902,7 @@ function cancelOrder(orderId, orderNumber) {
         if (data.success) {
           showToast('✅ تم إلغاء الطلب بنجاح', 'success');
         } else {
-          showToast('⚠️ تم تحديث الحالة محلياً، لكن فشل الإلغاء على Shopify', 'warning');
+          showToast(`⚠️ تم تحديث الحالة محلياً، لكن فشل الإلغاء على ${platformName}`, 'warning');
         }
         loadOrders();
       } catch (err) {
@@ -1762,13 +1915,13 @@ function cancelOrder(orderId, orderNumber) {
 function deleteOrder(orderId, orderNumber) {
   openConfirmDialog(
     `🗑 حذف الطلب ${orderNumber}`,
-    `سيتم حذف هذا الطلب من الداشبورد فقط. لن يتأثر الطلب على Shopify. هل أنت متأكد؟`,
+    `سيتم حذف هذا الطلب من الداشبورد فقط. هل أنت متأكد؟`,
     async () => {
       try {
         const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
-          showToast(`🗑 تم حذف الطلب ${data.order_number} بنجاح`, 'success');
+          showToast(`🗑 تم حذف الطلب ${data.order_number || orderNumber} بنجاح`, 'success');
           loadOrders();
         } else {
           showToast('❌ فشل الحذف: ' + data.error, 'error');
@@ -1798,6 +1951,75 @@ function requestReview(orderId, orderNumber) {
       }
     }
   );
+}
+
+function markDeliveredDirect(orderId, orderNumber) {
+  openConfirmDialog(
+    `📦 تأكيد تسليم الطلب ${orderNumber}`,
+    `هل تريد تسجيل هذا الطلب كـ "تم التسليم"؟ سيتم نقله لمرحلة التقييم.`,
+    async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/mark-delivered`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`✅ تم تسجيل تسليم الطلب ${orderNumber}`, 'success');
+          loadOrders();
+        } else {
+          showToast('❌ فشل: ' + (data.error || 'خطأ'), 'error');
+        }
+      } catch (err) {
+        showToast('❌ خطأ: ' + err.message, 'error');
+      }
+    }
+  );
+}
+
+function markReturnedDirect(orderId, orderNumber) {
+  openConfirmDialog(
+    `↩️ تسجيل الطلب ${orderNumber} كمرتجع`,
+    `هل تريد تسجيل هذا الطلب كـ "مرتجع" وإلغاؤه؟`,
+    async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/mark-returned`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`↩️ تم تسجيل الطلب ${orderNumber} كمرتجع`, 'info');
+          loadOrders();
+        } else {
+          showToast('❌ فشل: ' + (data.error || 'خطأ'), 'error');
+        }
+      } catch (err) {
+        showToast('❌ خطأ: ' + err.message, 'error');
+      }
+    }
+  );
+}
+
+async function syncSpeedafNow() {
+  const btn = document.getElementById('btn-sync-speedaf');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.innerHTML = '<span class="nav-icon">⏳</span><span>جارٍ التحديث...</span>';
+    btn.style.pointerEvents = 'none';
+  }
+  showToast('🔄 جارٍ جلب أحدث خطوط السير والحالات من Speedaf...', 'info');
+  try {
+    const res = await fetch('/api/orders/speedaf/sync-now', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ تم فحص وتحديث ${data.tracked || 0} شحنة بنجاح`, 'success');
+      loadOrders();
+    } else {
+      showToast('❌ فشل التحديث: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.innerHTML = originalHtml;
+      btn.style.pointerEvents = '';
+    }
+  }
 }
 
 function syncStarlink() {
@@ -2274,6 +2496,25 @@ function openEditOrderModal(orderId) {
   document.getElementById('edit-order-num').textContent = order.order_number;
   document.getElementById('edit-order-id').value = orderId;
 
+  const isEO = order.source === 'easyorders' || order.source === 'easy_orders';
+  const tipEl = document.getElementById('edit-order-tip');
+  const saveBtn = document.getElementById('save-edit-order-btn');
+  const editItemsNote = document.getElementById('edit-items-note');
+
+  if (tipEl) {
+    tipEl.textContent = isEO
+      ? '💡 أي تعديل هنا بيتسجل في قاعدة البيانات لطلبات Easy Orders.'
+      : '💡 أي تعديل هنا بيتزامن مباشرة مع نفس الأوردر في Shopify.';
+  }
+  if (saveBtn) {
+    saveBtn.textContent = isEO ? '💾 حفظ التعديل' : '💾 حفظ ومزامنة مع Shopify';
+  }
+  if (editItemsNote) {
+    editItemsNote.textContent = isEO
+      ? 'لتغيير الكمية، عدلها من الخانة مباشرة.'
+      : 'لتغيير المنتج نفسه (مش الكمية بس)، عدّله من Shopify مباشرة.';
+  }
+
   ['edit-first-name','edit-last-name','edit-phone','edit-address1','edit-address2','edit-city','edit-province'].forEach(id => {
     document.getElementById(id).value = '';
   });
@@ -2302,6 +2543,9 @@ function openEditOrderModal(orderId) {
 
 async function saveOrderEdit() {
   const orderId = document.getElementById('edit-order-id').value;
+  const order = allOrders.find(o => String(o.id) === String(orderId));
+  const isEO = order && (order.source === 'easyorders' || order.source === 'easy_orders');
+  const btnText = isEO ? '💾 حفظ التعديل' : '💾 حفظ ومزامنة مع Shopify';
   const btn = document.getElementById('save-edit-order-btn');
   btn.disabled = true;
   btn.textContent = '⏳ جاري الحفظ...';
@@ -2330,7 +2574,7 @@ async function saveOrderEdit() {
   if (Object.keys(body).length === 0) {
     showToast('محدّتش أي حاجة عشان تتحفظ', 'error');
     btn.disabled = false;
-    btn.textContent = '💾 حفظ ومزامنة مع Shopify';
+    btn.textContent = btnText;
     return;
   }
 
@@ -2345,7 +2589,7 @@ async function saveOrderEdit() {
     } else if (data.warnings && data.warnings.length > 0) {
       showToast('⚠️ تم الحفظ مع تحذيرات: ' + data.warnings.join(' | '), 'error');
     } else {
-      showToast('✅ تم تعديل الطلب ومزامنته مع Shopify', 'success');
+      showToast(isEO ? '✅ تم تعديل الطلب بنجاح' : '✅ تم تعديل الطلب ومزامنته مع Shopify', 'success');
     }
     closeModal('edit-order-modal');
     loadOrders();
@@ -2353,7 +2597,7 @@ async function saveOrderEdit() {
     showToast('❌ خطأ: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = '💾 حفظ ومزامنة مع Shopify';
+    btn.textContent = btnText;
   }
 }
 
@@ -2437,6 +2681,34 @@ function updateBulkSelection() {
   updateBulkActionBar();
 }
 
+function extractOrderShippingCost(order) {
+  if (!order) return 0;
+  let raw = {};
+  try { raw = typeof order.raw_payload === 'string' ? JSON.parse(order.raw_payload || '{}') : (order.raw_payload || {}); } catch(e) {}
+  
+  const shipCost = parseFloat(raw.shipping_cost ?? raw.expense ?? raw.shipping_fee ?? raw.delivery_cost ?? 0);
+  if (shipCost > 0) return shipCost;
+
+  const totalNum = parseFloat(String(order.total || '').replace(/[^0-9.]/g, '')) || 0;
+  const rawCost = parseFloat(raw.cost ?? raw.price ?? 0);
+  if (rawCost > 0 && totalNum > rawCost) {
+    return totalNum - rawCost;
+  }
+
+  // Fallback rate based on governorate / address
+  const addr = (order.address || '').toLowerCase();
+  if (addr.includes('اسوان') || addr.includes('أسوان') || addr.includes('أقصر') || addr.includes('اقصر') || addr.includes('قنا') || addr.includes('سوهاج') || addr.includes('اسيوط') || addr.includes('أسيوط') || addr.includes('منيا') || addr.includes('بني سويف') || addr.includes('الوادي')) {
+    return 80;
+  }
+  if (addr.includes('مطروح') || addr.includes('سيناء') || addr.includes('البحر الاحمر') || addr.includes('الغردقة') || addr.includes('شرم')) {
+    return 95;
+  }
+  if (addr.includes('اسكندرية') || addr.includes('إسكندرية') || addr.includes('دقهلية') || addr.includes('منصورة') || addr.includes('غربية') || addr.includes('طنطا') || addr.includes('شرقية') || addr.includes('منوفية') || addr.includes('بحيرة') || addr.includes('كفر الشيخ') || addr.includes('دمياط') || addr.includes('بورسعيد') || addr.includes('اسماعيلية') || addr.includes('سويس')) {
+    return 65;
+  }
+  return 50; // Cairo / Giza default
+}
+
 function updateBulkActionBar() {
   const bar = document.getElementById('bulk-action-bar');
   const countSpan = document.getElementById('bulk-count');
@@ -2449,6 +2721,28 @@ function updateBulkActionBar() {
     setBtn('bulk-btn-print-waybills', true);
     setBtn('bulk-btn-whatsapp', true);
     setBtn('bulk-btn-delete', true);
+
+    // Calculate selected orders financial totals
+    const selectedList = allOrders.filter(o => selectedOrders.has(String(o.id)));
+    let totalCOD = 0;
+    let totalShipping = 0;
+
+    selectedList.forEach(o => {
+      const cod = parseFloat(String(o.total || '').replace(/[^0-9.]/g, '')) || 0;
+      const ship = extractOrderShippingCost(o);
+      totalCOD += cod;
+      totalShipping += ship;
+    });
+
+    const totalNet = Math.max(0, totalCOD - totalShipping);
+
+    const codEl = document.getElementById('bulk-total-cod');
+    const shipEl = document.getElementById('bulk-total-shipping');
+    const netEl = document.getElementById('bulk-total-net');
+
+    if (codEl) codEl.textContent = totalCOD.toFixed(2) + ' EGP';
+    if (shipEl) shipEl.textContent = totalShipping.toFixed(2) + ' EGP';
+    if (netEl) netEl.textContent = totalNet.toFixed(2) + ' EGP';
   } else {
     bar.style.display = 'none';
   }
@@ -3513,6 +3807,8 @@ function renderTrackingEvents(tracks, containerEl) {
         const bulletColor = isLatest ? '#059669' : '#94a3b8';
         const badgeBg = isLatest ? '#ecfdf5' : '#f8fafc';
         const badgeBorder = isLatest ? '#a7f3d0' : '#e2e8f0';
+        const title = t.actionNameAr || t.actionName || 'حركة شحنة';
+        const desc = t.messageAr || t.message || t.msgLoc || '';
 
         return `
           <div style="position:relative;margin-bottom:20px;">
@@ -3522,14 +3818,14 @@ function renderTrackingEvents(tracks, containerEl) {
             <div style="background:${badgeBg};border:1px solid ${badgeBorder};border-radius:10px;padding:12px 14px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px;">
                 <span style="font-weight:800;color:${isLatest ? '#065f46' : '#1e293b'};font-size:13.5px;">
-                  ${escapeHtml(t.actionName || 'حركة شحنة')}
+                  ${escapeHtml(title)}
                 </span>
                 <span style="font-size:12px;color:#64748b;direction:ltr;font-family:monospace;">
                   ${escapeHtml(t.time || '')}
                 </span>
               </div>
               <div style="font-size:13px;color:#334155;line-height:1.5;direction:auto;" dir="auto">
-                ${escapeHtml(t.message || t.msgLoc || '')}
+                ${escapeHtml(desc)}
               </div>
             </div>
           </div>

@@ -161,6 +161,10 @@ async function handleNewEasyOrder(payload, topic = 'order.created') {
 
   const order = await db.getOrderByShopifyId(parsed.shopify_order_id);
   if (global.broadcastSSE) global.broadcastSSE({ type: 'new_order', order_id: parsed.shopify_order_id });
+  
+  // إرسال تنبيه لصاحب المتجر بالطلب الجديد
+  notifyOwnerNewOrder(order).catch(e => {});
+
   await sendOrScheduleConfirmation(order);
 }
 
@@ -228,7 +232,34 @@ async function handleNewShopifyOrder(orderPayload, topic = 'orders/create') {
   const order = await db.getOrderByShopifyId(parsed.shopify_order_id);
   // Broadcast new order to dashboard
   if (global.broadcastSSE) global.broadcastSSE({ type: 'new_order', order_id: parsed.shopify_order_id });
+  
+  // إرسال تنبيه لصاحب المتجر بالطلب الجديد
+  notifyOwnerNewOrder(order).catch(e => {});
+
   await sendOrScheduleConfirmation(order);
+}
+
+// ─── Owner New Order Alert ──────────────────────────────────────────────────
+async function notifyOwnerNewOrder(order) {
+  if (!order) return;
+  try {
+    const { notifyOwner } = require('./orders');
+    let items = [];
+    try { items = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []); } catch {}
+    const itemsSummary = items.map(i => `${i.name || i.title || 'منتج'} (x${i.quantity || 1})`).join('\n• ');
+
+    const msg = `🛍️ *طلب جديد وارد!*\n` +
+      `🔢 *الطلب:* ${order.order_number}\n` +
+      `👤 *العميل:* ${order.customer_name}\n` +
+      `📱 *الهاتف:* ${order.customer_phone || 'بدون'}\n` +
+      `📍 *العنوان:* ${order.address || 'غير محدد'}\n` +
+      `💰 *الإجمالي:* ${order.total}\n` +
+      `📦 *المنتجات:*\n• ${itemsSummary || 'منتج'}`;
+
+    await notifyOwner(msg);
+  } catch (e) {
+    console.error('[NotifyOwner] New order notification error:', e.message);
+  }
 }
 
 // ─── Delayed WhatsApp Dispatch ──────────────────────────────────────────────────────────────────────

@@ -332,13 +332,31 @@ async function runScheduledWhatsApp() {
   }
 }
 
-// ─── Job 6: Speedaf Tracking (every 30 mins) ─────────────────────────────────
+// ─── Job 6: Speedaf Tracking (every 5 mins) ──────────────────────────────────
 async function runSpeedafTracking() {
   try {
     const { trackAllActiveOrders } = require('./speedaf');
-    await trackAllActiveOrders();
+    console.log('[SpeedafTracking] 🔄 Running active orders tracking...');
+    const result = await trackAllActiveOrders();
+    console.log(`[SpeedafTracking] ✅ Tracked ${result?.tracked || 0} active orders.`);
   } catch (e) {
     console.error('[SpeedafTracking] Job error:', e.message);
+  }
+}
+
+// ─── Job 7: Speedaf Session Health Check (every 2 hours) ─────────────────────
+async function runSpeedafSessionCheck() {
+  try {
+    const { testSpeedafConnection, autoLoginSpeedaf } = require('./speedaf');
+    const check = await testSpeedafConnection();
+    if (!check.success) {
+      console.log('[SpeedafSession] ⚠️ Speedaf session expired or invalid. Attempting re-login...');
+      await autoLoginSpeedaf();
+    } else {
+      console.log('[SpeedafSession] ✅ Speedaf session active.');
+    }
+  } catch (e) {
+    console.error('[SpeedafSession] Job error:', e.message);
   }
 }
 
@@ -361,11 +379,11 @@ function startBackgroundJobs() {
   setInterval(runScheduledWhatsApp, 1 * 60 * 1000);
   setTimeout(runScheduledWhatsApp, 15 * 1000);
 
-  // Speedaf Tracking: كل 30 دقيقة
-  setInterval(runSpeedafTracking, 30 * 60 * 1000);
-  setTimeout(runSpeedafTracking, 4 * 60 * 1000);
+  // Speedaf Session Check: كل 5 دقائق
+  setInterval(runSpeedafSessionCheck, 5 * 60 * 1000);
+  setTimeout(runSpeedafSessionCheck, 30 * 1000); // أول فحص بعد 30 ثانية
 
-  console.log('[BgJobs] ✅ Auto-Retry (15m) | Order Timeout (10m) | Daily Report (8AM) | Scheduled WA (1m) | Speedaf Tracking (30m)');
+  console.log('[BgJobs] ✅ Auto-Retry (15m) | Order Timeout (10m) | Daily Report (8AM) | Scheduled WA (1m) | Speedaf Tracking (5m) | Speedaf Session (5m)');
 }
 
 // بيحسب كم ms باقي لحد الساعة المحددة بتوقيت القاهرة (Africa/Cairo) ويشغل الـ job

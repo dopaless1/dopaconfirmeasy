@@ -11,15 +11,14 @@ const { fetchEasyOrders, parseEasyOrder } = require('../services/easyorders');
 const { updateSourceStatus, cancelInSource } = require('../services/sourceAdapter');
 
 // ─── Owner Alert ──────────────────────────────────────────────────────────────
-// بيبعت رسالة واتساب لرقم صاحب المتجر في حالة أي خطأ
-const OWNER_PHONE = process.env.OWNER_ALERT_PHONE || '201068093260';
-
+// بيبعت رسالة واتساب لرقم صاحب المتجر في حالة أي خطأ أو أوردر جديد
 async function notifyOwner(message) {
   try {
+    const phone = (await db.getSetting('OWNER_ALERT_PHONE').catch(() => null)) || process.env.OWNER_ALERT_PHONE || '201068093260';
     const { sendWhatsAppMessageWithRetry } = require('../services/whatsapp');
     const timestamp = new Date().toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' });
-    const fullMsg = `🚨 *DopaConfirm Alert*\n${message}\n\n🕐 ${timestamp}`;
-    await sendWhatsAppMessageWithRetry(OWNER_PHONE, fullMsg);
+    const fullMsg = `🚨 *DopaConfirm*\n${message}\n\n🕐 ${timestamp}`;
+    await sendWhatsAppMessageWithRetry(phone, fullMsg);
   } catch (e) {
     console.error('[Alert] Failed to notify owner:', e.message);
   }
@@ -863,12 +862,62 @@ router.get('/:id/speedaf-print', async (req, res) => {
   }
 });
 
+// POST /api/orders/speedaf/sync-now — مزامنة وتتبع فوري لكل الشحنات النشطة
+router.post('/speedaf/sync-now', async (req, res) => {
+  try {
+    const { trackAllActiveOrders } = require('../services/speedaf');
+    const result = await trackAllActiveOrders();
+    if (global.broadcastSSE) global.broadcastSSE({ type: 'orders_synced' });
+    res.json({ success: true, tracked: result?.tracked || 0, updated: result?.updated || 0 });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/orders/speedaf/test — فحص الاتصال بـ Speedaf
 router.get('/speedaf/test', async (req, res) => {
   try {
     const { testSpeedafConnection } = require('../services/speedaf');
     const result = await testSpeedafConnection();
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/orders/:id/mark-delivered — تحويل يدوي إلى تم التسليم
+router.post('/:id/mark-delivered', async (req, res) => {
+  try {
+    const order = await db.getOrderById(parseInt(req.params.id));
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    const now = new Date().toISOString();
+    await db.updateOrderStatus(order.shopify_order_id, 'delivered', { delivered_at: now });
+    updateSourceStatus(order, 'delivered').catch(e => {});
+    if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.id });
+    if (db.logActivity) db.logActivity(req.username, req.userRole, 'mark_delivered', `order #${order.order_number}`);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/orders/:id/mark-returned — تحويل يدوي إلى مرتجع
+router.post('/:id/mark-returned', async (req, res) => {
+  try {
+    const order = await db.getOrderById(parseInt(req.params.id));
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    const now = new Date().toISOString();
+    await db.updateOrderStatus(order.shopify_order_id, 'cancelled', { customer_reply: 'returned', replied_at: now });
+    updateSourceStatus(order, 'cancelled').catch(e => {});
+    await cancelInSource(order, 'customer');
+    if (order.customer_phone) await db.deleteSession(order.customer_phone);
+    if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.id });
+    if (db.logActivity) db.logActivity(req.username, req.userRole, 'mark_returned', `order #${order.order_number}`);
+
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -937,42 +986,54 @@ router.put('/:id/edit', async (req, res) => {
 
     const { firstName, lastName, phone, address1, address2, city, province, country, note, quantityChanges } = req.body;
     const isSimulated = String(order.shopify_order_id).startsWith('SIM-');
+    const source = order.source || 'shopify';
     const warnings = [];
 
-    // ─── Address / phone / name / note ───────────────────────────────────
-    const hasAddressEdit = [firstName, lastName, phone, address1, address2, city, province, country, note].some(v => v !== undefined);
-    if (hasAddressEdit && !isSimulated) {
-      const addrResult = await updateShopifyOrderAddress(order.shopify_order_id, {
-        firstName, lastName, phone, address1, address2, city, province, country, note,
-      });
-      if (!addrResult.success) warnings.push('العنوان: ' + addrResult.error);
-    }
+    // Local address & name update
+    const fullName = [firstName, lastName].filter(Boolean).join(' ') || order.customer_name;
+    const fullAddr = [province, city, address1, address2].filter(Boolean).join(' - ') || order.address;
+    const updatedPhone = phone || order.customer_phone;
 
-    // ─── Quantities ────────────────────────────────────────────────────────
-    // quantityChanges: [{ line_item_id, quantity }]
-    if (Array.isArray(quantityChanges) && quantityChanges.length > 0 && !isSimulated) {
-      for (const change of quantityChanges) {
-        if (!change.line_item_id) {
-          warnings.push(`تعذر تعديل كمية منتج قديم (تم إنشاؤه قبل دعم تعديل الكمية) — عدّله يدوياً من Shopify`);
-          continue;
-        }
-        const qtyResult = await updateShopifyLineItemQuantity(order.shopify_order_id, change.line_item_id, change.quantity);
-        if (!qtyResult.success) warnings.push(`تعديل الكمية فشل: ${qtyResult.error}`);
+    let updatedParsed = {
+      shopify_order_id: order.shopify_order_id,
+      customer_name: fullName,
+      customer_phone: updatedPhone,
+      address: fullAddr,
+      items: order.items,
+      total: order.total,
+      raw_payload: order.raw_payload,
+      source: order.source,
+      easyorders_id: order.easyorders_id
+    };
+
+    if (source === 'shopify' && !isSimulated) {
+      // ─── Shopify Address / phone / name / note ───────────────────────────
+      const hasAddressEdit = [firstName, lastName, phone, address1, address2, city, province, country, note].some(v => v !== undefined);
+      if (hasAddressEdit) {
+        const addrResult = await updateShopifyOrderAddress(order.shopify_order_id, {
+          firstName, lastName, phone, address1, address2, city, province, country, note,
+        });
+        if (!addrResult.success) warnings.push('تحديث العنوان في Shopify: ' + addrResult.error);
       }
-    }
 
-    // Re-fetch the order from Shopify so our local copy matches exactly
-    // what Shopify now has (new total, updated address string, etc.)
-    if (!isSimulated) {
+      // ─── Shopify Quantities ──────────────────────────────────────────────
+      if (Array.isArray(quantityChanges) && quantityChanges.length > 0) {
+        for (const change of quantityChanges) {
+          if (change.line_item_id) {
+            const qtyResult = await updateShopifyLineItemQuantity(order.shopify_order_id, change.line_item_id, change.quantity);
+            if (!qtyResult.success) warnings.push(`تعديل الكمية في Shopify فشل: ${qtyResult.error}`);
+          }
+        }
+      }
+
       const { fetchShopifyOrder } = require('../services/shopify');
       const freshResult = await fetchShopifyOrder(order.shopify_order_id);
       if (freshResult.success) {
-        const parsed = parseShopifyOrder(freshResult.order);
-        await db.updateOrderDetails(parsed);
-      } else {
-        warnings.push('تعذر تحديث نسخة الطلب المحلية من Shopify — البيانات المحلية القديمة لسه موجودة');
+        updatedParsed = parseShopifyOrder(freshResult.order);
       }
     }
+
+    await db.updateOrderDetails(updatedParsed);
 
     if (db.logActivity) db.logActivity(req.username, req.userRole, 'edit_order', `order #${order.order_number}`);
 

@@ -1157,14 +1157,23 @@ async function getSpeedafTrackingTimeline(waybillNo) {
 
   if (result.success && Array.isArray(result.data?.data) && result.data.data.length > 0) {
     const item = result.data.data[0];
-    const tracks = (item.tracks || []).map(t => ({
-      time: t.time,
-      action: t.action,
-      actionName: t.actionName,
-      message: t.msgLoc || t.msgEng || t.message,
-      messageAr: t.msgLoc || t.msgEng || t.message,
-      rawMsg: t.message,
-    }));
+    const tracks = (item.tracks || []).map(t => {
+      const ar = translateSpeedafTrackToArabic({
+        action: t.action,
+        actionName: t.actionName,
+        message: t.msgLoc || t.msgEng || t.message,
+        rawMsg: t.message,
+      });
+      return {
+        time: t.time,
+        action: t.action,
+        actionName: t.actionName,
+        actionNameAr: ar.title,
+        message: ar.desc || t.msgLoc || t.msgEng || t.message,
+        messageAr: ar.desc,
+        rawMsg: t.message,
+      };
+    });
     return {
       success: true,
       waybillNo: cleanWb,
@@ -1180,13 +1189,22 @@ async function getSpeedafTrackingTimeline(waybillNo) {
     });
     if (fb.success && Array.isArray(fb.data?.data) && fb.data.data.length > 0) {
       const item = fb.data.data[0];
-      const tracks = (item.trackTraceList || item.tracks || []).map(t => ({
-        time: t.time || t.traceTime,
-        action: t.action || t.traceType,
-        actionName: t.actionName || t.traceTypeName,
-        message: t.msgLoc || t.msgEng || t.message || t.traceDesc,
-        messageAr: t.msgLoc || t.msgEng || t.message || t.traceDesc,
-      }));
+      const tracks = (item.trackTraceList || item.tracks || []).map(t => {
+        const ar = translateSpeedafTrackToArabic({
+          action: t.action || t.traceType,
+          actionName: t.actionName || t.traceTypeName,
+          message: t.msgLoc || t.msgEng || t.message || t.traceDesc,
+          rawMsg: t.message || t.traceDesc,
+        });
+        return {
+          time: t.time || t.traceTime,
+          action: t.action || t.traceType,
+          actionName: t.actionName || t.traceTypeName,
+          actionNameAr: ar.title,
+          message: ar.desc || t.msgLoc || t.msgEng || t.message || t.traceDesc,
+          messageAr: ar.desc,
+        };
+      });
       return {
         success: true,
         waybillNo: cleanWb,
@@ -1250,11 +1268,19 @@ async function trackAllActiveOrders() {
       if (speedafStatus && speedafStatus !== currentStatus) {
         console.log(`[Speedaf] 📦 Order ${order.order_number}: ${currentStatus} → ${speedafStatus}`);
         updated++;
+      }
 
-        // Map Speedaf status to internal status
+      // Map Speedaf status to internal status
+      if (speedafStatus) {
         const internalStatus = mapSpeedafToInternalStatus(speedafStatus);
         if (internalStatus && internalStatus !== order.status) {
-          await db.updateOrderStatus(order.shopify_order_id || order.easyorders_id, internalStatus);
+          console.log(`[Speedaf] 🔄 Updating internal status for ${order.order_number}: ${order.status} → ${internalStatus}`);
+          const extra = {};
+          if (internalStatus === 'delivered') extra.delivered_at = new Date().toISOString();
+          else if (internalStatus === 'handed_to_courier') extra.handed_to_courier_at = new Date().toISOString();
+          else if (internalStatus === 'shipping_sent') extra.shipping_sent_at = new Date().toISOString();
+          
+          await db.updateOrderStatus(order.shopify_order_id || order.easyorders_id, internalStatus, extra);
           const { updateSourceStatus } = require('./sourceAdapter');
           await updateSourceStatus(order, internalStatus);
 
@@ -1273,20 +1299,143 @@ async function trackAllActiveOrders() {
 }
 
 /**
+ * تنظيف وترجمة أسماء الفروع ومراكز التوزيع
+ */
+function translateSpeedafHub(hub) {
+  if (!hub) return '';
+  const h = String(hub).replace(/^OS-/, '').replace(/【|】/g, '').trim();
+  const map = {
+    'Mansoura-F': 'فرع المنصورة',
+    'Mansoura': 'المنصورة',
+    'DC-Tanta': 'مركز فرز طنطا',
+    'Tanta': 'طنطا',
+    'DC-Cairo': 'مركز فرز القاهرة',
+    'Cairo': 'القاهرة',
+    'DC-Alex': 'مركز فرز الإسكندرية',
+    'Alex': 'الإسكندرية',
+    'Alex-F': 'فرع الإسكندرية',
+    'Haram-F': 'فرع الهرم',
+    'Haram': 'الهرم',
+    'Aswan-F': 'فرع أسوان',
+    'Aswan': 'أسوان',
+    'Giza-F': 'فرع الجيزة',
+    'Giza': 'الجيزة',
+    'Nasr City': 'فرع مدينة نصر',
+    'Tagamoa': 'فرع التجمع',
+    'Maadi': 'فرع المعادي',
+    'Helwan': 'فرع حلوان',
+    'Shubra': 'فرع شبرا',
+    'Zagazig': 'فرع الزقازيق',
+    'Ismailia': 'فرع الإسماعيلية',
+    'Suez': 'فرع السويس',
+    'Port Said': 'فرع بورسعيد',
+    'Damietta': 'فرع دمياط',
+    'Kafr El-Sheikh': 'فرع كفر الشيخ',
+    'Damanhour': 'فرع دمنهور',
+    'Banha': 'فرع بنها',
+    'Fayoum': 'فرع الفيوم',
+    'Beni Suef': 'فرع بني سويف',
+    'Minya': 'فرع المنيا',
+    'Asyut': 'فرع أسيوط',
+    'Sohag': 'فرع سوهاج',
+    'Qena': 'فرع قنا',
+    'Luxor': 'فرع الأقصر'
+  };
+  return map[h] || h;
+}
+
+/**
+ * ترجمة وتنسيق أحداث خط السير لـ Speedaf إلى لغة عربية واضحة واحترافية
+ */
+function translateSpeedafTrackToArabic(t) {
+  const action = String(t.action || '');
+  const actionName = (t.actionName || '').toLowerCase();
+  const rawMsg = t.rawMsg || t.message || '';
+  let title = t.actionName || 'حركة شحنة';
+  let desc = t.message || '';
+
+  if (action === '5' || actionName.includes('collected') || actionName.includes('delivered') || rawMsg.includes('已签收') || rawMsg.includes('delivered')) {
+    title = '✅ تم التسليم للعميل بنجاح';
+    const recMatch = rawMsg.match(/Received by 【(.*?)】|签收人是【(.*?)】/i);
+    const siteMatch = rawMsg.match(/Collection site is 【(.*?)】|签收网点是【(.*?)】/i);
+    const rec = recMatch ? (recMatch[1] || recMatch[2]) : '';
+    const site = siteMatch ? translateSpeedafHub(siteMatch[1] || siteMatch[2]) : '';
+    desc = 'تم تسليم الشحنة للعميل بنجاح';
+    if (rec) desc += ` (المستلم: ${rec})`;
+    if (site) desc += ` — ${site}`;
+  } else if (action === '4' || actionName.includes('delivering') || rawMsg.includes('派件')) {
+    title = '🚚 خرجت مع المندوب للتسليم';
+    const courierMatch = rawMsg.match(/delivery courier is 【(.*?)】(?:【(.*?)】)?|派件员是【(.*?)】(?:【(.*?)】)?/i);
+    const siteMatch = rawMsg.match(/in 【(.*?)】scanned|网点【(.*?)】/i);
+    const courier = courierMatch ? (courierMatch[1] || courierMatch[3] || '').replace(/^OS-/, '') : '';
+    const phone = courierMatch ? (courierMatch[2] || courierMatch[4] || '') : '';
+    const site = siteMatch ? translateSpeedafHub(siteMatch[1] || siteMatch[2]) : '';
+    desc = 'الشحنة مع المندوب للتسليم للعميل';
+    if (courier) desc += ` (المندوب: ${courier}${phone ? ' - ' + phone : ''})`;
+    if (site) desc += ` — ${site}`;
+  } else if (action === '3' || actionName.includes('arrival') || rawMsg.includes('到达')) {
+    if (actionName.includes('dc') || rawMsg.includes('分拨中心') || rawMsg.includes('DC-')) {
+      title = '📦 وصلت مركز الفرز الرئيسي';
+      const dcMatch = rawMsg.match(/【(.*?)】/);
+      const dc = dcMatch ? translateSpeedafHub(dcMatch[1]) : '';
+      desc = `وصلت الشحنة إلى مركز الفرز والتوزيع${dc ? ' (' + dc + ')' : ''}`;
+    } else {
+      title = '🏢 وصلت فرع التوزيع';
+      const siteMatch = rawMsg.match(/【(.*?)】/);
+      const site = siteMatch ? translateSpeedafHub(siteMatch[1]) : '';
+      desc = `وصلت الشحنة إلى فرع التوزيع المحلي${site ? ' (' + site + ')' : ''}`;
+    }
+  } else if (action === '2' || actionName.includes('departure') || rawMsg.includes('装车') || rawMsg.includes('发往')) {
+    title = '🚛 في الطريق بين المراكز';
+    const loadedMatch = rawMsg.match(/Loaded at 【(.*?)】|在【(.*?)】装车/i);
+    const destMatch = rawMsg.match(/Departed for 【(.*?)】|发往【(.*?)】/i);
+    const from = loadedMatch ? translateSpeedafHub(loadedMatch[1] || loadedMatch[2]) : '';
+    const to = destMatch ? translateSpeedafHub(destMatch[1] || destMatch[2]) : '';
+    if (from && to) desc = `غادرت من ${from} في طريقها إلى ${to}`;
+    else if (from) desc = `غادرت ${from}`;
+    else desc = 'الشحنة قيد النقل بين مراكز الشحن';
+  } else if (action === '1' || actionName.includes('picked up') || rawMsg.includes('收件')) {
+    title = '📋 تم الاستلام من التاجر';
+    const siteMatch = rawMsg.match(/Received in 【(.*?)】|【(.*?)】已做收件/i);
+    const courierMatch = rawMsg.match(/Pick-Up Courier is【(.*?)】|收件员是【(.*?)】/i);
+    const site = siteMatch ? translateSpeedafHub(siteMatch[1] || siteMatch[2]) : '';
+    const courier = courierMatch ? (courierMatch[1] || courierMatch[2] || '').replace(/^OS-/, '') : '';
+    desc = `تم استلام الشحنة من التاجر بنجاح${site ? ' في ' + site : ''}${courier ? ' بواسطة: ' + courier : ''}`;
+  } else if (action === '-1' || actionName.includes('reschedule') || rawMsg.includes('预约')) {
+    title = '⏳ تأجيل موعد التسليم';
+    const dateMatch = rawMsg.match(/【(\d{4}-\d{2}-\d{2})】/);
+    desc = `تم تأجيل التسليم بناءً على طلب العميل${dateMatch ? ' إلى موعد: ' + dateMatch[1] : ''}`;
+  }
+
+  return { title, desc };
+}
+
+/**
  * مطابقة حالة Speedaf بالحالة الداخلية
  */
 function mapSpeedafToInternalStatus(speedafStatus) {
   if (!speedafStatus) return null;
-  const s = speedafStatus.toLowerCase();
+  const s = speedafStatus.toLowerCase().trim();
 
-  // Delivered
-  if (s.includes('delivered') || s.includes('تم التسليم') || s.includes('signed') || s.includes('receipt') || s.includes('sign')) return 'delivered';
-  // Returned / Cancelled
-  if (s.includes('return') || s.includes('مرتجع') || s.includes('cancelled') || s.includes('ملغي')) return 'cancelled';
+  // Delivered (في Speedaf مصطلح Collected يعني تم التسليم والتوقيع من المستلم)
+  if (s.includes('delivered') || s.includes('تم التسليم') || s.includes('collected') || s.includes('signed') || s.includes('receipt') || s.includes('sign') || s === '5') {
+    return 'delivered';
+  }
+
+  // Returned / Cancelled / Rejection / Failed
+  if (s.includes('return') || s.includes('مرتجع') || s.includes('cancelled') || s.includes('ملغي') || s.includes('reject') || s.includes('رفض') || s.includes('failed delivery')) {
+    return 'cancelled';
+  }
+
+  // Handed to courier / Picked Up / DC / Site Dispatch
+  if (s.includes('picked up') || s.includes('pickup') || s.includes('تم الاستلام') || s.includes('dc arrival') || s.includes('dc departure') || s.includes('site arrival') || s.includes('site departure')) {
+    return 'handed_to_courier';
+  }
+
   // In transit / out for delivery
-  if (s.includes('transit') || s.includes('delivery') || s.includes('في الشحن') || s.includes('قيد')) return 'shipping_sent';
-  // Picked up
-  if (s.includes('pickup') || s.includes('collected') || s.includes('تم الاستلام')) return 'handed_to_courier';
+  if (s.includes('transit') || s.includes('delivery') || s.includes('delivering') || s.includes('في الشحن') || s.includes('قيد الشحن') || s.includes('في الطريق') || s.includes('reschedule')) {
+    return 'shipping_sent';
+  }
 
   return null; // Unknown — don't change internal status
 }
