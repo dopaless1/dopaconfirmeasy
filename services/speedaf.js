@@ -1401,10 +1401,21 @@ function translateSpeedafTrackToArabic(t) {
     const site = siteMatch ? translateSpeedafHub(siteMatch[1] || siteMatch[2]) : '';
     const courier = courierMatch ? (courierMatch[1] || courierMatch[2] || '').replace(/^OS-/, '') : '';
     desc = `تم استلام الشحنة من التاجر بنجاح${site ? ' في ' + site : ''}${courier ? ' بواسطة: ' + courier : ''}`;
-  } else if (action === '-1' || actionName.includes('reschedule') || rawMsg.includes('预约')) {
+  } else if (action === '-1' || actionName.includes('reschedule') || rawMsg.includes('预约') || actionName.includes('postpone')) {
     title = '⏳ تأجيل موعد التسليم';
     const dateMatch = rawMsg.match(/【(\d{4}-\d{2}-\d{2})】/);
     desc = `تم تأجيل التسليم بناءً على طلب العميل${dateMatch ? ' إلى موعد: ' + dateMatch[1] : ''}`;
+  } else if (action === '6' || actionName.includes('problem') || actionName.includes('exception') || actionName.includes('abnormal') || actionName.includes('fail') || rawMsg.includes('异常') || rawMsg.includes('Problem')) {
+    title = '⚠️ مشكلة في التسليم / تعذر الوصول للعميل';
+    let cleanReason = rawMsg.replace(/【.*?】/g, '').trim();
+    if (rawMsg.includes('not answer') || rawMsg.includes('لم يرد') || rawMsg.includes('no answer')) cleanReason = 'العميل لا يرد على الهاتف';
+    else if (rawMsg.includes('refuse') || rawMsg.includes('reject') || rawMsg.includes('رفض')) cleanReason = 'العميل رفض استلام الشحنة';
+    else if (rawMsg.includes('wrong') || rawMsg.includes('address') || rawMsg.includes('عنوان')) cleanReason = 'العنوان غير واضح أو مغلق';
+    else if (rawMsg.includes('closed') || rawMsg.includes('مغلق')) cleanReason = 'هاتف العميل مغلق';
+    desc = `تعذر التسليم — ${cleanReason || t.message || 'يرجى مراجعة العميل'}`;
+  } else if (actionName.includes('return') || rawMsg.includes('退件') || rawMsg.includes('مرتجع')) {
+    title = '↩️ الشحنة قيد الإرجاع للمتجر';
+    desc = 'تم تحويل الشحنة إلى مرتجع وجاري إعادتها للمتجر';
   }
 
   return { title, desc };

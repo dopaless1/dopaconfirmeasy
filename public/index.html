@@ -974,29 +974,48 @@
 
 <!-- ─── WhatsApp Chats & Instagram Reviews Hub Modal ────────────── -->
 <div class="modal-overlay" id="reviews-hub-modal" style="z-index: 9990;">
-  <div class="modal" style="max-width: 1100px; width: 95%; height: 86vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 14px; box-shadow: 0 25px 60px rgba(0,0,0,0.5);">
+  <div class="modal" style="max-width: 1140px; width: 96%; height: 88vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 14px; box-shadow: 0 25px 60px rgba(0,0,0,0.5);">
     
-    <!-- Hub Header -->
-    <div style="background: linear-gradient(135deg, #1e293b, #0f172a); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; color: #fff;">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045); display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 12px rgba(253,29,29,0.35);">📸</div>
-        <div>
-          <h2 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">محادثات واتساب ومولد ريفيو إنستجرام</h2>
-          <div style="font-size: 12px; color: #94a3b8;">تصفح شاتات العملاء، اختر أي رسالة، وحوّلها فوراً لكارت إنستجرام فخم للستوري أو البوست</div>
+    <!-- Hub Main Header with Tabs -->
+    <div style="background: linear-gradient(135deg, #1e293b, #0f172a); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; color: #fff;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045); display: flex; align-items: center; justify-content: center; font-size: 19px; box-shadow: 0 4px 12px rgba(253,29,29,0.35);">📸</div>
+          <div>
+            <h2 style="margin: 0; font-size: 15px; font-weight: 800; color: #fff;">مركز محادثات واتساب وبنك ريفيوهات إنستجرام</h2>
+            <div style="font-size: 11.5px; color: #94a3b8;">تصفح شاتات العملاء القديمة والجديدة، حدد أي رسائل، واحفظها في بنك الريفيوهات أو حولها لبوست إنستجرام</div>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs inside Modal -->
+        <div style="display: flex; background: rgba(0,0,0,0.3); padding: 3px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); margin-right: 12px;">
+          <button type="button" id="hub-tab-btn-chats" onclick="switchHubMainTab('chats')" style="padding: 6px 14px; border-radius: 7px; font-weight: 700; font-size: 12px; border: none; cursor: pointer; background: var(--primary-color, #2563eb); color: #fff;">
+            💬 شاتات واتساب (WhatsApp Web)
+          </button>
+          <button type="button" id="hub-tab-btn-bank" onclick="switchHubMainTab('bank')" style="padding: 6px 14px; border-radius: 7px; font-weight: 700; font-size: 12px; border: none; cursor: pointer; background: transparent; color: #94a3b8;">
+            ⭐ بنك الريفيوهات (<span id="hub-bank-counter">0</span>)
+          </button>
         </div>
       </div>
+
       <button class="btn btn-ghost btn-sm" onclick="closeModal('reviews-hub-modal')" style="color: #cbd5e1; font-size: 18px; padding: 4px 10px; border-radius: 8px;">✕</button>
     </div>
 
-    <!-- Hub Body: 2 Column Layout -->
-    <div style="flex: 1; display: flex; overflow: hidden; min-height: 0;">
+    <!-- ─── TAB 1: WhatsApp Web & Chats Extractor ─── -->
+    <div id="hub-tab-chats-content" style="flex: 1; display: flex; overflow: hidden; min-height: 0;">
       
       <!-- Column 1: Chats List (Right in RTL) -->
       <div style="width: 340px; border-left: 1px solid var(--border-color, #334155); background: var(--bg-card, #1e293b); display: flex; flex-direction: column; overflow: hidden;">
         
-        <!-- Search & Filters -->
-        <div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.07); display: flex; flex-direction: column; gap: 8px;">
-          <input type="text" id="hub-search-input" placeholder="🔍 بحث باسم العميل، الهاتف، أو الطلب..." class="form-input" style="font-size: 12.5px; padding: 8px 12px; border-radius: 8px; width: 100%;" oninput="filterHubChats()">
+        <!-- Search, New Chat & Filters -->
+        <div style="padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.07); display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="hub-search-input" placeholder="🔍 بحث في كل شاتات واتساب..." class="form-input" style="font-size: 12px; padding: 7px 10px; border-radius: 8px; flex: 1;" oninput="filterHubChats()">
+            <button class="btn btn-sm" onclick="promptOpenChatByPhone()" style="background: #00a884; color: #fff; font-size: 12px; padding: 7px 10px; font-weight: 700; border-radius: 8px; border: none; white-space: nowrap;" title="فتح محادثة أي رقم هاتف مباشرة حتى لو قديم جداً">
+              ➕ رقم هاتف
+            </button>
+          </div>
+          
           <div style="display: flex; gap: 4px;">
             <button class="btn btn-sm hub-filter-btn active" id="hub-filter-all" onclick="setHubFilter('all')" style="flex: 1; font-size: 11px; padding: 4px 6px; font-weight: 700; border-radius: 6px; background: var(--primary-color, #2563eb); color: #fff;">📋 الكل</button>
             <button class="btn btn-sm hub-filter-btn" id="hub-filter-delivered" onclick="setHubFilter('delivered')" style="flex: 1; font-size: 11px; padding: 4px 6px; font-weight: 700; border-radius: 6px; background: transparent; color: var(--text-muted, #94a3b8); border: 1px solid rgba(255,255,255,0.1);">📦 مستلم</button>
@@ -1010,8 +1029,8 @@
         </div>
       </div>
 
-      <!-- Column 2: Active Chat Conversation & Actions (Left in RTL) -->
-      <div style="flex: 1; display: flex; flex-direction: column; background: #0b141a; overflow: hidden;">
+      <!-- Column 2: Active Chat Conversation & Multi-Select Toolbar (Left in RTL) -->
+      <div style="flex: 1; display: flex; flex-direction: column; background: #0b141a; overflow: hidden; position: relative;">
         
         <!-- Chat Top Bar -->
         <div id="hub-chat-header" style="padding: 10px 16px; background: #202c33; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center; color: #e9edef;">
@@ -1025,9 +1044,29 @@
               </div>
             </div>
           </div>
+
           <div id="hub-header-actions" style="display: flex; gap: 8px; align-items: center; display: none;">
             <button class="btn btn-sm" onclick="openIgCardDirectFromHub()" style="background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045); color: #fff; font-weight: 800; font-size: 12px; padding: 5px 12px; border-radius: 6px; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(253,29,29,0.35);">
               📸 فتح مولد إنستجرام
+            </button>
+          </div>
+        </div>
+
+        <!-- Floating Multi-Message Selection Action Bar -->
+        <div id="hub-selection-bar" style="display: none; background: linear-gradient(135deg, #1e293b, #0f172a); border-bottom: 2px solid #fd1d1d; padding: 9px 16px; align-items: center; justify-content: space-between; color: #fff; z-index: 10; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 16px;">✨</span>
+            <span style="font-weight: 800; font-size: 13px;">تم تحديد <span id="hub-selected-count" style="color:#fd1d1d;">0</span> رسائل من العميل</span>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn btn-sm" onclick="saveSelectedMessagesAsReview()" style="background: #0284c7; color: #fff; font-weight: 700; font-size: 11.5px; padding: 5px 12px; border-radius: 6px; border: none; cursor: pointer;">
+              ⭐ إضافة لبنك الريفيوهات
+            </button>
+            <button class="btn btn-sm" onclick="createIgCardFromSelectedMessages()" style="background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045); color: #fff; font-weight: 800; font-size: 11.5px; padding: 5px 12px; border-radius: 6px; border: none; cursor: pointer; box-shadow: 0 2px 6px rgba(253,29,29,0.3);">
+              📸 توليد كارت إنستجرام
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="clearHubSelectedMessages()" style="color: #94a3b8; font-size: 12px; padding: 4px 8px;">
+              ✕ إلغاء التحديد
             </button>
           </div>
         </div>
@@ -1036,8 +1075,8 @@
         <div id="hub-messages-feed" style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #0b141a; background-image: radial-gradient(#1f2c34 1px, transparent 1px); background-size: 20px 20px;">
           <div style="text-align: center; margin: auto; color: #8696a0; font-size: 13px;">
             <div style="font-size: 40px; margin-bottom: 10px;">💬</div>
-            <div style="font-weight: 700; font-size: 15px; color: #e9edef;">اختر محادثة من القائمة على اليمين</div>
-            <div style="font-size: 12px; margin-top: 4px;">يمكنك استعراض شات العميل واختيار أي رسالة لإنشاء كارت إنستجرام منها بنقرة واحدة</div>
+            <div style="font-weight: 700; font-size: 15px; color: #e9edef;">اختر محادثة من القائمة على اليمين أو افتح أي رقم هاتف</div>
+            <div style="font-size: 12px; margin-top: 4px;">يمكنك تحديد رسالة واحدة أو عدة رسائل معاً بوضع علامة (✓) لحفظها في بنك الريفيوهات وتوليد بوست إنستجرام فخم</div>
           </div>
         </div>
 
@@ -1049,6 +1088,32 @@
           </div>
         </div>
 
+      </div>
+
+    </div>
+
+    <!-- ─── TAB 2: Reviews Bank & Instagram Studio ─── -->
+    <div id="hub-tab-bank-content" style="flex: 1; display: none; flex-direction: column; background: var(--bg-main, #0f172a); overflow: hidden;">
+      
+      <!-- Bank Toolbar -->
+      <div style="padding: 12px 20px; background: var(--bg-card, #1e293b); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 10px; align-items: center; flex: 1; max-width: 500px;">
+          <input type="text" id="bank-search-input" placeholder="🔍 ابحث في بنك التقييمات باسم العميل، المنتج، أو نص الريفيو..." class="form-input" style="font-size: 13px; padding: 8px 14px; border-radius: 8px; width: 100%;" oninput="filterReviewsBank()">
+        </div>
+        
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-sm" onclick="promptAddManualReview()" style="background: #00a884; color: #fff; font-weight: 700; font-size: 12.5px; padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer;">
+            ➕ إضافة ريفيو يدوي
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="loadReviewsBank()" style="font-size: 12.5px; padding: 8px 12px; border-radius: 8px;">
+            🔄 تحديث
+          </button>
+        </div>
+      </div>
+
+      <!-- Bank Reviews Grid -->
+      <div id="bank-reviews-grid" style="flex: 1; overflow-y: auto; padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-content: start;">
+        <div style="text-align: center; grid-column: 1/-1; padding: 40px; color: #94a3b8;">⏳ جارٍ تحميل بنك التقييمات...</div>
       </div>
 
     </div>
@@ -2555,20 +2620,87 @@ async function sendDrawerChatMessage() {
   }
 }
 
+// ─── Speedaf Live Instant Sync ─────────────────────────────────────────────
+async function syncSpeedafNow() {
+  const btn = document.getElementById('btn-sync-speedaf');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ جارٍ المزامنة...';
+  }
+
+  showToast('⚡ جارٍ فحص ومزامنة كل الشحنات النشطة مع Speedaf وتحديث المشاكل...', 'info');
+
+  try {
+    const res = await fetch('/api/orders/speedaf/sync-now', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      const msg = `✅ تم تتبع ${data.tracked || 0} شحنة وتحديث ${data.updated || 0} طلب من Speedaf بنجاح!`;
+      showToast(msg, 'success');
+      loadOrders(false, true);
+    } else {
+      showToast('❌ فشل المزامنة مع Speedaf: ' + (data.error || 'خطأ غير محدد'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال مع السيرفر: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
+}
+
 // ─── WhatsApp Reviews & Chats Hub Logic ──────────────────────────────────────
 let hubAllChats = [];
 let hubActiveOrderId = null;
 let hubActiveOrder = null;
 let hubActiveFilter = 'all';
+let hubSelectedMessages = [];
+let hubAllReviews = [];
 
 async function openReviewsHub(focusOrderId = null) {
   openModal('reviews-hub-modal');
+  switchHubMainTab('chats');
   await loadReviewsHubChats(focusOrderId);
+  updateReviewsBankCounter();
+}
+
+function switchHubMainTab(tab) {
+  const chatsContent = document.getElementById('hub-tab-chats-content');
+  const bankContent = document.getElementById('hub-tab-bank-content');
+  const chatsBtn = document.getElementById('hub-tab-btn-chats');
+  const bankBtn = document.getElementById('hub-tab-btn-bank');
+
+  if (tab === 'chats') {
+    if (chatsContent) chatsContent.style.display = 'flex';
+    if (bankContent) bankContent.style.display = 'none';
+    if (chatsBtn) {
+      chatsBtn.style.background = 'var(--primary-color, #2563eb)';
+      chatsBtn.style.color = '#fff';
+    }
+    if (bankBtn) {
+      bankBtn.style.background = 'transparent';
+      bankBtn.style.color = '#94a3b8';
+    }
+  } else {
+    if (chatsContent) chatsContent.style.display = 'none';
+    if (bankContent) bankContent.style.display = 'flex';
+    if (bankBtn) {
+      bankBtn.style.background = 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)';
+      bankBtn.style.color = '#fff';
+    }
+    if (chatsBtn) {
+      chatsBtn.style.background = 'transparent';
+      chatsBtn.style.color = '#94a3b8';
+    }
+    loadReviewsBank();
+  }
 }
 
 async function loadReviewsHubChats(focusOrderId = null) {
   const listEl = document.getElementById('hub-chats-list');
-  listEl.innerHTML = `<div style="text-align:center;padding:30px 10px;color:#94a3b8;font-size:13px;">⏳ جارٍ تحميل المحادثات...</div>`;
+  if (listEl) listEl.innerHTML = `<div style="text-align:center;padding:30px 10px;color:#94a3b8;font-size:13px;">⏳ جارٍ تحميل المحادثات...</div>`;
   
   try {
     const res = await fetch('/api/orders/chats/all');
@@ -2645,7 +2777,7 @@ function renderHubChatsList() {
     const orderNum = cleanOrderNumberDisplay(c.order_number);
 
     return `
-      <div onclick="selectHubChat(${c.id})" style="padding:10px 12px;border-radius:10px;cursor:pointer;transition:all 0.15s ease;background:${isActive ? 'rgba(37,99,235,0.22)' : 'rgba(255,255,255,0.03)'};border:1px solid ${isActive ? 'var(--primary-color, #2563eb)' : 'rgba(255,255,255,0.06)'};display:flex;flex-direction:column;gap:4px;">
+      <div onclick="selectHubChat('${c.id}')" style="padding:10px 12px;border-radius:10px;cursor:pointer;transition:all 0.15s ease;background:${isActive ? 'rgba(37,99,235,0.22)' : 'rgba(255,255,255,0.03)'};border:1px solid ${isActive ? 'var(--primary-color, #2563eb)' : 'rgba(255,255,255,0.06)'};display:flex;flex-direction:column;gap:4px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div style="font-weight:700;font-size:13px;color:${isActive ? '#fff' : '#e2e8f0'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">${escapeHtml(c.customer_name || 'عميل')}</div>
           <span class="badge" style="background:#0284c7;color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;font-family:monospace;">${escapeHtml(orderNum)}</span>
@@ -2661,8 +2793,45 @@ function renderHubChatsList() {
   }).join('');
 }
 
+async function promptOpenChatByPhone() {
+  const phone = prompt('اكتب رقم هاتف العميل لفتح محادثته كاملة (مثال: 01012345678 أو 201012345678):');
+  if (!phone || !phone.trim()) return;
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  if (!cleanPhone) return alert('يرجى كتابة رقم هاتف صحيح');
+
+  showToast(`⏳ جارٍ جلب محادثة الهاتف: ${cleanPhone}...`, 'info');
+  try {
+    const res = await fetch(`/api/orders/chat-by-phone?phone=${encodeURIComponent(cleanPhone)}`);
+    const data = await res.json();
+    if (data.success) {
+      // Add or select in list
+      const chatItem = {
+        id: data.order ? data.order.id : 'wa_' + cleanPhone,
+        order_number: data.order ? data.order.order_number : 'واتساب',
+        customer_name: data.order ? data.order.customer_name : ('عميل ' + cleanPhone),
+        customer_phone: cleanPhone,
+        status: data.order ? data.order.status : 'whatsapp_chat',
+        customer_reply: data.order ? data.order.customer_reply : null,
+        items: data.order ? data.order.items : '[]',
+        last_msg: data.messages && data.messages.length > 0 ? data.messages[data.messages.length - 1].message : 'محادثة مفتوحة',
+      };
+      
+      const idx = hubAllChats.findIndex(c => String(c.customer_phone).replace(/[^0-9]/g, '') === cleanPhone);
+      if (idx >= 0) hubAllChats[idx] = chatItem;
+      else hubAllChats.unshift(chatItem);
+
+      selectHubChat(chatItem.id);
+    } else {
+      showToast('❌ تعذر فتح المحادثة: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+  }
+}
+
 async function selectHubChat(orderId) {
   hubActiveOrderId = orderId;
+  clearHubSelectedMessages();
   renderHubChatsList();
 
   const feedEl = document.getElementById('hub-messages-feed');
@@ -2671,21 +2840,29 @@ async function selectHubChat(orderId) {
   document.getElementById('hub-header-actions').style.display = 'flex';
   document.getElementById('hub-chat-footer').style.display = 'block';
 
+  let phoneParam = '';
+  let fetchUrl = `/api/orders/${orderId}/chat`;
+
+  if (String(orderId).startsWith('wa_')) {
+    const phone = String(orderId).replace('wa_', '');
+    fetchUrl = `/api/orders/chat-by-phone?phone=${encodeURIComponent(phone)}`;
+  }
+
   try {
-    const res = await fetch(`/api/orders/${orderId}/chat`);
+    const res = await fetch(fetchUrl);
     const data = await res.json();
     if (!data.success) {
       feedEl.innerHTML = `<div style="text-align:center;margin:auto;color:#ef4444;">❌ فشل تحميل الشات</div>`;
       return;
     }
 
-    const order = data.order || (allOrders || []).find(o => o.id === orderId) || {};
+    const order = data.order || (hubAllChats || []).find(o => String(o.id) === String(orderId)) || {};
     hubActiveOrder = order;
 
     document.getElementById('hub-active-name').textContent = order.customer_name || 'عميل';
-    document.getElementById('hub-active-phone').textContent = order.customer_phone || '';
+    document.getElementById('hub-active-phone').textContent = order.customer_phone || data.phone || '';
     const badgeEl = document.getElementById('hub-active-order-badge');
-    badgeEl.textContent = cleanOrderNumberDisplay(order.order_number);
+    badgeEl.textContent = cleanOrderNumberDisplay(order.order_number || 'واتساب');
     badgeEl.style.display = 'inline-block';
 
     const messages = data.messages || [];
@@ -2693,30 +2870,36 @@ async function selectHubChat(orderId) {
       feedEl.innerHTML = `
         <div style="text-align:center;margin:auto;color:#8696a0;padding:20px;">
           <div style="font-size:36px;margin-bottom:8px;">💬</div>
-          <div style="font-weight:700;font-size:14px;color:#e9edef;">لا توجد رسائل مسجلة بعد لهذا العميل</div>
-          <div style="font-size:12px;margin-top:4px;">يمكنك كتابة رسالة مباشرة للعميل بالأسفل وإرسالها</div>
+          <div style="font-weight:700;font-size:14px;color:#e9edef;">لا توجد رسائل مسجلة بعد لهذا الرقم</div>
+          <div style="font-size:12px;margin-top:4px;">اكتب رسالة بالأسفل لبدء المحادثة معه فوراً عبر واتساب</div>
         </div>`;
       return;
     }
 
-    feedEl.innerHTML = messages.map(m => {
+    feedEl.innerHTML = messages.map((m, mIdx) => {
       const isInbound = m.direction === 'inbound';
       const timeStr = formatTime(m.created_at || m.timestamp);
       const isCurrentReview = order.customer_reply === m.message;
       const msgEscaped = escapeHtml(m.message).replace(/'/g, "\\'");
 
       return `
-        <div class="chat-bubble-wrap ${isInbound ? 'inbound' : 'outbound'}" style="display:flex;flex-direction:column;align-items:${isInbound ? 'flex-start' : 'flex-end'};max-width:82%;">
-          <div class="chat-bubble" style="background:${isInbound ? '#202c33' : '#005c4b'};color:#e9edef;padding:9px 13px;border-radius:10px;font-size:13px;line-height:1.45;box-shadow:0 1px 2px rgba(0,0,0,0.3);">
-            <div style="white-space:pre-wrap;">${escapeHtml(m.message)}</div>
+        <div class="chat-bubble-wrap ${isInbound ? 'inbound' : 'outbound'}" style="display:flex;flex-direction:column;align-items:${isInbound ? 'flex-start' : 'flex-end'};max-width:85%;position:relative;">
+          <div style="display:flex;gap:8px;align-items:flex-start;width:100%;">
+            ${isInbound ? `
+              <input type="checkbox" class="hub-msg-check" data-idx="${mIdx}" data-text="${escapeHtml(m.message)}" onchange="toggleHubMessageSelection(this)" style="width:17px;height:17px;cursor:pointer;margin-top:8px;accent-color:#fd1d1d;" title="تحديد هذه الرسالة لإضافتها للريفيو">
+            ` : ''}
+            <div class="chat-bubble" style="background:${isInbound ? '#202c33' : '#005c4b'};color:#e9edef;padding:9px 13px;border-radius:10px;font-size:13px;line-height:1.45;box-shadow:0 1px 2px rgba(0,0,0,0.3);flex:1;">
+              <div style="white-space:pre-wrap;">${escapeHtml(m.message)}</div>
+            </div>
           </div>
+          
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:10.5px;color:#8696a0;">
             <span>${timeStr}</span>
             ${isInbound ? `
-              <button class="btn btn-sm" onclick="createIgCardFromMsg(${orderId}, '${msgEscaped}')" style="background:linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);color:#fff;font-weight:800;font-size:11px;padding:3px 8px;border-radius:5px;border:none;cursor:pointer;box-shadow:0 2px 6px rgba(253,29,29,0.3);" title="تحويل هذه الرسالة مباشرة لكارت إنستجرام">
-                📸 كارت إنستجرام
+              <button class="btn btn-sm" onclick="createIgCardFromMsg('${orderId}', '${msgEscaped}')" style="background:linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);color:#fff;font-weight:800;font-size:10.5px;padding:2px 7px;border-radius:5px;border:none;cursor:pointer;box-shadow:0 2px 6px rgba(253,29,29,0.3);" title="تحويل هذه الرسالة مباشرة لكارت إنستجرام">
+                📸 إنستجرام
               </button>
-              <button class="btn btn-sm" onclick="saveReviewFromHub(${orderId}, '${msgEscaped}')" style="background:#0284c7;color:#fff;font-weight:700;font-size:11px;padding:3px 8px;border-radius:5px;border:none;cursor:pointer;" title="حفظ الرسالة كـ ريفيو رسمي">
+              <button class="btn btn-sm" onclick="saveReviewFromHub('${orderId}', '${msgEscaped}')" style="background:#0284c7;color:#fff;font-weight:700;font-size:10.5px;padding:2px 7px;border-radius:5px;border:none;cursor:pointer;" title="حفظ الرسالة كـ ريفيو رسمي">
                 ${isCurrentReview ? '⭐ الريفيو المعتمد' : '⭐ حفظ كـ ريفيو'}
               </button>
             ` : ''}
@@ -2730,8 +2913,81 @@ async function selectHubChat(orderId) {
   }
 }
 
+// ── Multi-Message Selection Logic ──
+function toggleHubMessageSelection(checkboxEl) {
+  const text = checkboxEl.getAttribute('data-text');
+  if (checkboxEl.checked) {
+    hubSelectedMessages.push(text);
+  } else {
+    hubSelectedMessages = hubSelectedMessages.filter(t => t !== text);
+  }
+
+  const bar = document.getElementById('hub-selection-bar');
+  const countEl = document.getElementById('hub-selected-count');
+  if (hubSelectedMessages.length > 0) {
+    bar.style.display = 'flex';
+    countEl.textContent = hubSelectedMessages.length;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function clearHubSelectedMessages() {
+  hubSelectedMessages = [];
+  document.querySelectorAll('.hub-msg-check').forEach(c => c.checked = false);
+  const bar = document.getElementById('hub-selection-bar');
+  if (bar) bar.style.display = 'none';
+}
+
+async function saveSelectedMessagesAsReview() {
+  if (hubSelectedMessages.length === 0) return alert('يرجى تحديد رسالة واحدة على الأقل');
+  const combinedText = hubSelectedMessages.join('\n');
+  const order = hubActiveOrder || {};
+  
+  let prodName = '';
+  try {
+    const itms = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);
+    if (itms.length > 0) prodName = itms[0].name || itms[0].title || '';
+  } catch {}
+
+  showToast('⏳ جارٍ حفظ الرسائل المحددة في بنك الريفيوهات...', 'info');
+
+  try {
+    const res = await fetch('/api/orders/reviews/bank', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: order.customer_name || 'عميل DopaLess',
+        customer_phone: order.customer_phone || '',
+        product_name: prodName,
+        review_text: combinedText,
+        rating: 5,
+        order_id: !String(hubActiveOrderId).startsWith('wa_') ? hubActiveOrderId : null,
+        order_number: order.order_number || null,
+        source: 'whatsapp'
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('🌟 تم حفظ الرسائل المحددة بنجاح في بنك الريفيوهات!', 'success');
+      clearHubSelectedMessages();
+      updateReviewsBankCounter();
+    } else {
+      showToast('❌ فشل الحفظ: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ: ' + err.message, 'error');
+  }
+}
+
+function createIgCardFromSelectedMessages() {
+  if (hubSelectedMessages.length === 0) return alert('يرجى تحديد رسالة واحدة على الأقل');
+  const combinedText = hubSelectedMessages.join('\n');
+  createIgCardFromMsg(hubActiveOrderId, combinedText);
+}
+
 function createIgCardFromMsg(orderId, msgText) {
-  const order = hubActiveOrder || (allOrders || []).find(o => o.id === orderId) || {};
+  const order = hubActiveOrder || (hubAllChats || []).find(o => String(o.id) === String(orderId)) || {};
   
   let prodName = '';
   try {
@@ -2758,11 +3014,34 @@ function createIgCardFromMsg(orderId, msgText) {
 
 function openIgCardDirectFromHub() {
   if (!hubActiveOrderId) return;
-  openIgCardModal(hubActiveOrderId);
+  const text = hubActiveOrder?.customer_reply || 'المنتج ممتاز جداً وخامته تحفة شكراً ليكم 💖';
+  createIgCardFromMsg(hubActiveOrderId, text);
 }
 
 async function saveReviewFromHub(orderId, msgText) {
   await setReviewFromChatMessage(orderId, msgText);
+  // Also save to Reviews Bank
+  const order = hubActiveOrder || {};
+  let prodName = '';
+  try {
+    const itms = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);
+    if (itms.length > 0) prodName = itms[0].name || itms[0].title || '';
+  } catch {}
+
+  fetch('/api/orders/reviews/bank', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customer_name: order.customer_name || 'عميل',
+      customer_phone: order.customer_phone || '',
+      product_name: prodName,
+      review_text: msgText,
+      rating: 5,
+      order_id: !String(orderId).startsWith('wa_') ? orderId : null,
+      order_number: order.order_number || null,
+    })
+  }).then(() => updateReviewsBankCounter()).catch(() => {});
+
   if (hubActiveOrderId === orderId) {
     selectHubChat(orderId);
   }
@@ -2778,10 +3057,17 @@ async function sendHubChatMessage() {
   showToast('⏳ جاري إرسال الرسالة...', 'info');
 
   try {
-    const res = await fetch(`/api/orders/${hubActiveOrderId}/custom-message`, {
+    let url = `/api/orders/${hubActiveOrderId}/custom-message`;
+    let bodyData = { message: msg };
+    
+    if (String(hubActiveOrderId).startsWith('wa_')) {
+      bodyData.phone = String(hubActiveOrderId).replace('wa_', '');
+    }
+
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg })
+      body: JSON.stringify(bodyData)
     });
     const data = await res.json();
     if (data.success) {
@@ -2796,6 +3082,220 @@ async function sendHubChatMessage() {
   } finally {
     input.disabled = false;
     input.focus();
+  }
+}
+
+// ─── Reviews Bank Logic (بنك التقييمات الشامل) ─────────────────────────────
+async function updateReviewsBankCounter() {
+  try {
+    const res = await fetch('/api/orders/reviews/bank');
+    const data = await res.json();
+    if (data.success && Array.isArray(data.reviews)) {
+      hubAllReviews = data.reviews;
+      const counterEl = document.getElementById('hub-bank-counter');
+      if (counterEl) counterEl.textContent = data.reviews.length;
+    }
+  } catch (e) {}
+}
+
+async function loadReviewsBank() {
+  const gridEl = document.getElementById('bank-reviews-grid');
+  if (gridEl) gridEl.innerHTML = `<div style="text-align:center;grid-column:1/-1;padding:40px;color:#94a3b8;">⏳ جارٍ تحميل بنك التقييمات...</div>`;
+
+  try {
+    const res = await fetch('/api/orders/reviews/bank');
+    const data = await res.json();
+    if (data.success && Array.isArray(data.reviews)) {
+      hubAllReviews = data.reviews;
+      const counterEl = document.getElementById('hub-bank-counter');
+      if (counterEl) counterEl.textContent = data.reviews.length;
+      renderReviewsBankGrid(data.reviews);
+    } else {
+      if (gridEl) gridEl.innerHTML = `<div style="text-align:center;grid-column:1/-1;padding:40px;color:#ef4444;">❌ فشل تحميل التقييمات</div>`;
+    }
+  } catch (err) {
+    if (gridEl) gridEl.innerHTML = `<div style="text-align:center;grid-column:1/-1;padding:40px;color:#ef4444;">❌ خطأ في الاتصال: ${err.message}</div>`;
+  }
+}
+
+function filterReviewsBank() {
+  const query = (document.getElementById('bank-search-input')?.value || '').trim().toLowerCase();
+  let filtered = hubAllReviews.filter(r => {
+    if (query) {
+      const name = (r.customer_name || '').toLowerCase();
+      const phone = (r.customer_phone || '').toLowerCase();
+      const prod = (r.product_name || '').toLowerCase();
+      const txt = (r.review_text || '').toLowerCase();
+      if (!name.includes(query) && !phone.includes(query) && !prod.includes(query) && !txt.includes(query)) return false;
+    }
+    return true;
+  });
+  renderReviewsBankGrid(filtered);
+}
+
+function renderReviewsBankGrid(reviews) {
+  const gridEl = document.getElementById('bank-reviews-grid');
+  if (!gridEl) return;
+
+  if (reviews.length === 0) {
+    gridEl.innerHTML = `
+      <div style="text-align:center;grid-column:1/-1;padding:60px 20px;color:#94a3b8;">
+        <div style="font-size:42px;margin-bottom:10px;">⭐</div>
+        <div style="font-weight:700;font-size:16px;color:#e2e8f0;">بنك التقييمات فارغ حالياً</div>
+        <div style="font-size:12.5px;margin-top:6px;">يمكنك تحديد أي رسائل من شاتات العملاء والضغط على "إضافة لبنك الريفيوهات" أو الضغط على "إضافة ريفيو يدوي"</div>
+      </div>`;
+    return;
+  }
+
+  gridEl.innerHTML = reviews.map(r => {
+    const starsStr = '⭐'.repeat(r.rating || 5);
+    const dateStr = formatTime(r.created_at);
+    const textEsc = escapeHtml(r.review_text).replace(/'/g, "\\'");
+    const nameEsc = escapeHtml(r.customer_name || 'عميل').replace(/'/g, "\\'");
+    const prodEsc = escapeHtml(r.product_name || '').replace(/'/g, "\\'");
+
+    return `
+      <div style="background:var(--bg-card, #1e293b);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;gap:12px;box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+            <div>
+              <div style="font-weight:800;font-size:14.5px;color:#fff;">${escapeHtml(r.customer_name || 'عميل')}</div>
+              <div style="font-size:11px;color:#94a3b8;direction:ltr;text-align:right;">${escapeHtml(r.customer_phone || '')}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+              <span style="color:#f59e0b;font-size:12px;">${starsStr}</span>
+              <span style="font-size:10px;color:#64748b;">${dateStr}</span>
+            </div>
+          </div>
+
+          ${r.product_name ? `
+            <div style="font-size:11px;color:#0284c7;background:rgba(2,132,199,0.1);padding:2px 8px;border-radius:4px;display:inline-block;margin-bottom:8px;font-weight:700;">
+              🏷️ ${escapeHtml(r.product_name)}
+            </div>
+          ` : ''}
+
+          <div style="background:rgba(0,0,0,0.25);border-radius:8px;padding:10px;font-size:13px;color:#e2e8f0;line-height:1.45;white-space:pre-wrap;border-right:3px solid #00a884;">
+            "${escapeHtml(r.review_text)}"
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">
+          <button class="btn btn-sm" onclick="createIgCardFromBankItem('${nameEsc}', '${textEsc}', '${prodEsc}')" style="background:linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);color:#fff;font-weight:800;font-size:11.5px;padding:5px 12px;border-radius:6px;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(253,29,29,0.35);">
+            📸 توليد كارت إنستجرام
+          </button>
+
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="promptEditReviewInBank(${r.id})" style="color:#94a3b8;padding:4px 8px;font-size:12px;" title="تعديل">
+              ✏️
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="deleteReviewFromBank(${r.id})" style="color:#ef4444;padding:4px 8px;font-size:12px;" title="حذف من البنك">
+              🗑️
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function createIgCardFromBankItem(customerName, reviewText, productName) {
+  igCardData.text = reviewText;
+  igCardData.name = customerName || 'عميل DopaLess';
+  igCardData.product = productName || 'منتج مميز من DopaLess';
+
+  document.getElementById('ig-input-text').value = igCardData.text;
+  document.getElementById('ig-input-name').value = igCardData.name;
+  document.getElementById('ig-input-product').value = igCardData.product;
+  document.getElementById('ig-check-verified').checked = true;
+  document.getElementById('ig-check-stars').checked = true;
+
+  setIgFormat('story');
+  setIgTheme('dark_gold');
+
+  openModal('ig-card-modal');
+  setTimeout(renderIgCanvas, 80);
+}
+
+async function promptAddManualReview() {
+  const name = prompt('اسم العميل / العميلة:') || 'عميل';
+  const text = prompt('نص كلام وتقييم العميل:') || '';
+  if (!text.trim()) return alert('نص التقييم لا يمكن أن يكون فارغاً');
+  const product = prompt('اسم المنتج (اختياري):') || '';
+  const phone = prompt('رقم هاتف العميل (اختياري):') || '';
+
+  showToast('⏳ جاري إضافة الريفيو لبنك التقييمات...', 'info');
+
+  try {
+    const res = await fetch('/api/orders/reviews/bank', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: name,
+        customer_phone: phone,
+        product_name: product,
+        review_text: text,
+        rating: 5,
+        source: 'manual'
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('🌟 تم إضافة الريفيو بنجاح!', 'success');
+      loadReviewsBank();
+    } else {
+      showToast('❌ فشل الإضافة: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ: ' + err.message, 'error');
+  }
+}
+
+async function promptEditReviewInBank(id) {
+  const review = hubAllReviews.find(r => r.id === id);
+  if (!review) return;
+
+  const newName = prompt('اسم العميل:', review.customer_name || 'عميل');
+  if (newName === null) return;
+  const newText = prompt('نص التقييم:', review.review_text);
+  if (!newText || !newText.trim()) return;
+  const newProd = prompt('اسم المنتج:', review.product_name || '');
+
+  try {
+    const res = await fetch(`/api/orders/reviews/bank/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: newName,
+        customer_phone: review.customer_phone,
+        product_name: newProd,
+        review_text: newText,
+        rating: review.rating || 5
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ تم تعديل الريفيو بنجاح', 'success');
+      loadReviewsBank();
+    } else {
+      showToast('❌ فشل التعديل: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ: ' + err.message, 'error');
+  }
+}
+
+async function deleteReviewFromBank(id) {
+  if (!confirm('هل أنت متأكد من حذف هذا الريفيو من بنك التقييمات؟')) return;
+  try {
+    const res = await fetch(`/api/orders/reviews/bank/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ تم حذف الريفيو من البنك', 'success');
+      loadReviewsBank();
+    } else {
+      showToast('❌ فشل الحذف: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ: ' + err.message, 'error');
   }
 }
 

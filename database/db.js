@@ -149,6 +149,23 @@ async function initializeSchema() {
       created_at TEXT DEFAULT (datetime('now'))
     );`);
 
+  // Customer Reviews Bank (حفظ وإدارة كل ريفيوهات العملاء من رسائل الواتساب واستخدامها في إنستجرام)
+  await client.execute(`CREATE TABLE IF NOT EXISTS customer_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_name TEXT,
+      customer_phone TEXT,
+      product_name TEXT,
+      review_text TEXT NOT NULL,
+      rating INTEGER DEFAULT 5,
+      order_id TEXT,
+      order_number TEXT,
+      source TEXT DEFAULT 'whatsapp',
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );`);
+  try { await client.execute('CREATE INDEX IF NOT EXISTS idx_reviews_phone ON customer_reviews (customer_phone)'); } catch (e) {}
+  try { await client.execute('CREATE INDEX IF NOT EXISTS idx_reviews_created ON customer_reviews (created_at)'); } catch (e) {}
+
   // ─── Multi-user accounts ────────────────────────────────────────────────
   // Anyone can sign up, but new accounts sit as 'pending' until the owner
   // (admin) approves them from the dashboard — nobody can log in with a
@@ -1274,6 +1291,57 @@ async function getOrdersWithActiveSpeedaf() {
   return res.rows;
 }
 
+
+// ─── Customer Reviews Bank ──────────────────────────────────────────────────
+
+async function addCustomerReview(review) {
+  const client = await ready();
+  const res = await client.execute({
+    sql: `INSERT INTO customer_reviews 
+          (customer_name, customer_phone, product_name, review_text, rating, order_id, order_number, source, notes, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    args: [
+      review.customer_name || 'عميل',
+      review.customer_phone || '',
+      review.product_name || '',
+      review.review_text || '',
+      review.rating !== undefined ? Number(review.rating) : 5,
+      review.order_id ? String(review.order_id) : null,
+      review.order_number || null,
+      review.source || 'whatsapp',
+      review.notes || null,
+    ]
+  });
+  return Number(res.lastInsertRowid);
+}
+
+async function getAllCustomerReviews(search = '') {
+  const client = await ready();
+  let sql = 'SELECT * FROM customer_reviews ';
+  const args = [];
+  if (search && String(search).trim()) {
+    sql += 'WHERE customer_name LIKE ? OR customer_phone LIKE ? OR product_name LIKE ? OR review_text LIKE ? ';
+    const s = `%${String(search).trim()}%`;
+    args.push(s, s, s, s);
+  }
+  sql += 'ORDER BY created_at DESC, id DESC';
+  const res = await client.execute({ sql, args });
+  return res.rows;
+}
+
+async function deleteCustomerReview(id) {
+  const client = await ready();
+  return client.execute({ sql: 'DELETE FROM customer_reviews WHERE id = ?', args: [id] });
+}
+
+async function updateCustomerReview(id, data) {
+  const client = await ready();
+  return client.execute({
+    sql: 'UPDATE customer_reviews SET customer_name = ?, customer_phone = ?, product_name = ?, review_text = ?, rating = ? WHERE id = ?',
+    args: [data.customer_name, data.customer_phone, data.product_name, data.review_text, Number(data.rating || 5), id]
+  });
+}
+
 module.exports = {
   getDb,
   ready,
@@ -1371,4 +1439,9 @@ module.exports = {
   updateSpeedafStatus,
   updateSpeedafTracks,
   getOrdersWithActiveSpeedaf,
+  // Customer Reviews Bank
+  addCustomerReview,
+  getAllCustomerReviews,
+  deleteCustomerReview,
+  updateCustomerReview,
 };

@@ -1135,10 +1135,90 @@ router.post('/:id/review-save', async (req, res) => {
   }
 });
 
+// ─── Reviews Bank APIs ──────────────────────────────────────────────────────
+
+// GET /api/orders/reviews/bank (جلب كل الريفيوهات المحفوظة في بنك التقييمات)
+router.get('/reviews/bank', async (req, res) => {
+  try {
+    const search = req.query.search || '';
+    const reviews = await db.getAllCustomerReviews(search);
+    res.json({ success: true, reviews: reviews || [] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/orders/reviews/bank (إضافة ريفيو جديد لبنك التقييمات من رسائل الشات أو يدوي)
+router.post('/reviews/bank', async (req, res) => {
+  try {
+    const { customer_name, customer_phone, product_name, review_text, rating, order_id, order_number, source, notes } = req.body;
+    if (!review_text || !String(review_text).trim()) {
+      return res.status(400).json({ success: false, error: 'نص التقييم مطلوب' });
+    }
+
+    const newId = await db.addCustomerReview({
+      customer_name: (customer_name || '').trim() || 'عميل',
+      customer_phone: (customer_phone || '').trim(),
+      product_name: (product_name || '').trim(),
+      review_text: String(review_text).trim(),
+      rating: rating !== undefined ? Number(rating) : 5,
+      order_id: order_id ? String(order_id) : null,
+      order_number: order_number || null,
+      source: source || 'whatsapp',
+      notes: notes || null,
+    });
+
+    // Also link to order if order_id is provided
+    if (order_id) {
+      try {
+        await db.updateOrderRating(order_id, rating !== undefined ? Number(rating) : 5, String(review_text).trim());
+        if (global.broadcastSSE) {
+          global.broadcastSSE({ type: 'order_updated', order_id, customer_reply: String(review_text).trim(), rating: Number(rating || 5) });
+        }
+      } catch (e) {}
+    }
+
+    res.json({ success: true, id: newId, message: '✅ تم حفظ الريفيو في بنك التقييمات بنجاح!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/orders/reviews/bank/:id (تعديل ريفيو في البنك)
+router.put('/reviews/bank/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { customer_name, customer_phone, product_name, review_text, rating } = req.body;
+    await db.updateCustomerReview(id, {
+      customer_name: (customer_name || 'عميل').trim(),
+      customer_phone: (customer_phone || '').trim(),
+      product_name: (product_name || '').trim(),
+      review_text: String(review_text || '').trim(),
+      rating: Number(rating || 5)
+    });
+    res.json({ success: true, message: '✅ تم تحديث الريفيو بنجاح' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/orders/reviews/bank/:id (حذف ريفيو من البنك)
+router.delete('/reviews/bank/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    await db.deleteCustomerReview(id);
+    res.json({ success: true, message: '✅ تم حذف الريفيو من البنك' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/orders/chats/all (جلب قائمة بكل المحادثات وسجل الشاتات لاستعراضها واختيار الريفيو منها)
 router.get('/chats/all', async (req, res) => {
   try {
     const client = db.getDb();
+    
+    // 1. Fetch chats from orders
     const resOrders = await client.execute({
       sql: `SELECT o.id, o.order_number, o.customer_name, o.customer_phone, o.status, o.customer_reply, o.rating, o.items, o.review_sent_at, o.updated_at, o.created_at,
                    (SELECT message FROM whatsapp_messages WHERE (phone = o.customer_phone OR order_id = o.id) ORDER BY id DESC LIMIT 1) as last_msg,
@@ -1150,7 +1230,76 @@ router.get('/chats/all', async (req, res) => {
             LIMIT 150`,
       args: []
     });
-    res.json({ success: true, chats: resOrders.rows || [] });
+
+    const knownPhones = new Set();
+    (resOrders.rows || []).forEach(r => {
+      if (r.customer_phone) knownPhones.add(db.normalizePhoneForLookup(r.customer_phone));
+    });
+
+    // 2. Also fetch any standalone phone numbers with messages from whatsapp_messages that don't have an order
+    const resMsgs = await client.execute({
+      sql: `SELECT phone, MAX(created_at) as last_msg_at, 
+                   (SELECT message FROM whatsapp_messages WHERE phone = m.phone ORDER BY id DESC LIMIT 1) as last_msg,
+                   COUNT(*) as msg_count
+            FROM whatsapp_messages m
+            WHERE phone IS NOT NULL AND phone != ''
+            GROUP BY phone
+            ORDER BY last_msg_at DESC
+            LIMIT 100`,
+      args: []
+    });
+
+    const extraChats = [];
+    (resMsgs.rows || []).forEach(m => {
+      const cleanP = db.normalizePhoneForLookup(m.phone);
+      if (!knownPhones.has(cleanP)) {
+        knownPhones.add(cleanP);
+        extraChats.push({
+          id: 'wa_' + cleanP,
+          order_number: 'واتساب',
+          customer_name: 'محادثة ' + cleanP,
+          customer_phone: cleanP,
+          status: 'whatsapp_chat',
+          customer_reply: null,
+          rating: null,
+          items: '[]',
+          last_msg: m.last_msg,
+          last_msg_at: m.last_msg_at,
+          msg_count: m.msg_count,
+          created_at: m.last_msg_at,
+          updated_at: m.last_msg_at,
+        });
+      }
+    });
+
+    const allMerged = [...(resOrders.rows || []), ...extraChats].sort((a, b) => {
+      const ta = new Date(a.last_msg_at || a.updated_at || a.created_at || 0).getTime();
+      const tb = new Date(b.last_msg_at || b.updated_at || b.created_at || 0).getTime();
+      return tb - ta;
+    });
+
+    res.json({ success: true, chats: allMerged });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/orders/chat-by-phone (جلب شات أي رقم هاتف حتى لو أوردر قديم أو بدون أوردر)
+router.get('/chat-by-phone', async (req, res) => {
+  try {
+    const phone = req.query.phone;
+    if (!phone) return res.status(400).json({ success: false, error: 'Phone is required' });
+    const cleanPhone = db.normalizePhoneForLookup(phone);
+
+    const messages = await db.getChatHistory(cleanPhone, null);
+    const order = await db.getLatestActiveOrderByPhone(cleanPhone);
+
+    res.json({
+      success: true,
+      phone: cleanPhone,
+      order: order || null,
+      messages: messages || []
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
