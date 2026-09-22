@@ -1135,6 +1135,27 @@ router.post('/:id/review-save', async (req, res) => {
   }
 });
 
+// GET /api/orders/chats/all (جلب قائمة بكل المحادثات وسجل الشاتات لاستعراضها واختيار الريفيو منها)
+router.get('/chats/all', async (req, res) => {
+  try {
+    const client = db.getDb();
+    const resOrders = await client.execute({
+      sql: `SELECT o.id, o.order_number, o.customer_name, o.customer_phone, o.status, o.customer_reply, o.rating, o.items, o.review_sent_at, o.updated_at, o.created_at,
+                   (SELECT message FROM whatsapp_messages WHERE (phone = o.customer_phone OR order_id = o.id) ORDER BY id DESC LIMIT 1) as last_msg,
+                   (SELECT created_at FROM whatsapp_messages WHERE (phone = o.customer_phone OR order_id = o.id) ORDER BY id DESC LIMIT 1) as last_msg_at,
+                   (SELECT COUNT(*) FROM whatsapp_messages WHERE (phone = o.customer_phone OR order_id = o.id)) as msg_count
+            FROM orders o
+            WHERE o.deleted_at IS NULL AND o.customer_phone IS NOT NULL AND o.customer_phone != ''
+            ORDER BY COALESCE(last_msg_at, o.updated_at) DESC
+            LIMIT 150`,
+      args: []
+    });
+    res.json({ success: true, chats: resOrders.rows || [] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/orders/:id/chat (جلب سجل محادثة الواتساب مع العميل)
 router.get('/:id/chat', async (req, res) => {
   try {
