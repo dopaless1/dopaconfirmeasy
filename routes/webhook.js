@@ -402,12 +402,35 @@ async function processIncomingWhatsAppMessage(senderPhone, textMessage, explicit
     console.log(`[WA Webhook] 🎯 Order found — status: ${order.status} | order: ${order.order_number}`);
     const targetPhone = order.customer_phone || cleanPhone;
 
-    if (order.status === 'delivered') {
-      const starCount = (textMessage.match(/⭐/g) || []).length;
-      if (starCount > 0) {
-        await db.updateOrderRating(String(order.shopify_order_id), starCount);
+    if (order.status === 'delivered' || order.review_sent_at) {
+      // 1. Detect star count or numeric rating
+      const starMatches = (textMessage.match(/⭐|🌟|★/g) || []).length;
+      let detectedRating = null;
+      if (starMatches >= 1 && starMatches <= 5) {
+        detectedRating = starMatches;
+      } else {
+        const numMatch = textMessage.trim().match(/^([1-5])(\/5)?$/);
+        if (numMatch) detectedRating = parseInt(numMatch[1], 10);
+      }
+
+      const orderKey = order.id || order.shopify_order_id || order.easyorders_id;
+      await db.updateOrderRating(orderKey, detectedRating, textMessage);
+      console.log(`[WA Webhook] 🌟 Customer review saved for order #${order.order_number}: rating=${detectedRating || 'text'}, reply="${textMessage}"`);
+
+      try {
         const { sendWhatsAppMessage } = require('../services/whatsapp');
-        await sendWhatsAppMessage(targetPhone, 'شكراً لتقييمك يا فندم! سعداء بخدمتك دايماً 💖');
+        await sendWhatsAppMessage(targetPhone, 'شكراً جزيلاً لمشاركتنا رأيك وتقييمك يا فندم! سعداء بخدمتك دايماً 💖');
+      } catch (e) {
+        console.error('[WA Webhook] Failed to send review thank you message:', e.message);
+      }
+
+      if (global.broadcastSSE) {
+        global.broadcastSSE({
+          type: 'order_updated',
+          order_id: order.id,
+          rating: detectedRating,
+          customer_reply: textMessage,
+        });
       }
       return;
     }

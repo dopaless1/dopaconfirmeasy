@@ -50,6 +50,187 @@
     }
     .toast-container { right: auto; left: 24px; }
 
+    /* WhatsApp Chat Slide-over Drawer */
+    .drawer-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(2px);
+      z-index: 1040;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+    .drawer-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    .chat-drawer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 440px;
+      max-width: 92vw;
+      background: #0b141a;
+      z-index: 1050;
+      transform: translateX(-100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 10px 0 30px rgba(0,0,0,0.6);
+      font-family: 'Cairo', Tahoma, sans-serif;
+    }
+    .chat-drawer.active {
+      transform: translateX(0);
+    }
+    .chat-drawer-header {
+      background: #202c33;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #2a3942;
+    }
+    .chat-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #00a884;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .chat-messages-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background-color: #0b141a;
+      background-image: radial-gradient(#1f2c34 1px, transparent 1px);
+      background-size: 18px 18px;
+    }
+    .chat-bubble-wrap {
+      display: flex;
+      flex-direction: column;
+      max-width: 85%;
+    }
+    .chat-bubble-wrap.inbound {
+      align-self: flex-start;
+      align-items: flex-start;
+    }
+    .chat-bubble-wrap.outbound {
+      align-self: flex-end;
+      align-items: flex-end;
+    }
+    .chat-bubble {
+      padding: 9px 13px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      position: relative;
+      word-break: break-word;
+    }
+    .chat-bubble-wrap.inbound .chat-bubble {
+      background: #202c33;
+      color: #e9edef;
+      border-top-left-radius: 2px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .chat-bubble-wrap.outbound .chat-bubble {
+      background: #005c4b;
+      color: #e9edef;
+      border-top-right-radius: 2px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .chat-bubble-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+      gap: 8px;
+      width: 100%;
+    }
+    .chat-bubble-time {
+      font-size: 10.5px;
+      color: #8696a0;
+      direction: ltr;
+    }
+    .btn-set-review {
+      background: #f59e0b;
+      color: #000;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: transform 0.1s;
+    }
+    .btn-set-review:hover {
+      transform: scale(1.04);
+      background: #fbbf24;
+    }
+    .chat-drawer-footer {
+      background: #202c33;
+      padding: 12px 16px;
+      border-top: 1px solid #2a3942;
+    }
+
+    /* Status Quick Selector Dropdown */
+    .status-badge-container {
+      position: relative;
+      display: inline-block;
+    }
+    .status-dropdown-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      z-index: 1000;
+      background: var(--bg-surface);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      padding: 6px;
+      min-width: 200px;
+      margin-top: 5px;
+    }
+    .status-opt {
+      padding: 7px 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-align: right;
+    }
+    .status-opt:hover {
+      background: var(--primary-light);
+      color: var(--primary-color);
+      transform: translateX(-2px);
+    }
+    .status-opt.opt-cancel:hover {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+    .status-opt.opt-return:hover {
+      background: #fff7ed;
+      color: #ea580c;
+    }
+
     /* Waybill Thermal Label Styles (Speedaf 130*75mm / 100*150mm) */
     .waybill-container {
       width: 440px;
@@ -340,7 +521,7 @@
           <button class="status-tab" data-statuses="confirmed,shipping_failed" onclick="setStatusTab(this)">⏳ جاهز للشحن</button>
           <button class="status-tab" data-statuses="shipping_sent,handed_to_courier" onclick="setStatusTab(this)">🚚 مع المندوب / في الطريق</button>
           <button class="status-tab" data-statuses="delivered" onclick="setStatusTab(this)">📦 تم التسليم</button>
-          <button class="status-tab" data-statuses="cancelled" onclick="setStatusTab(this)">🚫 مرتجع / ملغي</button>
+          <button class="status-tab" data-statuses="cancelled,returned" onclick="setStatusTab(this)">🚫 مرتجع / ملغي</button>
         </div>
 
         <select class="filter-select" id="date-filter" onchange="loadOrders()">
@@ -754,6 +935,110 @@
       <button class="btn btn-primary" onclick="sendCustomMessage()" id="send-custom-msg-btn">إرسال عبر واتساب 📤</button>
     </div>
     <input type="hidden" id="custom-msg-order-id">
+  </div>
+</div>
+
+<!-- ─── WhatsApp Chat Slide-over Drawer ────────────── -->
+<div id="chat-drawer-overlay" class="drawer-overlay" onclick="closeChatDrawer()"></div>
+<div id="chat-drawer" class="chat-drawer">
+  <div class="chat-drawer-header">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="chat-avatar">💬</div>
+      <div>
+        <div id="chat-customer-name" style="font-weight:800;font-size:15px;color:#fff;">اسم العميل</div>
+        <div id="chat-customer-phone" style="font-size:12px;color:#94a3b8;direction:ltr;text-align:right;">010...</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="chat-order-badge" class="badge" style="background:#0284c7;color:#fff;font-size:11.5px;font-weight:700;">#1234</span>
+      <button class="btn btn-ghost btn-sm" onclick="closeChatDrawer()" style="color:#fff;font-size:16px;padding:4px 8px;">✕</button>
+    </div>
+  </div>
+
+  <div id="chat-messages-container" class="chat-messages-body">
+    <!-- Messages injected dynamically -->
+  </div>
+
+  <div class="chat-drawer-footer">
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input id="chat-reply-input" type="text" placeholder="اكتب رداً للعميل عبر واتساب..." class="form-input" style="flex:1;padding:9px 13px;font-size:13.5px;background:#2a3942;color:#fff;border-color:#3b4a54;" onkeydown="if(event.key==='Enter') sendDrawerChatMessage()">
+      <button class="btn btn-primary" onclick="sendDrawerChatMessage()" style="padding:9px 16px;white-space:nowrap;font-weight:800;">إرسال 🚀</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Instagram Review Card Modal ────────────── -->
+<div class="modal-overlay" id="ig-card-modal">
+  <div class="modal" style="max-width:860px;width:95%;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:22px;">📸</span>
+        <h2 class="modal-title" style="margin-bottom:0;">مولد كروت ريفيو إنستجرام (Instagram Review Card)</h2>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('ig-card-modal')">✕ إغلاق</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+      <!-- Controls column -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label class="form-label" style="font-weight:700;font-size:12px;margin-bottom:4px;">المقاس والتنسيق:</label>
+          <div style="display:flex;gap:8px;">
+            <button type="button" id="ig-btn-story" class="btn btn-sm" style="flex:1;background:var(--primary-color);color:#fff;font-weight:700;" onclick="setIgFormat('story')">📱 ستوري (Story 9:16)</button>
+            <button type="button" id="ig-btn-post" class="btn btn-sm btn-outline" style="flex:1;font-weight:700;" onclick="setIgFormat('post')">🖼️ بوست مربع (Post 1:1)</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="form-label" style="font-weight:700;font-size:12px;margin-bottom:4px;">الثيم والألوان:</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <button type="button" class="btn btn-xs" id="theme-btn-dark_gold" style="background:#0f172a;color:#fbbf24;border:1.5px solid #fbbf24;font-weight:700;padding:6px;" onclick="setIgTheme('dark_gold')">✨ فخم داكن (Dark Gold)</button>
+            <button type="button" class="btn btn-xs" id="theme-btn-rose" style="background:#fff1f2;color:#e11d48;border:1px solid #fecdd3;font-weight:700;padding:6px;" onclick="setIgTheme('rose')">🌸 روز ناعم (Soft Rose)</button>
+            <button type="button" class="btn btn-xs" id="theme-btn-emerald" style="background:#064e3b;color:#a7f3d0;border:1px solid #047857;font-weight:700;padding:6px;" onclick="setIgTheme('emerald')">🌿 زمردي ملكي (Emerald)</button>
+            <button type="button" class="btn btn-xs" id="theme-btn-violet" style="background:#2e1065;color:#c084fc;border:1px solid #581c87;font-weight:700;padding:6px;" onclick="setIgTheme('violet')">🌌 بنفسجي ليلي (Violet)</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="form-label" style="font-weight:700;font-size:12px;margin-bottom:4px;">نص رأي / كلام العميل:</label>
+          <textarea id="ig-input-text" class="form-input" rows="4" style="font-size:13px;resize:vertical;" oninput="renderIgCanvas()"></textarea>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label class="form-label" style="font-weight:700;font-size:12px;margin-bottom:4px;">اسم العميل:</label>
+            <input id="ig-input-name" type="text" class="form-input" style="font-size:13px;padding:6px 10px;" oninput="renderIgCanvas()">
+          </div>
+          <div>
+            <label class="form-label" style="font-weight:700;font-size:12px;margin-bottom:4px;">المنتج المشتري:</label>
+            <input id="ig-input-product" type="text" class="form-input" style="font-size:13px;padding:6px 10px;" oninput="renderIgCanvas()">
+          </div>
+        </div>
+
+        <div style="display:flex;gap:14px;font-size:12px;font-weight:600;margin-top:2px;">
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" id="ig-check-verified" checked onchange="renderIgCanvas()"> 🛡️ شارة مشتري موثق
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" id="ig-check-stars" checked onchange="renderIgCanvas()"> ⭐ نجوم (5/5)
+          </label>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn btn-primary" style="flex:1;font-weight:800;padding:10px;font-size:13.5px;" onclick="downloadIgCanvas()">
+            📥 تحميل صورة PNG
+          </button>
+          <button class="btn btn-outline" style="flex:1;font-weight:700;padding:10px;font-size:13.5px;" onclick="copyIgCanvas()">
+            📋 نسخ الصورة للحافظة
+          </button>
+        </div>
+      </div>
+
+      <!-- Preview column -->
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;background:#020617;border-radius:12px;padding:14px;min-height:420px;border:1px solid #1e293b;">
+        <canvas id="ig-preview-canvas" style="max-width:100%;max-height:430px;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.6);"></canvas>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1284,6 +1569,11 @@ function renderSingleTable(tbodyId, countId, orders, highlightNew = false) {
       <td>
         <div class="customer-name" dir="auto" style="font-weight:700">${escapeHtml(order.customer_name || '—')}</div>
         <div style="font-size:12px;color:var(--text-muted);direction:ltr;text-align:right">${escapeHtml(order.customer_phone || '')}</div>
+        ${order.customer_reply ? `
+          <div style="font-size:11px;color:#047857;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:2px 6px;margin-top:4px;max-width:240px;line-height:1.3;white-space:normal;word-break:break-word;" title="رد / رأي العميل">
+            💬 <span style="font-weight:700;">${order.status === 'delivered' ? 'رأي العميل: ' : 'رد: '}</span>${escapeHtml(order.customer_reply)}
+          </div>
+        ` : ''}
       </td>
       <td>
         <div class="items-summary" title="${getItemsSummaryFull(order.items)}">${getItemsSummary(order.items)}</div>
@@ -1348,6 +1638,7 @@ function renderStatusBadge(status, order = {}) {
     'whatsapp_failed':      ['badge-whatsapp-failed', '❌', 'فشل إرسال واتساب'],
     'confirmed':            ['badge-confirmed', '✅', 'تم التأكيد'],
     'cancelled':            ['badge-cancelled', '🚫', 'ملغي'],
+    'returned':             ['badge-cancelled', '↩️', 'مرتجع'],
     'shipping_sent':        ['badge-shipping-sent', '🚚', 'تم تبليغ شركة الشحن'],
     'shipping_failed':      ['badge-shipping-failed', '⚠️', 'فشل إرسال للشحن'],
     'handed_to_courier':    ['badge-handed-courier', '📦', 'تم التسليم لمندوب الشحن'],
@@ -1367,7 +1658,88 @@ function renderStatusBadge(status, order = {}) {
       </div>`;
   }
 
-  return `<span class="badge ${cls}">${icon} ${label}</span>${issueBadge}`;
+  if (!order || !order.id) {
+    return `<span class="badge ${cls}">${icon} ${label}</span>${issueBadge}`;
+  }
+
+  return `
+    <div class="status-badge-container">
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span class="badge ${cls}" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;" onclick="toggleStatusDropdown(event, ${order.id})" title="اضغط لتغيير حالة الطلب يدوياً ومزامنتها مع المتجر">
+          ${icon} ${label} <span style="font-size:9.5px;opacity:0.6;margin-right:1px;">▼</span>
+        </span>
+      </div>
+
+      <div id="status-drop-${order.id}" class="status-dropdown-menu">
+        <div style="font-size:11px;font-weight:800;color:var(--text-muted);padding:4px 8px 6px;border-bottom:1px solid var(--border);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+          <span>⚡ تغيير ومزامنة الحالة:</span>
+          <span style="cursor:pointer;font-size:12px;" onclick="closeAllStatusDropdowns()">✕</span>
+        </div>
+        <div class="status-opt" onclick="changeOrderStatusDirect(${order.id}, 'pending_confirmation')">⏳ في انتظار التأكيد</div>
+        <div class="status-opt" onclick="changeOrderStatusDirect(${order.id}, 'confirmed')">✅ مؤكد (Confirmed)</div>
+        <div class="status-opt" onclick="changeOrderStatusDirect(${order.id}, 'shipping_sent')">🚚 قيد التجهيز للشحن (Pickup)</div>
+        <div class="status-opt" onclick="changeOrderStatusDirect(${order.id}, 'handed_to_courier')">📦 مع المندوب / جاري التوصيل</div>
+        <div class="status-opt" onclick="changeOrderStatusDirect(${order.id}, 'delivered')">🎉 تم التسليم (Delivered)</div>
+        <div class="status-opt opt-return" onclick="changeOrderStatusDirect(${order.id}, 'returned')">↩️ مرتجع (Returned)</div>
+        <div class="status-opt opt-cancel" onclick="changeOrderStatusDirect(${order.id}, 'cancelled')">🚫 ملغي (Canceled)</div>
+        <div class="status-opt" onclick="changeOrderStatusDirect(${order.id}, 'needs_follow_up')">🔔 يحتاج متابعة</div>
+      </div>
+      ${issueBadge}
+    </div>
+  `;
+}
+
+function toggleStatusDropdown(event, orderId) {
+  if (event) event.stopPropagation();
+  // أغلق أي قائمة تانية مفتوحة
+  document.querySelectorAll('[id^="status-drop-"]').forEach(d => {
+    if (d.id !== `status-drop-${orderId}`) d.style.display = 'none';
+  });
+  const drop = document.getElementById(`status-drop-${orderId}`);
+  if (drop) {
+    drop.style.display = drop.style.display === 'block' ? 'none' : 'block';
+  }
+}
+
+function closeAllStatusDropdowns() {
+  document.querySelectorAll('[id^="status-drop-"]').forEach(d => d.style.display = 'none');
+}
+
+document.addEventListener('click', () => {
+  closeAllStatusDropdowns();
+});
+
+async function changeOrderStatusDirect(orderId, newStatus) {
+  closeAllStatusDropdowns();
+  const statusNames = {
+    'pending_confirmation': 'في انتظار التأكيد',
+    'confirmed': 'مؤكد',
+    'shipping_sent': 'قيد التجهيز للشحن',
+    'handed_to_courier': 'مع المندوب / جاري التوصيل',
+    'delivered': 'تم التسليم',
+    'returned': 'مرتجع',
+    'cancelled': 'ملغي',
+    'needs_follow_up': 'يحتاج متابعة'
+  };
+
+  showToast(`⏳ جاري تغيير الحالة إلى "${statusNames[newStatus] || newStatus}" والمزامنة...`, 'info');
+
+  try {
+    const res = await fetch(`/api/orders/${orderId}/change-status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ تم تغيير حالة الطلب إلى "${statusNames[newStatus] || newStatus}" ومزامنته بنجاح!`, 'success');
+      loadOrders(false, true);
+    } else {
+      showToast(`❌ فشل تغيير الحالة: ${data.error || 'خطأ غير محدد'}`, 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال بالسيرفر: ' + err.message, 'error');
+  }
 }
 
 async function sendWhatsAppNow(orderId) {
@@ -1531,138 +1903,91 @@ function renderRowActionButtons(order) {
 
   // ── مرحلة 5: تم التسليم ──
   if (status === 'delivered') {
-    // 1. زر إرسال تقييم
-    btns.push(`
-      <button class="btn btn-sm" onclick="requestReview(${order.id}, '${orderNumSafe}')" title="إرسال رسالة طلب التقييم للعميل"
-        style="background:#f59e0b;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-        ⭐ إرسال تقييم
-      </button>
-    `);
-    // 2. زر خط السير (لو بوليصة موجودة)
-    if (order.speedaf_waybill) {
+    // 1. أزرار التقييم
+    if (order.rating) {
       btns.push(`
-        <button class="btn btn-sm" onclick="openSpeedafTrackingModal(${order.id})" title="عرض خط السير ومحطات التتبع"
-          style="background:#0ea5e9;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-          📍 خط السير
+        <span class="badge" style="background:#fef3c7;color:#b45309;border:1.5px solid #fde68a;font-weight:800;font-size:11.5px;padding:4px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:3px;" title="تم استلام تقييم العميل">
+          ⭐ ${order.rating}/5
+        </span>
+        <button class="btn btn-sm" onclick="requestReview(${order.id}, '${orderNumSafe}')" title="إعادة إرسال طلب التقييم"
+          style="background:#f59e0b;color:#fff;font-weight:700;padding:4px 7px;font-size:11px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+          🔄 إعادة طلب
+        </button>
+      `);
+    } else if (order.review_sent_at) {
+      btns.push(`
+        <span class="badge" style="background:#ecfdf5;color:#047857;border:1.5px solid #a7f3d0;font-weight:800;font-size:11.5px;padding:4px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:3px;" title="تم إرسال طلب التقييم (${formatTime(order.review_sent_at)})">
+          ✅ طُلب تقييم
+        </span>
+        <button class="btn btn-sm" onclick="requestReview(${order.id}, '${orderNumSafe}')" title="إعادة إرسال رسالة التقييم"
+          style="background:#f59e0b;color:#fff;font-weight:700;padding:4px 7px;font-size:11px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+          🔄 إعادة إرسال
+        </button>
+      `);
+    } else {
+      btns.push(`
+        <button class="btn btn-sm" onclick="requestReview(${order.id}, '${orderNumSafe}')" title="إرسال رسالة طلب التقييم للعميل"
+          style="background:#f59e0b;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+          ⭐ إرسال تقييم
         </button>
       `);
     }
-    // 3. زر الحذف
+    // 2. زر شات العميل
     btns.push(`
-      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${orderNumSafe}')" title="حذف من الداشبورد"
-        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-        🗑 حذف
+      <button class="btn btn-sm" onclick="openChatDrawer(${order.id})" title="عرض شات الواتساب الكامل مع العميل واختيار الريفيو"
+        style="background:#00a884;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
+        💬 الشات
       </button>
     `);
+
+    // 3. زر كارت إنستجرام لو موجود نص رأي عميل
+    if (order.customer_reply) {
+      btns.push(`
+        <button class="btn btn-sm" onclick="openIgCardModal(${order.id})" title="توليد وتصدير كارت ريفيو إنستجرام فخم للستوري أو البوست"
+          style="background:linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);color:#fff;font-weight:800;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;box-shadow:0 2px 6px rgba(253,29,29,0.3);">
+          📸 إنستجرام
+        </button>
+      `);
+    }
+
+    // (شارة البوليصة البرتقالية تفتح Speedaf Ops — لا حاجة لأزرار مكررة)
     return btns.join('');
   }
 
-  // ── مرحلة 6: ملغي / مرتجع ──
-  if (status === 'cancelled') {
-    if (order.speedaf_waybill) {
-      btns.push(`
-        <button class="btn btn-sm" onclick="openSpeedafTrackingModal(${order.id})" title="عرض خط السير"
-          style="background:#0ea5e9;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-          📍 خط السير
-        </button>
-      `);
-    }
-    btns.push(`
-      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${orderNumSafe}')" title="حذف من الداشبورد"
-        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-        🗑 حذف
-      </button>
-    `);
-    return btns.join('');
+  // ── ملغي / مرتجع — شارة البوليصة تفتح Speedaf Ops، لا أزرار مكررة ──
+  if (status === 'cancelled' || status === 'returned') {
+    return '';
   }
 
   // ── مرحلة 4: المندوب استلم / في الطريق (مع بوليصة Speedaf) ──
+  // (شارة البوليصة تفتح الطباعة والتتبع — هنا فقط quick actions لتغيير الحالة)
   if (['handed_to_courier', 'shipping_sent'].includes(status) && order.speedaf_waybill) {
-    // 1. زر خط السير
-    btns.push(`
-      <button class="btn btn-sm" onclick="openSpeedafTrackingModal(${order.id})" title="عرض خط سير الشحنة المباشر"
-        style="background:#0ea5e9;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-        📍 خط السير
-      </button>
-    `);
-    // 2. زر معاينة وطباعة البوليصة الرسمية
-    btns.push(`
-      <button class="btn btn-sm" onclick="speedafPreviewDirect(${order.id})" title="معاينة بوليصة Speedaf الرسمية والطباعة"
-        style="background:#0284c7;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-        👁️ معاينة
-      </button>
-    `);
-    // 3. زر تم التسليم يدوياً
     btns.push(`
       <button class="btn btn-sm" onclick="markDeliveredDirect(${order.id}, '${orderNumSafe}')" title="تسجيل تم التسليم للعميل"
         style="background:#10b981;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
         📦 تم التسليم
       </button>
     `);
-    // 4. زر مرتجع
     btns.push(`
       <button class="btn btn-sm" onclick="markReturnedDirect(${order.id}, '${orderNumSafe}')" title="تسجيل كمرتجع"
         style="background:#ef4444;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
         ↩️ مرتجع
       </button>
     `);
-    // 5. زر حذف
-    btns.push(`
-      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${orderNumSafe}')" title="حذف من الداشبورد"
-        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-        🗑 حذف
-      </button>
-    `);
     return btns.join('');
   }
 
-  // ── مرحلة 3: بوليصة صدرت ولكن لم يستلمها المندوب بعد ──
+  // ── مرحلة 3: بوليصة صدرت — شارة البوليصة البرتقالية تفتح Speedaf Ops ──
   if (order.speedaf_waybill) {
-    // 1. زر معاينة وطباعة البوليصة الرسمية
-    btns.push(`
-      <button class="btn btn-sm" onclick="speedafPreviewDirect(${order.id})" title="معاينة بوليصة Speedaf الرسمية والطباعة"
-        style="background:#0284c7;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-        👁️ معاينة
-      </button>
-    `);
-    // 2. زر خط السير
-    btns.push(`
-      <button class="btn btn-sm" onclick="openSpeedafTrackingModal(${order.id})" title="عرض خط السير"
-        style="background:#0ea5e9;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-        📍 خط السير
-      </button>
-    `);
-    // 3. زر إبطال البوليصة في Speedaf
-    btns.push(`
-      <button class="btn btn-sm" onclick="speedafVoidDirect(${order.id}, '${orderNumSafe}')" title="إبطال البوليصة في Speedaf"
-        style="background:#d97706;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
-        🚫 إبطال
-      </button>
-    `);
-    // 4. زر حذف
-    btns.push(`
-      <button class="btn btn-sm btn-delete" onclick="deleteOrder(${order.id}, '${orderNumSafe}')" title="حذف من الداشبورد"
-        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-        🗑 حذف
-      </button>
-    `);
-    return btns.join('');
+    return '';
   }
 
   // ── مرحلة 2: مؤكد أو فشل شحنه (جاهز للإرسال لـ Speedaf) ──
   if (['confirmed', 'shipping_failed'].includes(status)) {
-    // 1. زر تحويل وإرسال لـ Speedaf
     btns.push(`
       <button class="btn btn-sm" onclick="openSpeedafModal(${order.id})" title="اختيار المحافظة والمنطقة وإرسال لـ Speedaf"
         style="background:#f97316;color:#fff;font-weight:700;padding:5px 10px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
         🚚 إرسال لـ Speedaf
-      </button>
-    `);
-    // 2. زر إلغاء
-    btns.push(`
-      <button class="btn btn-sm btn-danger" onclick="cancelOrder(${order.id}, '${orderNumSafe}')" title="إلغاء الطلب"
-        style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-        🚫 إلغاء
       </button>
     `);
     return btns.join('');
@@ -1677,25 +2002,16 @@ function renderRowActionButtons(order) {
       </button>
     `);
   }
-  // زر تأكيد يدوي
   btns.push(`
     <button class="btn btn-sm btn-success" onclick="confirmOrder(${order.id}, '${orderNumSafe}')" title="تأكيد الطلب"
       style="font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
       ✅ تأكيد
     </button>
   `);
-  // زر تحويل لـ Speedaf
   btns.push(`
     <button class="btn btn-sm" onclick="openSpeedafModal(${order.id})" title="إرسال مباشر لـ Speedaf"
       style="background:#f97316;color:#fff;font-weight:700;padding:5px 9px;font-size:12px;white-space:nowrap;border-radius:6px;border:none;cursor:pointer;">
       🚚 شحن
-    </button>
-  `);
-  // زر إلغاء
-  btns.push(`
-    <button class="btn btn-sm btn-danger" onclick="cancelOrder(${order.id}, '${orderNumSafe}')" title="إلغاء الطلب"
-      style="padding:5px 8px;font-size:12px;white-space:nowrap;border-radius:6px;cursor:pointer;">
-      🚫 إلغاء
     </button>
   `);
 
@@ -1805,6 +2121,40 @@ async function importFromShopify() {
   } finally {
     btn.innerHTML = originalHtml;
     btn.style.pointerEvents = '';
+  }
+}
+
+async function importFromEasyOrders() {
+  const btn = document.getElementById('btn-import-eo');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.innerHTML = '<span class="nav-icon">⏳</span><span>جارٍ الاستيراد...</span>';
+    btn.style.pointerEvents = 'none';
+  }
+
+  showToast('⚡ جارٍ فحص واستيراد الطلبات من Easy Orders...', 'info');
+
+  try {
+    const res = await fetch('/api/orders/import-from-easyorders', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success) {
+      if (data.imported > 0 || data.updated > 0) {
+        showToast(`✅ تم استيراد ${data.imported} طلب جديد وتحديث ${data.updated} من Easy Orders`, 'success');
+        loadOrders();
+      } else {
+        showToast(`ℹ️ لا توجد طلبات جديدة (${data.total || data.fetched} طلب متزامن بالفعل)`, 'info');
+      }
+    } else {
+      showToast('❌ فشل الاستيراد: ' + (data.details || data.error || 'خطأ غير معروف'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاستيراد: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.innerHTML = originalHtml;
+      btn.style.pointerEvents = '';
+    }
   }
 }
 
@@ -1939,10 +2289,12 @@ function requestReview(orderId, orderNumber) {
     `هل أنت متأكد من رغبتك في إرسال رسالة طلب التقييم للعميل على الواتساب؟`,
     async () => {
       try {
+        showToast('⏳ جاري إرسال رسالة التقييم للعميل...', 'info');
         const res = await fetch(`/api/orders/${orderId}/review`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
           showToast('✅ تم إرسال رسالة التقييم بنجاح', 'success');
+          loadOrders(false, true);
         } else {
           showToast('❌ فشل الإرسال: ' + (data.error || 'خطأ غير معروف'), 'error');
         }
@@ -1951,6 +2303,505 @@ function requestReview(orderId, orderNumber) {
       }
     }
   );
+}
+
+async function saveOrderReviewManual(orderId) {
+  const ratingEl = document.getElementById(`detail-review-rating-${orderId}`);
+  const textEl = document.getElementById(`detail-review-text-${orderId}`);
+  const rating = ratingEl ? ratingEl.value : null;
+  const reviewText = textEl ? textEl.value.trim() : '';
+
+  try {
+    showToast('⏳ جاري حفظ التقييم...', 'info');
+    const res = await fetch(`/api/orders/${orderId}/review-save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating, reviewText })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ تم حفظ التقييم ورأي العميل بنجاح', 'success');
+      loadOrders(false, true);
+      // Update local object in allOrders
+      const local = allOrders.find(o => o.id === orderId);
+      if (local) {
+        local.rating = rating ? parseInt(rating, 10) : null;
+        local.customer_reply = reviewText;
+      }
+    } else {
+      showToast('❌ فشل الحفظ: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+  }
+}
+
+// ─── WhatsApp Chat Slide-over Drawer Logic ────────────────────────────────────
+let activeChatOrderId = null;
+let activeChatOrder = null;
+
+async function openChatDrawer(orderId) {
+  activeChatOrderId = orderId;
+  const order = allOrders.find(o => o.id === orderId);
+  activeChatOrder = order;
+
+  document.getElementById('chat-customer-name').textContent = order ? (order.customer_name || 'عميل') : 'عميل';
+  document.getElementById('chat-customer-phone').textContent = order ? (order.customer_phone || '') : '';
+  document.getElementById('chat-order-badge').textContent = order ? cleanOrderNumberDisplay(order.order_number) : `#${orderId}`;
+  
+  const container = document.getElementById('chat-messages-container');
+  container.innerHTML = `<div style="text-align:center;padding:30px;color:#8696a0;">⏳ جارٍ تحميل المحادثة...</div>`;
+
+  document.getElementById('chat-drawer-overlay').classList.add('active');
+  document.getElementById('chat-drawer').classList.add('active');
+  document.getElementById('chat-reply-input').value = '';
+
+  await loadChatDrawerMessages(orderId);
+}
+
+function closeChatDrawer() {
+  document.getElementById('chat-drawer-overlay').classList.remove('active');
+  document.getElementById('chat-drawer').classList.remove('active');
+  activeChatOrderId = null;
+}
+
+async function loadChatDrawerMessages(orderId) {
+  const container = document.getElementById('chat-messages-container');
+  try {
+    const res = await fetch(`/api/orders/${orderId}/chat`);
+    const data = await res.json();
+    if (!data.success) {
+      container.innerHTML = `<div style="text-align:center;padding:20px;color:#ef4444;">❌ فشل تحميل الشات</div>`;
+      return;
+    }
+
+    const messages = data.messages || [];
+    if (messages.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;color:#8696a0;">
+          <div style="font-size:32px;margin-bottom:8px;">💬</div>
+          <div style="font-weight:700;font-size:14px;color:#e9edef;">لا توجد رسائل مسجلة بعد</div>
+          <div style="font-size:12px;margin-top:4px;">يمكنك كتابة رسالة مباشرة للعميل بالأسفل وإرسالها</div>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = messages.map(m => {
+      const isInbound = m.direction === 'inbound';
+      const timeStr = formatTime(m.created_at || m.timestamp);
+      const isCurrentReview = activeChatOrder && activeChatOrder.customer_reply === m.message;
+      const msgEscaped = escapeHtml(m.message).replace(/'/g, "\\'");
+
+      return `
+        <div class="chat-bubble-wrap ${isInbound ? 'inbound' : 'outbound'}">
+          <div class="chat-bubble">
+            <div style="white-space:pre-wrap;">${escapeHtml(m.message)}</div>
+          </div>
+          <div class="chat-bubble-footer">
+            <span class="chat-bubble-time">${timeStr}</span>
+            ${isInbound ? `
+              <button class="btn-set-review" onclick="setReviewFromChatMessage(${orderId}, '${msgEscaped}')" title="اعتماد هذه الرسالة كـ ريفيو رسمي للطلب">
+                ${isCurrentReview ? '⭐ الريفيو المعتمد حالياً' : '⭐ اعتماد كـ ريفيو'}
+              </button>
+            ` : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+    container.scrollTop = container.scrollHeight;
+  } catch (err) {
+    container.innerHTML = `<div style="text-align:center;padding:20px;color:#ef4444;">❌ خطأ في الاتصال: ${err.message}</div>`;
+  }
+}
+
+async function setReviewFromChatMessage(orderId, msgText) {
+  try {
+    showToast('⏳ جاري اعتماد الرسالة كـ ريفيو رسمي...', 'info');
+    const res = await fetch(`/api/orders/${orderId}/set-review-from-msg`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewText: msgText, rating: 5 })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('🌟 تم اعتماد وتثبيت الرسالة كـ ريفيو رسمي بنجاح!', 'success');
+      loadOrders(false, true);
+      const order = allOrders.find(o => o.id === orderId);
+      if (order) {
+        order.customer_reply = msgText;
+        order.rating = 5;
+      }
+      loadChatDrawerMessages(orderId);
+    } else {
+      showToast('❌ فشل الاعتماد: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ: ' + err.message, 'error');
+  }
+}
+
+async function sendDrawerChatMessage() {
+  if (!activeChatOrderId) return;
+  const input = document.getElementById('chat-reply-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  input.disabled = true;
+  showToast('⏳ جاري إرسال الرسالة...', 'info');
+
+  try {
+    const res = await fetch(`/api/orders/${activeChatOrderId}/custom-message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ تم إرسال الرسالة بنجاح', 'success');
+      input.value = '';
+      loadChatDrawerMessages(activeChatOrderId);
+    } else {
+      showToast('❌ فشل الإرسال: ' + (data.error || 'خطأ'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+  } finally {
+    input.disabled = false;
+    input.focus();
+  }
+}
+
+// ─── Instagram Review Card Generator Logic ────────────────────────────────────
+let igCardData = {
+  format: 'story',
+  theme: 'dark_gold',
+  text: '',
+  name: '',
+  product: '',
+  verified: true,
+  stars: true
+};
+
+function openIgCardModal(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  let prodName = '';
+  try {
+    const itms = JSON.parse(order.items || '[]');
+    if (itms.length > 0) prodName = itms[0].name || itms[0].title || '';
+  } catch {}
+
+  igCardData.text = order.customer_reply || 'المنتج تحفة جداً وخامته ممتازة ووصل في وقت قياسي شكراً ليكم 💖';
+  igCardData.name = order.customer_name || 'عميل DopaLess';
+  igCardData.product = prodName || 'منتج مميز من DopaLess';
+
+  document.getElementById('ig-input-text').value = igCardData.text;
+  document.getElementById('ig-input-name').value = igCardData.name;
+  document.getElementById('ig-input-product').value = igCardData.product;
+  document.getElementById('ig-check-verified').checked = igCardData.verified;
+  document.getElementById('ig-check-stars').checked = igCardData.stars;
+
+  setIgFormat('story');
+  setIgTheme('dark_gold');
+
+  openModal('ig-card-modal');
+  setTimeout(renderIgCanvas, 80);
+}
+
+function setIgFormat(fmt) {
+  igCardData.format = fmt;
+  const storyBtn = document.getElementById('ig-btn-story');
+  const postBtn = document.getElementById('ig-btn-post');
+  if (fmt === 'story') {
+    storyBtn.style.background = 'var(--primary-color)';
+    storyBtn.style.color = '#fff';
+    postBtn.style.background = 'transparent';
+    postBtn.style.color = 'inherit';
+  } else {
+    postBtn.style.background = 'var(--primary-color)';
+    postBtn.style.color = '#fff';
+    storyBtn.style.background = 'transparent';
+    storyBtn.style.color = 'inherit';
+  }
+  renderIgCanvas();
+}
+
+function setIgTheme(thm) {
+  igCardData.theme = thm;
+  ['dark_gold', 'rose', 'emerald', 'violet'].forEach(t => {
+    const b = document.getElementById(`theme-btn-${t}`);
+    if (b) {
+      if (t === thm) b.style.outline = '2px solid #fff';
+      else b.style.outline = 'none';
+    }
+  });
+  renderIgCanvas();
+}
+
+function renderIgCanvas() {
+  const canvas = document.getElementById('ig-preview-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  igCardData.text = document.getElementById('ig-input-text')?.value || igCardData.text;
+  igCardData.name = document.getElementById('ig-input-name')?.value || igCardData.name;
+  igCardData.product = document.getElementById('ig-input-product')?.value || igCardData.product;
+  igCardData.verified = document.getElementById('ig-check-verified')?.checked ?? true;
+  igCardData.stars = document.getElementById('ig-check-stars')?.checked ?? true;
+
+  const isStory = igCardData.format === 'story';
+  const width = 1080;
+  const height = isStory ? 1920 : 1080;
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const themes = {
+    dark_gold: {
+      bg1: '#090d16', bg2: '#020617',
+      cardBg: 'rgba(15, 23, 42, 0.90)',
+      cardBorder: 'rgba(251, 191, 36, 0.45)',
+      accent: '#fbbf24',
+      text: '#f8fafc',
+      subText: '#94a3b8',
+      quoteBg: '#1e293b',
+      glow: 'rgba(251, 191, 36, 0.15)'
+    },
+    rose: {
+      bg1: '#fff1f2', bg2: '#ffe4e6',
+      cardBg: 'rgba(255, 255, 255, 0.95)',
+      cardBorder: 'rgba(244, 63, 94, 0.35)',
+      accent: '#e11d48',
+      text: '#1e293b',
+      subText: '#64748b',
+      quoteBg: '#fef2f2',
+      glow: 'rgba(244, 63, 94, 0.12)'
+    },
+    emerald: {
+      bg1: '#022c22', bg2: '#064e3b',
+      cardBg: 'rgba(6, 78, 59, 0.90)',
+      cardBorder: 'rgba(52, 211, 153, 0.45)',
+      accent: '#34d399',
+      text: '#f0fdf4',
+      subText: '#a7f3d0',
+      quoteBg: '#065f46',
+      glow: 'rgba(52, 211, 153, 0.2)'
+    },
+    violet: {
+      bg1: '#1e1035', bg2: '#0f051d',
+      cardBg: 'rgba(30, 16, 53, 0.92)',
+      cardBorder: 'rgba(192, 132, 252, 0.45)',
+      accent: '#c084fc',
+      text: '#faf5ff',
+      subText: '#d8b4fe',
+      quoteBg: '#3b1c6e',
+      glow: 'rgba(192, 132, 252, 0.2)'
+    }
+  };
+
+  const pal = themes[igCardData.theme] || themes.dark_gold;
+
+  // Background Gradient
+  const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+  bgGrad.addColorStop(0, pal.bg1);
+  bgGrad.addColorStop(1, pal.bg2);
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, width, height);
+
+  // Background ambient glowing circles
+  ctx.save();
+  ctx.fillStyle = pal.glow;
+  ctx.beginPath();
+  ctx.arc(width * 0.2, height * 0.2, 350, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(width * 0.8, height * 0.75, 420, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Top Header: Brand Logo & Title
+  const headerY = isStory ? 240 : 120;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = pal.accent;
+  ctx.font = 'bold 44px sans-serif';
+  ctx.fillText('DopaLess Store', width / 2, headerY);
+
+  ctx.fillStyle = pal.subText;
+  ctx.font = '600 24px sans-serif';
+  ctx.fillText('آراء وتجارب عملائنا الحقيقية 💖', width / 2, headerY + 45);
+  ctx.restore();
+
+  // Review Card Box
+  const cardW = 920;
+  const cardH = isStory ? 950 : 660;
+  const cardX = (width - cardW) / 2;
+  const cardY = isStory ? 380 : 210;
+  const radius = 32;
+
+  // Draw Card Shadow & Rounded Box
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 40;
+  ctx.shadowOffsetY = 20;
+
+  ctx.fillStyle = pal.cardBg;
+  ctx.strokeStyle = pal.cardBorder;
+  ctx.lineWidth = 3;
+
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(cardX, cardY, cardW, cardH, radius);
+  } else {
+    ctx.rect(cardX, cardY, cardW, cardH);
+  }
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  // Card Inner Header: Customer Info
+  const innerX = cardX + 50;
+  let cursorY = cardY + 70;
+
+  // Avatar Icon Circle
+  ctx.save();
+  ctx.fillStyle = pal.accent;
+  ctx.beginPath();
+  ctx.arc(innerX + 35, cursorY + 15, 35, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = pal.bg1;
+  ctx.font = 'bold 30px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const initial = (igCardData.name || 'عميل').trim().charAt(0) || '👤';
+  ctx.fillText(initial, innerX + 35, cursorY + 15);
+  ctx.restore();
+
+  // Customer Name & Verified Badge
+  ctx.save();
+  ctx.textAlign = 'right';
+  ctx.fillStyle = pal.text;
+  ctx.font = 'bold 34px sans-serif';
+  ctx.fillText(igCardData.name || 'عميل موثق', cardX + cardW - 50, cursorY + 10);
+
+  if (igCardData.verified) {
+    ctx.fillStyle = pal.accent;
+    ctx.font = '600 20px sans-serif';
+    ctx.fillText('🛡️ مشتري موثق • Verified Buyer', cardX + cardW - 50, cursorY + 44);
+  }
+
+  // Stars
+  if (igCardData.stars) {
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 32px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('⭐⭐⭐⭐⭐', innerX + 85, cursorY + 28);
+  }
+  ctx.restore();
+
+  // Divider Line
+  cursorY += 90;
+  ctx.save();
+  ctx.strokeStyle = pal.cardBorder;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cardX + 40, cursorY);
+  ctx.lineTo(cardX + cardW - 40, cursorY);
+  ctx.stroke();
+  ctx.restore();
+
+  // Quotation Marks & Review Text
+  cursorY += 60;
+  ctx.save();
+  ctx.fillStyle = pal.accent;
+  ctx.font = 'bold 75px Georgia, serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('❝', cardX + cardW - 50, cursorY + 10);
+
+  // Wrap Arabic Review Text
+  ctx.fillStyle = pal.text;
+  ctx.font = '600 36px "Cairo", Tahoma, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.direction = 'rtl';
+
+  const maxTextWidth = cardW - 120;
+  const lineHeight = 54;
+  const words = (igCardData.text || '').split(' ');
+  let line = '';
+  let textY = cursorY + 45;
+
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxTextWidth && n > 0) {
+      ctx.fillText(line, cardX + cardW - 60, textY);
+      line = words[n] + ' ';
+      textY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line, cardX + cardW - 60, textY);
+  ctx.restore();
+
+  // Product Tag at bottom of card
+  if (igCardData.product) {
+    const tagY = cardY + cardH - 85;
+    ctx.save();
+    ctx.fillStyle = pal.quoteBg;
+    ctx.strokeStyle = pal.cardBorder;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(cardX + 40, tagY, cardW - 80, 56, 16);
+    } else {
+      ctx.rect(cardX + 40, tagY, cardW - 80, 56);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = pal.accent;
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('📦 المنتج: ' + igCardData.product, cardX + cardW - 65, tagY + 36);
+    ctx.restore();
+  }
+
+  // Footer: Store URL & Date
+  const footerY = isStory ? 1780 : 1010;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = pal.subText;
+  ctx.font = '600 24px sans-serif';
+  ctx.fillText('🌐 dopaless.store  •  DopaLess Official', width / 2, footerY);
+  ctx.restore();
+}
+
+function downloadIgCanvas() {
+  const canvas = document.getElementById('ig-preview-canvas');
+  if (!canvas) return;
+  const link = document.createElement('a');
+  link.download = `dopaless-review-${Date.now()}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  showToast('📥 تم تحميل كارت الريفيو بنجاح', 'success');
+}
+
+async function copyIgCanvas() {
+  const canvas = document.getElementById('ig-preview-canvas');
+  if (!canvas) return;
+  try {
+    canvas.toBlob(async (blob) => {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      showToast('📋 تم نسخ صورة الريفيو للحافظة بنجاح!', 'success');
+    });
+  } catch (e) {
+    showToast('⚠️ متصفحك لا يدعم النسخ المباشر للصور، اضغط تحميل الصورة', 'warning');
+  }
 }
 
 function markDeliveredDirect(orderId, orderNumber) {
@@ -2131,7 +2982,7 @@ async function showOrderDetail(orderId) {
       </div>
       <div>
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">الحالة</div>
-        <div>${renderStatusBadge(order.status)}</div>
+        <div>${renderStatusBadge(order.status, order)}</div>
       </div>
       <div style="grid-column:1/-1">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">العنوان</div>
@@ -2156,6 +3007,62 @@ async function showOrderDetail(orderId) {
       </div>
     </div>
     ` : ''}
+
+    <!-- Review & Rating Section -->
+    <div style="background:var(--bg-base);border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-weight:700;color:var(--text-primary);font-size:13.5px;display:flex;align-items:center;gap:6px;">
+          ⭐ تقييم ورأي العميل (Customer Review)
+        </div>
+        <div>
+          ${order.review_sent_at 
+            ? `<span class="badge" style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;">✅ تم طلب التقييم (${formatTime(order.review_sent_at)})</span>`
+            : `<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;">🔴 لم يُطلب تقييم بعد</span>`
+          }
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:11.5px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">التقييم بالنجوم:</label>
+          <select id="detail-review-rating-${order.id}" class="form-input" style="padding:6px 10px;font-size:13px;width:100%;">
+            <option value="" ${!order.rating ? 'selected' : ''}>-- بدون تقييم --</option>
+            <option value="5" ${order.rating === 5 ? 'selected' : ''}>⭐⭐⭐⭐⭐ (5 من 5)</option>
+            <option value="4" ${order.rating === 4 ? 'selected' : ''}>⭐⭐⭐⭐ (4 من 5)</option>
+            <option value="3" ${order.rating === 3 ? 'selected' : ''}>⭐⭐⭐ (3 من 5)</option>
+            <option value="2" ${order.rating === 2 ? 'selected' : ''}>⭐⭐ (2 من 5)</option>
+            <option value="1" ${order.rating === 1 ? 'selected' : ''}>⭐ (1 من 5)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11.5px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">نص رأي / تعليق العميل:</label>
+          <input type="text" id="detail-review-text-${order.id}" class="form-input" style="padding:6px 10px;font-size:13px;width:100%;" placeholder="اكتب رأي العميل هنا أو يُحفظ تلقائياً عند رده بالواتساب..." value="${escapeHtml(order.customer_reply || '')}">
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm" onclick="closeModal('detail-modal');openChatDrawer(${order.id})" style="background:#00a884;color:#fff;font-weight:700;font-size:12px;padding:4px 10px;border-radius:6px;border:none;cursor:pointer;">
+            💬 شات الواتساب
+          </button>
+          ${order.customer_reply ? `
+            <button class="btn btn-sm" onclick="closeModal('detail-modal');openIgCardModal(${order.id})" style="background:linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);color:#fff;font-weight:800;font-size:12px;padding:4px 10px;border-radius:6px;border:none;cursor:pointer;box-shadow:0 2px 6px rgba(253,29,29,0.3);">
+              📸 كارت إنستجرام
+            </button>
+          ` : ''}
+        </div>
+        <div style="display:flex;gap:6px;">
+          ${order.status === 'delivered' ? `
+            <button class="btn btn-sm" onclick="requestReview(${order.id}, '${escapeHtml(order.order_number)}')" style="background:#f59e0b;color:#fff;font-weight:700;font-size:12px;padding:4px 10px;border-radius:6px;border:none;cursor:pointer;">
+              📱 ${order.review_sent_at ? 'إعادة إرسال طلب التقييم' : 'إرسال رسالة التقييم'}
+            </button>
+          ` : ''}
+          <button class="btn btn-primary btn-sm" onclick="saveOrderReviewManual(${order.id})" style="font-size:12px;padding:4px 12px;font-weight:700;">
+            💾 حفظ التقييم
+          </button>
+        </div>
+      </div>
+    </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;color:var(--text-muted)">
       ${order.whatsapp_sent_at ? `<div>💬 واتساب أُرسل: <strong>${formatTime(order.whatsapp_sent_at)}</strong></div>` : ''}
@@ -2686,27 +3593,24 @@ function extractOrderShippingCost(order) {
   let raw = {};
   try { raw = typeof order.raw_payload === 'string' ? JSON.parse(order.raw_payload || '{}') : (order.raw_payload || {}); } catch(e) {}
   
-  const shipCost = parseFloat(raw.shipping_cost ?? raw.expense ?? raw.shipping_fee ?? raw.delivery_cost ?? 0);
-  if (shipCost > 0) return shipCost;
-
-  const totalNum = parseFloat(String(order.total || '').replace(/[^0-9.]/g, '')) || 0;
-  const rawCost = parseFloat(raw.cost ?? raw.price ?? 0);
-  if (rawCost > 0 && totalNum > rawCost) {
-    return totalNum - rawCost;
+  // Check explicit shipping cost in payload (must be reasonable, e.g., 20 - 150 EGP)
+  const explicitShip = parseFloat(raw.shipping_cost ?? raw.shipping_fee ?? raw.delivery_cost ?? raw.delivery_fee ?? 0);
+  if (explicitShip > 10 && explicitShip <= 150) {
+    return explicitShip;
   }
 
-  // Fallback rate based on governorate / address
+  // Fallback rate based on Egyptian governorates
   const addr = (order.address || '').toLowerCase();
-  if (addr.includes('اسوان') || addr.includes('أسوان') || addr.includes('أقصر') || addr.includes('اقصر') || addr.includes('قنا') || addr.includes('سوهاج') || addr.includes('اسيوط') || addr.includes('أسيوط') || addr.includes('منيا') || addr.includes('بني سويف') || addr.includes('الوادي')) {
-    return 80;
+  if (addr.includes('اسوان') || addr.includes('أسوان') || addr.includes('أقصر') || addr.includes('اقصر') || addr.includes('قنا') || addr.includes('سوهاج') || addr.includes('اسيوط') || addr.includes('أسيوط') || addr.includes('منيا') || addr.includes('بني سويف') || addr.includes('فيوم') || addr.includes('الفيوم') || addr.includes('الوادي')) {
+    return 70;
   }
   if (addr.includes('مطروح') || addr.includes('سيناء') || addr.includes('البحر الاحمر') || addr.includes('الغردقة') || addr.includes('شرم')) {
-    return 95;
+    return 90;
   }
-  if (addr.includes('اسكندرية') || addr.includes('إسكندرية') || addr.includes('دقهلية') || addr.includes('منصورة') || addr.includes('غربية') || addr.includes('طنطا') || addr.includes('شرقية') || addr.includes('منوفية') || addr.includes('بحيرة') || addr.includes('كفر الشيخ') || addr.includes('دمياط') || addr.includes('بورسعيد') || addr.includes('اسماعيلية') || addr.includes('سويس')) {
-    return 65;
+  if (addr.includes('اسكندرية') || addr.includes('إسكندرية') || addr.includes('دقهلية') || addr.includes('منصورة') || addr.includes('غربية') || addr.includes('طنطا') || addr.includes('شرقية') || addr.includes('منوفية') || addr.includes('بحيرة') || addr.includes('كفر الشيخ') || addr.includes('دمياط') || addr.includes('بورسعيد') || addr.includes('اسماعيلية') || addr.includes('سويس') || addr.includes('قليوبية')) {
+    return 55;
   }
-  return 50; // Cairo / Giza default
+  return 45; // Cairo / Giza default
 }
 
 function updateBulkActionBar() {
@@ -2740,9 +3644,14 @@ function updateBulkActionBar() {
     const shipEl = document.getElementById('bulk-total-shipping');
     const netEl = document.getElementById('bulk-total-net');
 
-    if (codEl) codEl.textContent = totalCOD.toFixed(2) + ' EGP';
-    if (shipEl) shipEl.textContent = totalShipping.toFixed(2) + ' EGP';
-    if (netEl) netEl.textContent = totalNet.toFixed(2) + ' EGP';
+    const formatEGP = (num) => {
+      const rounded = Math.round(num * 100) / 100;
+      return `${rounded.toLocaleString('en-US')} EGP`;
+    };
+
+    if (codEl) codEl.textContent = formatEGP(totalCOD);
+    if (shipEl) shipEl.textContent = formatEGP(totalShipping);
+    if (netEl) netEl.textContent = formatEGP(totalNet);
   } else {
     bar.style.display = 'none';
   }
@@ -3414,22 +4323,7 @@ function toggleOrderActions(orderId) {
   }
 }
 
-// ─── Import from Easy Orders ───────────────────────────────────────────────
-async function importFromEasyOrders() {
-  showToast('⏳ جاري استيراد الطلبات من Easy Orders...', 'info');
-  try {
-    const res = await fetch('/api/orders/import-from-easyorders', { method: 'POST' });
-    const data = await res.json();
-    if (data.success) {
-      showToast(`✅ تم استيراد ${data.imported || 0} طلب جديد (تحديث: ${data.updated || 0})`, 'success');
-      loadOrders();
-    } else {
-      showToast('❌ فشل الاستيراد: ' + (data.error || data.details || 'خطأ'), 'error');
-    }
-  } catch (err) {
-    showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
-  }
-}
+
 
 // ─── Speedaf Modal & Dispatch ──────────────────────────────────────────────
 let cachedSpeedafProvinces = [];

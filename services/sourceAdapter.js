@@ -9,18 +9,19 @@
 
 const db = require('../database/db');
 
-// Status mapping: internal status → Easy Orders status
+// Status mapping: internal status → Easy Orders API status
 const EASYORDERS_STATUS_MAP = {
   'pending_confirmation': 'pending',
-  'whatsapp_sent': 'pending',
-  'whatsapp_failed': 'pending',
-  'confirmed': 'confirmed',
-  'shipping_sent': 'waiting_for_pickup',
-  'shipping_failed': 'confirmed',
-  'handed_to_courier': 'in_delivery',
-  'delivered': 'delivered',
-  'cancelled': 'canceled',
-  'needs_follow_up': 'pending',
+  'whatsapp_sent':        'pending',
+  'whatsapp_failed':      'pending',
+  'needs_follow_up':      'pending',
+  'confirmed':            'confirmed',
+  'shipping_sent':        'waiting_for_pickup',
+  'shipping_failed':      'confirmed',
+  'handed_to_courier':    'in_delivery',
+  'delivered':            'delivered',
+  'cancelled':            'canceled',   // internal 'cancelled' → EO API 'canceled'
+  'returned':             'returning_from_delivery',
 };
 
 /**

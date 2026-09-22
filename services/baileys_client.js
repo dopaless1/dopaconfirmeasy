@@ -270,8 +270,11 @@ async function startBaileys() {
             }
           }
 
-          if (text && onMessageReceived) {
-            onMessageReceived(sender, text, explicitOrderId);
+          if (text) {
+            db.saveWhatsAppMessage(sender, explicitOrderId, 'inbound', text);
+            if (onMessageReceived) {
+              onMessageReceived(sender, text, explicitOrderId);
+            }
           }
         }
       }
@@ -317,6 +320,7 @@ async function sendWhatsAppMessage(phone, text, withImage = false, imageKey = 'W
       } else {
           await sock.sendMessage(jid, { text });
       }
+      db.saveWhatsAppMessage(phone, null, 'outbound', text, withImage ? 'image' : 'text');
       return true;
   } catch (err) {
       console.error('[Baileys] Send error:', err);
@@ -348,6 +352,8 @@ async function sendWhatsAppPoll(phone, question, options, orderId = null) {
          console.warn(`[Baileys] ⚠️ No messageSecret found on sent poll! messageId: ${sentMsg?.key?.id}`);
       }
       
+      const pollSummary = `📊 [استطلاع رأي]: ${question}\n${(options || []).map((o, idx) => `${idx+1}. ${o}`).join('\n')}`;
+      db.saveWhatsAppMessage(phone, orderId, 'outbound', pollSummary, 'poll');
       return true;
   } catch (err) {
       console.error('[Baileys] Send poll error:', err);

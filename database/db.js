@@ -98,6 +98,17 @@ async function initializeSchema() {
       secret TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS whatsapp_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      phone TEXT NOT NULL,
+      order_id TEXT,
+      direction TEXT NOT NULL,
+      message TEXT NOT NULL,
+      msg_type TEXT DEFAULT 'text',
+      created_at TEXT DEFAULT (datetime('now'))
+    );`);
+  try { await client.execute('CREATE INDEX IF NOT EXISTS idx_wa_msg_phone ON whatsapp_messages (phone)'); } catch (e) {}
+  try { await client.execute('CREATE INDEX IF NOT EXISTS idx_wa_msg_order_id ON whatsapp_messages (order_id)'); } catch (e) {}
   await client.execute(`CREATE TABLE IF NOT EXISTS abandoned_checkouts (
       checkout_token TEXT PRIMARY KEY,
       customer_name TEXT,
@@ -264,6 +275,7 @@ async function initializeSchema() {
   try { await client.execute('ALTER TABLE orders ADD COLUMN speedaf_status TEXT'); } catch (e) {}
   try { await client.execute('ALTER TABLE orders ADD COLUMN speedaf_status_updated_at TEXT'); } catch (e) {}
   try { await client.execute('ALTER TABLE orders ADD COLUMN speedaf_tracks TEXT'); } catch (e) {}
+  try { await client.execute('ALTER TABLE orders ADD COLUMN delivered_at TEXT'); } catch (e) {}
 
   // Performance: index on status so background-job queries (WHERE status = 'whatsapp_failed')
   // don't do a full table scan as the orders table grows.
@@ -374,11 +386,12 @@ async function updateOrderStatus(shopifyOrderId, status, extra = {}) {
   let sql = "UPDATE orders SET status = ?, updated_at = datetime('now')";
   const args = [status];
 
-  if (extra.whatsapp_sent_at !== undefined) { sql += ', whatsapp_sent_at = ?'; args.push(extra.whatsapp_sent_at); }
-  if (extra.customer_reply   !== undefined) { sql += ', customer_reply = ?';   args.push(extra.customer_reply);   }
-  if (extra.replied_at       !== undefined) { sql += ', replied_at = ?';       args.push(extra.replied_at);       }
-  if (extra.shipping_sent_at !== undefined) { sql += ', shipping_sent_at = ?'; args.push(extra.shipping_sent_at); }
+  if (extra.whatsapp_sent_at    !== undefined) { sql += ', whatsapp_sent_at = ?';    args.push(extra.whatsapp_sent_at); }
+  if (extra.customer_reply      !== undefined) { sql += ', customer_reply = ?';      args.push(extra.customer_reply); }
+  if (extra.replied_at          !== undefined) { sql += ', replied_at = ?';          args.push(extra.replied_at); }
+  if (extra.shipping_sent_at    !== undefined) { sql += ', shipping_sent_at = ?';    args.push(extra.shipping_sent_at); }
   if (extra.handed_to_courier_at !== undefined) { sql += ', handed_to_courier_at = ?'; args.push(extra.handed_to_courier_at); }
+  if (extra.delivered_at        !== undefined) { sql += ', delivered_at = ?';         args.push(extra.delivered_at); }
 
   sql += ' WHERE shopify_order_id = ?';
   args.push(shopifyOrderId);
@@ -601,6 +614,7 @@ async function getOrderStats(filters = {}) {
       COALESCE(SUM(CASE WHEN status IN ('pending_confirmation','whatsapp_sent') THEN 1 ELSE 0 END),0) as pending,
       COALESCE(SUM(CASE WHEN status = 'confirmed'       THEN 1 ELSE 0 END),0) as confirmed,
       COALESCE(SUM(CASE WHEN status = 'cancelled'       THEN 1 ELSE 0 END),0) as cancelled,
+      COALESCE(SUM(CASE WHEN status = 'returned'        THEN 1 ELSE 0 END),0) as returned,
       COALESCE(SUM(CASE WHEN status = 'shipping_sent'   THEN 1 ELSE 0 END),0) as shipping_sent,
       COALESCE(SUM(CASE WHEN status = 'delivered'       THEN 1 ELSE 0 END),0) as delivered,
       COALESCE(SUM(CASE WHEN status = 'whatsapp_failed' THEN 1 ELSE 0 END),0) as whatsapp_failed,
@@ -721,17 +735,25 @@ async function markCheckoutRecoverySent(token) {
 
 async function markOrderReviewSent(orderId) {
   const client = getDb();
+  const idStr = String(orderId);
   return client.execute({
-    sql: `UPDATE orders SET review_sent_at = datetime('now') WHERE shopify_order_id = ?`,
-    args: [orderId],
+    sql: `UPDATE orders SET review_sent_at = datetime('now') WHERE id = ? OR shopify_order_id = ? OR easyorders_id = ?`,
+    args: [idStr, idStr, idStr],
   });
 }
 
-async function updateOrderRating(orderId, rating) {
+async function updateOrderRating(orderId, rating, replyText = null) {
   const client = getDb();
+  const idStr = String(orderId);
+  if (replyText !== null && replyText !== undefined) {
+    return client.execute({
+      sql: `UPDATE orders SET rating = COALESCE(?, rating), customer_reply = ?, replied_at = datetime('now') WHERE id = ? OR shopify_order_id = ? OR easyorders_id = ?`,
+      args: [rating, String(replyText), idStr, idStr, idStr],
+    });
+  }
   return client.execute({
-    sql: `UPDATE orders SET rating = ? WHERE shopify_order_id = ?`,
-    args: [rating, orderId],
+    sql: `UPDATE orders SET rating = ?, replied_at = datetime('now') WHERE id = ? OR shopify_order_id = ? OR easyorders_id = ?`,
+    args: [rating, idStr, idStr, idStr],
   });
 }
 
@@ -774,6 +796,49 @@ async function getPollInfo(messageId) {
   const client = getDb();
   const res = await client.execute({ sql: 'SELECT * FROM whatsapp_polls WHERE id = ?', args: [messageId] });
   return res.rows[0] || null;
+}
+
+// ─── WhatsApp Messages & Chat History ───────────────────────────────────────
+
+async function saveWhatsAppMessage(phone, orderId, direction, message, msgType = 'text') {
+  if (!phone || !message) return null;
+  const cleanPhone = normalizePhoneForLookup(phone);
+  const client = getDb();
+  try {
+    const res = await client.execute({
+      sql: `INSERT INTO whatsapp_messages (phone, order_id, direction, message, msg_type, created_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+      args: [cleanPhone, orderId ? String(orderId) : null, direction, String(message), msgType],
+    });
+    return res.lastInsertRowid;
+  } catch (e) {
+    console.error('[DB] Failed to save WhatsApp message:', e.message);
+    return null;
+  }
+}
+
+async function getChatHistory(phone, orderId = null) {
+  const cleanPhone = phone ? normalizePhoneForLookup(phone) : null;
+  const client = getDb();
+  let sql = `SELECT * FROM whatsapp_messages WHERE `;
+  const args = [];
+
+  if (cleanPhone && orderId) {
+    sql += `(phone = ? OR order_id = ?) `;
+    args.push(cleanPhone, String(orderId));
+  } else if (cleanPhone) {
+    sql += `phone = ? `;
+    args.push(cleanPhone);
+  } else if (orderId) {
+    sql += `order_id = ? `;
+    args.push(String(orderId));
+  } else {
+    return [];
+  }
+
+  sql += `ORDER BY id ASC`;
+  const res = await client.execute({ sql, args });
+  return res.rows;
 }
 
 async function saveLidMapping(lid, phone) {
@@ -1248,6 +1313,8 @@ module.exports = {
   insertPollSecret,
   getPollSecret,
   getPollInfo,
+  saveWhatsAppMessage,
+  getChatHistory,
   saveLidMapping,
   getPhoneByLid,
   getQuickLinks,

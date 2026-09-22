@@ -347,59 +347,24 @@ function parseEasyOrder(data) {
 /**
  * Fetch orders from Easy Orders API
  * @param {number} page
- * @param {number} limit
- */
-async function fetchEasyOrders(page = 1, limit = 50) {
-  try {
-    const client = await getClient();
-    const response = await client.get('/orders', {
-      params: { page, limit, per_page: limit },
-    });
-
-    const orders = response.data?.data || response.data?.orders || response.data || [];
-    const total = response.data?.total || response.data?.meta?.total || orders.length;
-
-    return {
-      success: true,
-      orders: Array.isArray(orders) ? orders : [],
-      total,
-      page,
-    };
-  } catch (err) {
-    console.error('[EasyOrders] Fetch orders failed:', err.response?.data || err.message);
-    return {
-      success: false,
-      orders: [],
-      error: err.response?.data?.message || err.message,
-    };
-  }
-}
-
 /**
- * Fetch single order by ID
+ * Fetch single order by UUID
  */
 async function fetchEasyOrder(orderId) {
+  if (!orderId) return { success: false, error: 'Order ID is required' };
   try {
-    const client = await getClient();
-    // 1. Try direct GET /orders/:id
-    try {
-      const response = await client.get(`/orders/${orderId}`);
-      const order = response.data?.data?.order || response.data?.data || response.data?.order || response.data;
-      if (order && (order.id || order.customer || order.customer_name || order.items)) {
-        return { success: true, order };
-      }
-    } catch (e) {}
-
-    // 2. Try GET /orders with search parameter
-    try {
-      const response2 = await client.get('/orders', { params: { search: orderId, limit: 1 } });
-      const orders = response2.data?.data || response2.data?.orders || response2.data;
-      if (Array.isArray(orders) && orders.length > 0) {
-        return { success: true, order: orders[0] };
-      }
-    } catch (e) {}
-
-    return { success: false, error: 'Order not found in Easy Orders API' };
+    const apiKey = await getApiKey();
+    const baseURL = await getBaseUrl();
+    const url = `${baseURL}/orders/${orderId}`;
+    const response = await axios.get(url, {
+      headers: { 'Api-Key': apiKey, 'Accept': 'application/json' },
+      timeout: 10000,
+    });
+    const order = response.data?.data || response.data;
+    if (order && (order.id || order.short_id)) {
+      return { success: true, order };
+    }
+    return { success: false, error: 'Order not found' };
   } catch (err) {
     console.error(`[EasyOrders] Fetch order ${orderId} failed:`, err.response?.data || err.message);
     return { success: false, error: err.response?.data?.message || err.message };
@@ -407,30 +372,125 @@ async function fetchEasyOrder(orderId) {
 }
 
 /**
+ * Fetch single order by numeric Short ID (e.g. 24, 31)
+ */
+async function fetchEasyOrderByShortId(shortId) {
+  if (!shortId) return { success: false, error: 'Short ID is required' };
+  try {
+    const apiKey = await getApiKey();
+    const baseURL = await getBaseUrl();
+    const cleanId = String(shortId).replace(/[^0-9]/g, '');
+    const url = `${baseURL}/orders/short/${cleanId}`;
+    const response = await axios.get(url, {
+      headers: { 'Api-Key': apiKey, 'Accept': 'application/json' },
+      timeout: 10000,
+    });
+    const order = response.data?.data || response.data;
+    if (order && (order.id || order.short_id)) {
+      return { success: true, order };
+    }
+    return { success: false, error: 'Order not found' };
+  } catch (err) {
+    return { success: false, error: err.response?.data?.message || err.message, status: err.response?.status };
+  }
+}
+
+/**
+ * Fetch all orders from Easy Orders by scanning short IDs
+ * Uses rate-limit friendly sequential requests with exponential backoff on 429
+ */
+async function fetchAllEasyOrders(maxScan = 200) {
+  const apiKey = await getApiKey();
+  if (!apiKey) {
+    return { success: false, orders: [], error: 'EASYORDERS_API_KEY غير موجود في الإعدادات' };
+  }
+
+  const allFound = [];
+  let consecutiveMisses = 0;
+  let highestSeen = 0;
+
+  // Scan sequentially with small delay to stay well below 40 req/min
+  for (let sId = 1; sId <= maxScan; sId++) {
+    let attempts = 0;
+    let success = false;
+    let orderData = null;
+
+    while (attempts < 3 && !success) {
+      attempts++;
+      const res = await fetchEasyOrderByShortId(sId);
+      if (res.status === 429) {
+        console.log(`[EasyOrders] Rate limit hit (429) on order #${sId}, waiting 2 seconds before retry...`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      if (res.success && res.order && res.order.id) {
+        success = true;
+        orderData = res.order;
+      } else {
+        break;
+      }
+    }
+
+    if (orderData) {
+      allFound.push(orderData);
+      highestSeen = sId;
+      consecutiveMisses = 0;
+    } else {
+      consecutiveMisses++;
+    }
+
+    // Stop if we already found orders and now had 15 consecutive missing orders beyond the highest
+    if (highestSeen > 0 && consecutiveMisses >= 15) {
+      break;
+    }
+
+    // Polite delay: 100ms between calls
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  return {
+    success: true,
+    orders: allFound,
+    total: allFound.length,
+  };
+}
+
+/**
  * Update order status in Easy Orders
- * @param {string|number} orderId
- * @param {string} status - (e.g. pending, confirmed, waiting_for_pickup, in_delivery, delivered, canceled)
+ * @param {string|number} orderId - UUID or short ID
+ * @param {string} status - (e.g. pending, confirmed, waiting_for_pickup, in_delivery, delivered, canceled, returning_from_delivery)
  */
 async function updateOrderStatus(orderId, status) {
   if (!orderId) return { success: false, error: 'Order ID is required' };
 
   try {
-    const client = await getClient();
-    // Try standard status update endpoint
-    const response = await client.put(`/orders/${orderId}/status`, { status });
-    console.log(`[EasyOrders] Order ${orderId} status updated to ${status}`);
+    const apiKey = await getApiKey();
+    const baseURL = await getBaseUrl();
+    let targetUuid = String(orderId).trim();
+
+    // If orderId is a short number or numeric string, resolve its UUID first
+    if (/^\d+$/.test(targetUuid)) {
+      const shortRes = await fetchEasyOrderByShortId(targetUuid);
+      if (shortRes.success && shortRes.order?.id) {
+        targetUuid = shortRes.order.id;
+      }
+    }
+
+    const url = `${baseURL}/orders/${targetUuid}/status`;
+    const response = await axios.patch(url, { status }, {
+      headers: {
+        'Api-Key': apiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      timeout: 10000,
+    });
+
+    console.log(`[EasyOrders] Order ${orderId} (${targetUuid}) status successfully updated to "${status}"`);
     return { success: true, data: response.data };
   } catch (err) {
-    // Fallback: try PATCH /orders/:id
-    try {
-      const client = await getClient();
-      const response = await client.patch(`/orders/${orderId}`, { status });
-      console.log(`[EasyOrders] Order ${orderId} status patched to ${status}`);
-      return { success: true, data: response.data };
-    } catch (patchErr) {
-      console.error(`[EasyOrders] Update status failed for order ${orderId}:`, patchErr.response?.data || patchErr.message);
-      return { success: false, error: patchErr.response?.data?.message || patchErr.message };
-    }
+    console.error(`[EasyOrders] Update status failed for order ${orderId}:`, err.response?.data || err.message);
+    return { success: false, error: err.response?.data?.message || err.message };
   }
 }
 
@@ -439,15 +499,7 @@ async function updateOrderStatus(orderId, status) {
  */
 async function cancelEasyOrder(orderId, reason = 'customer') {
   if (!orderId) return { success: false, error: 'Order ID is required' };
-
-  try {
-    const client = await getClient();
-    const response = await client.post(`/orders/${orderId}/cancel`, { reason });
-    return { success: true, data: response.data };
-  } catch (err) {
-    // Fallback: update status to canceled
-    return await updateOrderStatus(orderId, 'canceled');
-  }
+  return await updateOrderStatus(orderId, 'canceled');
 }
 
 /**
@@ -461,14 +513,8 @@ async function testEasyOrdersConnection() {
 
   try {
     const client = await getClient();
-    // Try products endpoint first (standard check in Easy Orders external-apps API)
-    try {
-      const prodRes = await client.get('/products', { params: { limit: 1 } });
-      return { success: true, message: 'متصل بـ Easy Orders بنجاح عبر Public API', status: prodRes.status };
-    } catch (prodErr) {
-      const orderRes = await client.get('/orders', { params: { limit: 1 } });
-      return { success: true, message: 'متصل بـ Easy Orders بنجاح', status: orderRes.status };
-    }
+    const prodRes = await client.get('/products', { params: { limit: 1 } });
+    return { success: true, message: 'متصل بـ Easy Orders بنجاح عبر Public API', status: prodRes.status };
   } catch (err) {
     return {
       success: false,
@@ -480,8 +526,10 @@ async function testEasyOrdersConnection() {
 
 module.exports = {
   parseEasyOrder,
-  fetchEasyOrders,
+  fetchEasyOrders: fetchAllEasyOrders,
+  fetchAllEasyOrders,
   fetchEasyOrder,
+  fetchEasyOrderByShortId,
   updateOrderStatus,
   cancelEasyOrder,
   testEasyOrdersConnection,

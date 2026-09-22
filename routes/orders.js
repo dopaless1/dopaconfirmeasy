@@ -25,6 +25,8 @@ async function notifyOwner(message) {
 }
 
 // Export for use in other routes
+router.notifyOwner = notifyOwner;
+module.exports = router;
 module.exports.notifyOwner = notifyOwner;
 
 // POST /api/orders/sync/starlink
@@ -148,10 +150,7 @@ router.get('/easyorders/test', async (req, res) => {
 // POST /api/orders/import-from-easyorders — استيراد الطلبات من Easy Orders
 router.post('/import-from-easyorders', async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 100, 100);
-
-    const result = await fetchEasyOrders(page, limit);
+    const result = await fetchEasyOrders();
     if (!result.success) {
       return res.status(502).json({ error: 'Failed to fetch from Easy Orders', details: result.error });
     }
@@ -162,10 +161,17 @@ router.post('/import-from-easyorders', async (req, res) => {
       const parsed = parseEasyOrder(rawOrder);
       if (!parsed.easyorders_id) continue;
 
-      const insertResult = await db.insertOrder(parsed);
-      if (insertResult.rowsAffected > 0) {
-        imported++;
+      const existing = await db.getOrderByShopifyId(parsed.easyorders_id);
+      if (!existing) {
+        const insertResult = await db.insertOrder(parsed);
+        if (insertResult.rowsAffected > 0) {
+          imported++;
+        }
       } else {
+        // Keep existing status if it has progressed
+        if (['shipping_sent', 'handed_to_courier', 'delivered', 'cancelled'].includes(existing.status)) {
+          parsed.status = existing.status;
+        }
         const updateResult = await db.updateOrderDetails(parsed);
         if (updateResult.rowsAffected > 0) {
           updated++;
@@ -186,7 +192,6 @@ router.post('/import-from-easyorders', async (req, res) => {
       imported,
       updated,
       skipped,
-      page,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -690,16 +695,8 @@ router.get('/speedaf/areas', async (req, res) => {
   }
 });
 
-// POST /api/orders/speedaf/sync-areas — مزامنة أكواد المناطق والمحافظات
-router.post('/speedaf/sync-areas', async (req, res) => {
-  try {
-    const { syncAllAreas } = require('../services/speedaf');
-    const result = await syncAllAreas();
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+
+
 
 // POST /api/orders/speedaf/smart-match — مطابقة ذكية للمنطقة بالذكاء الاصطناعي
 router.post('/speedaf/smart-match', async (req, res) => {
@@ -874,16 +871,8 @@ router.post('/speedaf/sync-now', async (req, res) => {
   }
 });
 
-// GET /api/orders/speedaf/test — فحص الاتصال بـ Speedaf
-router.get('/speedaf/test', async (req, res) => {
-  try {
-    const { testSpeedafConnection } = require('../services/speedaf');
-    const result = await testSpeedafConnection();
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+
+
 
 // POST /api/orders/:id/mark-delivered — تحويل يدوي إلى تم التسليم
 router.post('/:id/mark-delivered', async (req, res) => {
@@ -910,9 +899,8 @@ router.post('/:id/mark-returned', async (req, res) => {
     if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
     const now = new Date().toISOString();
-    await db.updateOrderStatus(order.shopify_order_id, 'cancelled', { customer_reply: 'returned', replied_at: now });
-    updateSourceStatus(order, 'cancelled').catch(e => {});
-    await cancelInSource(order, 'customer');
+    await db.updateOrderStatus(order.shopify_order_id, 'returned', { customer_reply: 'returned', replied_at: now });
+    updateSourceStatus(order, 'returned').catch(e => {});
     if (order.customer_phone) await db.deleteSession(order.customer_phone);
     if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.id });
     if (db.logActivity) db.logActivity(req.username, req.userRole, 'mark_returned', `order #${order.order_number}`);
@@ -1050,13 +1038,47 @@ router.post('/:id/cancel', async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     const now = new Date().toISOString();
-    await db.updateOrderStatus(order.shopify_order_id, 'cancelled', { customer_reply: 'manual_cancel', replied_at: now });
+    await db.updateOrderStatus(order.shopify_order_id || order.id, 'cancelled', { customer_reply: 'manual_cancel', replied_at: now });
     updateSourceStatus(order, 'cancelled').catch(e => {});
     await cancelInSource(order, 'customer');
     if (order.customer_phone) await db.deleteSession(order.customer_phone);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/orders/:id/change-status (تغيير حالة الطلب ومزامنتها فوراً مع المتجر)
+router.post('/:id/change-status', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'الحالة مطلوبة' });
+
+    const order = await db.getOrderById(parseInt(orderId));
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const now = new Date().toISOString();
+    const orderKey = order.shopify_order_id || order.id || order.easyorders_id;
+    await db.updateOrderStatus(orderKey, status, { replied_at: now });
+
+    // Sync with Easy Orders or Shopify
+    const { updateSourceStatus } = require('../services/sourceAdapter');
+    await updateSourceStatus(order, status).catch(e => {
+      console.error('[ChangeStatus] Source status update failed:', e.message);
+    });
+
+    if (global.broadcastSSE) {
+      global.broadcastSSE({
+        type: 'order_updated',
+        order_id: order.id,
+        status: status
+      });
+    }
+
+    res.json({ success: true, status, message: 'تم تحديث الحالة ومزامنتها بنجاح' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -1070,21 +1092,120 @@ router.post('/:id/review', async (req, res) => {
       return res.status(400).json({ error: 'يمكن إرسال طلب التقييم فقط للطلبات المكتملة' });
     }
 
-    // Use the SAME shared helper as the bulk review action: reads the
-    // template + attached image from Settings, retries on failure.
-    // Previously this route duplicated the logic inline with a different
-    // template lookup, never sent the review image, and never marked
-    // review_sent_at — so the ⭐/🔴 review badge stayed wrong forever
-    // when sent from here instead of the bulk action.
     const { sendReviewRequest } = require('../services/whatsapp');
     const result = await sendReviewRequest(order);
 
     if (result.success) {
-      await db.markOrderReviewSent(order.shopify_order_id);
+      await db.markOrderReviewSent(order.id);
+      if (global.broadcastSSE) {
+        global.broadcastSSE({ type: 'order_updated', order_id: order.id, review_sent_at: new Date().toISOString() });
+      }
       res.json({ success: true });
     } else {
       res.status(500).json({ success: false, error: result.error });
     }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/orders/:id/review-save (حفظ أو تعديل تقييم ورأي العميل يدوياً)
+router.post('/:id/review-save', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { rating, reviewText } = req.body;
+    const order = await db.getOrderById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const numRating = rating !== undefined && rating !== null && rating !== '' ? parseInt(rating, 10) : null;
+    await db.updateOrderRating(order.id, numRating, reviewText);
+
+    if (global.broadcastSSE) {
+      global.broadcastSSE({
+        type: 'order_updated',
+        order_id: order.id,
+        rating: numRating,
+        customer_reply: reviewText,
+      });
+    }
+
+    res.json({ success: true, message: 'تم حفظ التقييم بنجاح' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/orders/:id/chat (جلب سجل محادثة الواتساب مع العميل)
+router.get('/:id/chat', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const order = await db.getOrderById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    let messages = await db.getChatHistory(order.customer_phone, order.id);
+
+    // إذا لم توجد رسائل سابقة في الجدول ولكن يوجد customer_reply في الأوردر، أضفها كسجل
+    if (messages.length === 0 && order.customer_reply) {
+      messages.push({
+        id: 'legacy-reply',
+        phone: order.customer_phone,
+        order_id: String(order.id),
+        direction: 'inbound',
+        message: order.customer_reply,
+        created_at: order.replied_at || order.created_at,
+      });
+    }
+
+    res.json({
+      success: true,
+      order: {
+        id: order.id,
+        order_number: order.order_number,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        customer_reply: order.customer_reply,
+        rating: order.rating,
+        items: order.items,
+        status: order.status,
+      },
+      messages
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/orders/:id/set-review-from-msg (اختيار رسالة معينة من الشات واعتمادها كـ ريفيو رسمي)
+router.post('/:id/set-review-from-msg', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const text = req.body.reviewText || req.body.messageText || '';
+    const rating = req.body.rating;
+    const order = await db.getOrderById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (!text || String(text).trim() === '') {
+      return res.status(400).json({ error: 'نص التقييم لا يمكن أن يكون فارغاً' });
+    }
+
+    const numRating = (rating !== undefined && rating !== null && rating !== '') ? parseInt(rating, 10) : null;
+    await db.updateOrderRating(order.id, numRating, String(text).trim());
+
+    if (global.broadcastSSE) {
+      global.broadcastSSE({
+        type: 'order_updated',
+        order_id: order.id,
+        rating: numRating,
+        customer_reply: String(text).trim(),
+      });
+    }
+
+    res.json({
+      success: true,
+      message: '✅ تم اعتماد وتثبيت الرسالة كـ ريفيو رسمي بنجاح',
+      customer_reply: String(text).trim(),
+      rating: numRating
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1108,6 +1229,10 @@ router.post('/:id/custom-message', async (req, res) => {
     const result = await sendWhatsAppMessageWithRetry(order.customer_phone, message);
 
     if (result.success) {
+      await db.saveWhatsAppMessage(order.customer_phone, order.id, 'outbound', message);
+      if (global.broadcastSSE) {
+        global.broadcastSSE({ type: 'order_updated', order_id: order.id });
+      }
       res.json({ success: true });
     } else {
       res.status(500).json({ success: false, error: result.error });
