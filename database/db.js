@@ -105,10 +105,23 @@ async function initializeSchema() {
       direction TEXT NOT NULL,
       message TEXT NOT NULL,
       msg_type TEXT DEFAULT 'text',
+      wa_msg_id TEXT,
+      sender_name TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );`);
+  try { await client.execute('ALTER TABLE whatsapp_messages ADD COLUMN wa_msg_id TEXT'); } catch (e) {}
+  try { await client.execute('ALTER TABLE whatsapp_messages ADD COLUMN sender_name TEXT'); } catch (e) {}
   try { await client.execute('CREATE INDEX IF NOT EXISTS idx_wa_msg_phone ON whatsapp_messages (phone)'); } catch (e) {}
   try { await client.execute('CREATE INDEX IF NOT EXISTS idx_wa_msg_order_id ON whatsapp_messages (order_id)'); } catch (e) {}
+  try { await client.execute('CREATE INDEX IF NOT EXISTS idx_wa_msg_wa_id ON whatsapp_messages (wa_msg_id)'); } catch (e) {}
+
+  await client.execute(`CREATE TABLE IF NOT EXISTS whatsapp_contacts (
+      phone TEXT PRIMARY KEY,
+      name TEXT,
+      notify TEXT,
+      lid TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );`);
   await client.execute(`CREATE TABLE IF NOT EXISTS abandoned_checkouts (
       checkout_token TEXT PRIMARY KEY,
       customer_name TEXT,
@@ -817,20 +830,64 @@ async function getPollInfo(messageId) {
 
 // ─── WhatsApp Messages & Chat History ───────────────────────────────────────
 
-async function saveWhatsAppMessage(phone, orderId, direction, message, msgType = 'text') {
+async function saveWhatsAppMessage(phone, orderId, direction, message, msgType = 'text', waMsgId = null, timestamp = null, senderName = null) {
   if (!phone || !message) return null;
   const cleanPhone = normalizePhoneForLookup(phone);
   const client = getDb();
   try {
+    const createdAt = timestamp
+      ? (typeof timestamp === 'number' ? new Date(timestamp * 1000).toISOString() : String(timestamp))
+      : new Date().toISOString();
+
+    if (waMsgId) {
+      const existing = await client.execute({
+        sql: `SELECT id FROM whatsapp_messages WHERE wa_msg_id = ?`,
+        args: [String(waMsgId)]
+      });
+      if (existing.rows && existing.rows.length > 0) {
+        return existing.rows[0].id;
+      }
+    }
+
     const res = await client.execute({
-      sql: `INSERT INTO whatsapp_messages (phone, order_id, direction, message, msg_type, created_at)
-            VALUES (?, ?, ?, ?, ?, datetime('now'))`,
-      args: [cleanPhone, orderId ? String(orderId) : null, direction, String(message), msgType],
+      sql: `INSERT INTO whatsapp_messages (phone, order_id, direction, message, msg_type, wa_msg_id, sender_name, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [cleanPhone, orderId ? String(orderId) : null, direction, String(message), msgType, waMsgId ? String(waMsgId) : null, senderName ? String(senderName) : null, createdAt],
     });
     return res.lastInsertRowid;
   } catch (e) {
     console.error('[DB] Failed to save WhatsApp message:', e.message);
     return null;
+  }
+}
+
+async function saveWhatsAppContact(phone, name, notify, lid) {
+  if (!phone && !lid) return;
+  const cleanPhone = phone ? normalizePhoneForLookup(phone) : null;
+  const cleanLid = lid ? String(lid).replace(/@lid|@c\.us|@s\.whatsapp\.net/g, '').trim() : null;
+  const contactName = (name || notify || '').trim();
+  if (!cleanPhone && !cleanLid) return;
+  
+  const client = getDb();
+  try {
+    const primaryKey = cleanPhone || cleanLid;
+    await client.execute({
+      sql: `INSERT OR REPLACE INTO whatsapp_contacts (phone, name, notify, lid, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'))`,
+      args: [primaryKey, contactName || null, notify ? String(notify) : null, cleanLid || null]
+    });
+  } catch (e) {
+    console.error('[DB] Failed to save WhatsApp contact:', e.message);
+  }
+}
+
+async function getWhatsAppContacts() {
+  const client = getDb();
+  try {
+    const res = await client.execute('SELECT * FROM whatsapp_contacts');
+    return res.rows || [];
+  } catch (e) {
+    return [];
   }
 }
 
@@ -1381,7 +1438,10 @@ module.exports = {
   insertPollSecret,
   getPollSecret,
   getPollInfo,
+  // WhatsApp Messages & Contacts
   saveWhatsAppMessage,
+  saveWhatsAppContact,
+  getWhatsAppContacts,
   getChatHistory,
   saveLidMapping,
   getPhoneByLid,

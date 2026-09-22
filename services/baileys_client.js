@@ -30,6 +30,71 @@ let isStarting = false;
 let reconnectTimer = null;
 let replacedAttempts = 0;
 
+async function resolveJidToPhone(jid, msg = null) {
+  if (!jid) return null;
+  if (jid.includes('@broadcast') || jid === 'status@broadcast') return null;
+
+  if (jid.endsWith('@lid')) {
+    let resolvedPn = msg?.key?.remoteJidAlt || null;
+    if (!resolvedPn && sock?.signalRepository?.lidMapping?.getPNForLID) {
+      try {
+        resolvedPn = await sock.signalRepository.lidMapping.getPNForLID(jid);
+      } catch (e) {}
+    }
+    if (!resolvedPn) {
+      resolvedPn = await db.getPhoneByLid(jid);
+    }
+    if (resolvedPn) {
+      return db.normalizePhoneForLookup(resolvedPn);
+    }
+    return jid.replace('@lid', '').trim();
+  }
+
+  return db.normalizePhoneForLookup(jid);
+}
+
+function extractMessageDetails(msg) {
+  if (!msg || !msg.message) return null;
+  const m = msg.message;
+  let text = '';
+  let msgType = 'text';
+
+  if (m.conversation) {
+    text = m.conversation;
+  } else if (m.extendedTextMessage?.text) {
+    text = m.extendedTextMessage.text;
+  } else if (m.imageMessage) {
+    text = m.imageMessage.caption || '📷 [صورة]';
+    msgType = 'image';
+  } else if (m.videoMessage) {
+    text = m.videoMessage.caption || '🎥 [فيديو]';
+    msgType = 'video';
+  } else if (m.documentMessage) {
+    text = m.documentMessage.caption || m.documentMessage.fileName || '📄 [مستند]';
+    msgType = 'document';
+  } else if (m.audioMessage) {
+    text = '🎵 [رسالة صوتية]';
+    msgType = 'audio';
+  } else if (m.stickerMessage) {
+    text = '🎨 [ملصق]';
+    msgType = 'sticker';
+  } else if (m.templateButtonReplyMessage) {
+    text = m.templateButtonReplyMessage.selectedDisplayText || m.templateButtonReplyMessage.selectedId || '';
+    msgType = 'button_reply';
+  } else if (m.buttonsResponseMessage) {
+    text = m.buttonsResponseMessage.selectedDisplayText || m.buttonsResponseMessage.selectedButtonId || '';
+    msgType = 'button_reply';
+  } else if (m.listResponseMessage) {
+    text = m.listResponseMessage.title || m.listResponseMessage.singleSelectReply?.selectedRowId || '';
+    msgType = 'list_reply';
+  } else if (m.pollCreationMessage) {
+    text = m.pollCreationMessage.name || '📊 [استطلاع رأي]';
+    msgType = 'poll';
+  }
+
+  return text ? { text: String(text).trim(), msgType } : null;
+}
+
 async function startBaileys() {
   // امنع تشغيل أكتر من instance في نفس الوقت
   if (isStarting) {
@@ -73,11 +138,15 @@ async function startBaileys() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Track contact LID mappings
+    // Track contacts and save to DB
     sock.ev.on('contacts.upsert', async (contacts) => {
       for (const contact of contacts) {
         if (contact.id && contact.lid) {
           await db.saveLidMapping(contact.lid, contact.id);
+        }
+        const phone = await resolveJidToPhone(contact.id);
+        if (phone) {
+          await db.saveWhatsAppContact(phone, contact.name, contact.notify || contact.verifiedName, contact.lid);
         }
       }
     });
@@ -87,6 +156,58 @@ async function startBaileys() {
         if (contact.id && contact.lid) {
           await db.saveLidMapping(contact.lid, contact.id);
         }
+        const phone = await resolveJidToPhone(contact.id);
+        if (phone) {
+          await db.saveWhatsAppContact(phone, contact.name, contact.notify || contact.verifiedName, contact.lid);
+        }
+      }
+    });
+
+    // ─── Sync Past Chats & Messages from WhatsApp History ───────────────────────
+    sock.ev.on('messaging-history.set', async ({ chats, contacts, messages, isLatest }) => {
+      console.log(`[Baileys] 📥 messaging-history.set received (isLatest: ${isLatest}) — ${contacts?.length || 0} contacts, ${messages?.length || 0} messages`);
+      
+      // 1. Process contacts
+      if (Array.isArray(contacts)) {
+        for (const c of contacts) {
+          if (c.id && c.lid) {
+            await db.saveLidMapping(c.lid, c.id);
+          }
+          const phone = await resolveJidToPhone(c.id);
+          if (phone) {
+            await db.saveWhatsAppContact(phone, c.name, c.notify || c.verifiedName, c.lid);
+          }
+        }
+      }
+
+      // 2. Process historical messages
+      if (Array.isArray(messages)) {
+        for (const msg of messages) {
+          try {
+            const remoteJid = msg.key?.remoteJid;
+            if (!remoteJid || remoteJid.includes('@broadcast') || remoteJid.endsWith('@g.us')) continue;
+
+            const phone = await resolveJidToPhone(remoteJid, msg);
+            if (!phone) continue;
+
+            const isFromMe = !!msg.key?.fromMe;
+            const direction = isFromMe ? 'outbound' : 'inbound';
+            const details = extractMessageDetails(msg);
+            if (!details || !details.text) continue;
+
+            const timestamp = msg.messageTimestamp ? Number(msg.messageTimestamp) : null;
+            const senderName = msg.pushName || null;
+
+            if (senderName && !isFromMe) {
+              await db.saveWhatsAppContact(phone, senderName, senderName, remoteJid.endsWith('@lid') ? remoteJid : null);
+            }
+
+            await db.saveWhatsAppMessage(phone, null, direction, details.text, details.msgType, msg.key.id, timestamp, senderName);
+          } catch (e) {
+            // ignore individual message parsing error
+          }
+        }
+        console.log(`[Baileys] ✅ Completed syncing ${messages.length} historical messages.`);
       }
     });
 
@@ -156,127 +277,110 @@ async function startBaileys() {
   });
 
   sock.ev.on('messages.upsert', async (m) => {
-    if (m.type === 'notify') {
-      for (const msg of m.messages) {
-        if (!msg.key.fromMe && msg.message) {
-          let sender = msg.key.remoteJid; // ممكن تيجي بصيغة LID: 103843853529241@lid بدل رقم التليفون
-          let explicitOrderId = null;
+    for (const msg of (m.messages || [])) {
+      try {
+        const remoteJid = msg.key?.remoteJid;
+        if (!remoteJid || remoteJid.includes('@broadcast') || remoteJid.endsWith('@g.us')) continue;
 
-          // لو الـ JID جاي بصيغة LID أو Username، حوله لرقم التليفون الحقيقي (PN)
-          if (sender && sender.endsWith('@lid')) {
-            let resolvedPn = msg.key.remoteJidAlt || null;
-            if (!resolvedPn) {
-              try {
-                resolvedPn = await sock.signalRepository.lidMapping.getPNForLID(sender);
-              } catch (e) {}
+        let sender = await resolveJidToPhone(remoteJid, msg);
+        if (!sender) continue;
+
+        const isFromMe = !!msg.key?.fromMe;
+        const direction = isFromMe ? 'outbound' : 'inbound';
+        let explicitOrderId = null;
+        let text = '';
+        let msgType = 'text';
+
+        // Check for Poll Update
+        if (msg.message?.pollUpdateMessage) {
+          const { decryptPollVote, jidNormalizedUser } = require('@whiskeysockets/baileys');
+          const crypto = require('crypto');
+          try {
+            const pollKey = msg.message.pollUpdateMessage.pollCreationMessageKey;
+            const pollMsgId = pollKey.id;
+            console.log(`[Baileys] Poll vote received — pollMsgId: ${pollMsgId} | fromMe: ${pollKey.fromMe} | voterJid: ${remoteJid}`);
+            
+            const pollInfo = await db.getPollInfo(pollMsgId);
+            if (pollInfo) {
+              if (pollInfo.order_id) explicitOrderId = pollInfo.order_id;
+              if (pollInfo.phone && (!sender || sender.endsWith('@lid'))) {
+                sender = pollInfo.phone;
+              }
             }
-            if (!resolvedPn) {
-              resolvedPn = await db.getPhoneByLid(sender);
+
+            const secretBase64 = pollInfo?.secret || await db.getPollSecret(pollMsgId);
+            if (secretBase64) {
+              const pollEncKey = Buffer.from(secretBase64, 'base64');
+              const meIdNormalised = jidNormalizedUser(sock.user.id);
+              const meLidNormalised = sock.user.lid ? jidNormalizedUser(sock.user.lid) : null;
+
+              const creatorPnJid = pollKey.fromMe
+                ? meIdNormalised
+                : (pollKey.participant || remoteJid);
+              const creatorLidJid = (pollKey.fromMe && meLidNormalised) ? meLidNormalised : creatorPnJid;
+
+              const voterPnJid = remoteJid;
+              const voterLidJid = msg.key.remoteJidAlt || msg.key.senderLid || voterPnJid;
+
+              const jidCombos = [
+                [creatorLidJid, voterPnJid],
+                [creatorLidJid, voterLidJid],
+                [creatorPnJid, voterPnJid],
+                [creatorPnJid, voterLidJid],
+              ];
+
+              let decrypted = null;
+              for (const [pollCreatorJid, voterJid] of jidCombos) {
+                if (!pollCreatorJid || !voterJid) continue;
+                try {
+                  decrypted = decryptPollVote(msg.message.pollUpdateMessage.vote, {
+                    pollCreatorJid,
+                    pollMsgId,
+                    pollEncKey,
+                    voterJid,
+                  });
+                  if (decrypted) break;
+                } catch (innerErr) {}
+              }
+
+              if (decrypted && decrypted.selectedOptions && decrypted.selectedOptions.length > 0) {
+                const hashSelected = Buffer.from(decrypted.selectedOptions[0]).toString('hex');
+                const opt1 = '✅ تأكيد الطلب';
+                const opt2 = '❌ تعديل أو إلغاء';
+                const h1 = crypto.createHash('sha256').update(opt1).digest('hex');
+                const h2 = crypto.createHash('sha256').update(opt2).digest('hex');
+                if (hashSelected === h1) text = opt1;
+                else if (hashSelected === h2) text = opt2;
+                msgType = 'poll_vote';
+              }
             }
-            if (resolvedPn) {
-              console.log(`[Baileys] ✅ Resolved LID ${sender} → Phone ${resolvedPn}`);
-              sender = resolvedPn;
-            } else {
-              console.warn(`[Baileys] ⚠️ LID received without direct PN mapping: ${sender}`);
-            }
+          } catch(e) {
+            console.error('[Baileys] Error decrypting poll:', e.message);
           }
-
-          let text = '';
-          if (msg.message.conversation) {
-            text = msg.message.conversation;
-          } else if (msg.message.extendedTextMessage) {
-            text = msg.message.extendedTextMessage.text;
-          } else if (msg.message.pollCreationMessage) {
-              text = msg.message.pollCreationMessage.name;
-          } else if (msg.message.pollUpdateMessage) {
-            const { decryptPollVote, jidNormalizedUser } = require('@whiskeysockets/baileys');
-            const crypto = require('crypto');
-            try {
-                const pollKey = msg.message.pollUpdateMessage.pollCreationMessageKey;
-                const pollMsgId = pollKey.id;
-                console.log(`[Baileys] Poll vote received — pollMsgId: ${pollMsgId} | fromMe: ${pollKey.fromMe} | participant: ${pollKey.participant} | voterJid: ${msg.key.remoteJid}`);
-                
-                const pollInfo = await db.getPollInfo(pollMsgId);
-                if (pollInfo) {
-                    if (pollInfo.order_id) explicitOrderId = pollInfo.order_id;
-                    if (pollInfo.phone && (!sender || sender.endsWith('@lid'))) {
-                        sender = pollInfo.phone;
-                        console.log(`[Baileys] 🎯 Linked poll vote directly to order: ${pollInfo.order_id} (Phone: ${pollInfo.phone})`);
-                    }
-                }
-
-                const secretBase64 = pollInfo?.secret || await db.getPollSecret(pollMsgId);
-                if (secretBase64) {
-                    // واتساب بقت تشفر تصويتات الـ poll بصيغة LID مش PN دايمًا، فمفيش طريقة مضمونة
-                    // نعرف بيها الصيغة الصح مقدمًا. الحل الموثق رسميًا من Baileys: نجرب كل التركيبات
-                    // الممكنة (LID/PN) لحد ما توحدة تفك التشفير بنجاح.
-                    const pollEncKey = Buffer.from(secretBase64, 'base64');
-
-                    const meIdNormalised = jidNormalizedUser(sock.user.id);
-                    // sock.user.lid بييجي ومعاه device suffix (مثال: 123456:7@lid) لازم يتشال
-                    const meLidNormalised = sock.user.lid ? jidNormalizedUser(sock.user.lid) : null;
-
-                    const creatorPnJid = pollKey.fromMe
-                        ? meIdNormalised
-                        : (pollKey.participant || msg.key.remoteJid);
-                    const creatorLidJid = (pollKey.fromMe && meLidNormalised) ? meLidNormalised : creatorPnJid;
-
-                    const voterPnJid = msg.key.remoteJid;
-                    const voterLidJid = msg.key.remoteJidAlt || msg.key.senderLid || voterPnJid;
-
-                    const jidCombos = [
-                        [creatorLidJid, voterPnJid],
-                        [creatorLidJid, voterLidJid],
-                        [creatorPnJid, voterPnJid],
-                        [creatorPnJid, voterLidJid],
-                    ];
-
-                    let decrypted = null;
-                    for (const [pollCreatorJid, voterJid] of jidCombos) {
-                        if (!pollCreatorJid || !voterJid) continue;
-                        try {
-                            decrypted = decryptPollVote(msg.message.pollUpdateMessage.vote, {
-                                pollCreatorJid,
-                                pollMsgId,
-                                pollEncKey,
-                                voterJid,
-                            });
-                            if (decrypted) {
-                                console.log(`[Baileys] ✅ Poll decrypted using combo creator=${pollCreatorJid} voter=${voterJid}`);
-                                break;
-                            }
-                        } catch (innerErr) {
-                            // جرب التركيبة الجاية
-                        }
-                    }
-
-                    if (decrypted && decrypted.selectedOptions && decrypted.selectedOptions.length > 0) {
-                        const hashSelected = Buffer.from(decrypted.selectedOptions[0]).toString('hex');
-                        const opt1 = '✅ تأكيد الطلب';
-                        const opt2 = '❌ تعديل أو إلغاء';
-                        const h1 = crypto.createHash('sha256').update(opt1).digest('hex');
-                        const h2 = crypto.createHash('sha256').update(opt2).digest('hex');
-                        if (hashSelected === h1) text = opt1;
-                        else if (hashSelected === h2) text = opt2;
-                        console.log(`[Baileys] Poll selected option: "${text}"`);
-                    } else {
-                        console.log('[Baileys] ⚠️ All JID combos failed to decrypt poll vote');
-                    }
-                } else {
-                    console.log(`[Baileys] No poll secret found for pollMsgId: ${pollMsgId}`);
-                }
-            } catch(e) {
-                console.error('[Baileys] Error decrypting poll:', e.message);
-            }
-          }
-
-          if (text) {
-            db.saveWhatsAppMessage(sender, explicitOrderId, 'inbound', text);
-            if (onMessageReceived) {
-              onMessageReceived(sender, text, explicitOrderId);
-            }
+        } else {
+          const details = extractMessageDetails(msg);
+          if (details) {
+            text = details.text;
+            msgType = details.msgType;
           }
         }
+
+        if (text) {
+          const timestamp = msg.messageTimestamp ? Number(msg.messageTimestamp) : null;
+          const senderName = msg.pushName || null;
+
+          if (senderName && !isFromMe) {
+            await db.saveWhatsAppContact(sender, senderName, senderName, remoteJid.endsWith('@lid') ? remoteJid : null);
+          }
+
+          await db.saveWhatsAppMessage(sender, explicitOrderId, direction, text, msgType, msg.key?.id, timestamp, senderName);
+
+          if (!isFromMe && onMessageReceived) {
+            onMessageReceived(sender, text, explicitOrderId);
+          }
+        }
+      } catch (err) {
+        console.error('[Baileys] Error in upsert processing:', err.message);
       }
     }
   });
@@ -314,13 +418,14 @@ async function sendWhatsAppMessage(phone, text, withImage = false, imageKey = 'W
       if (withImage && !imageBase64) {
           imageBase64 = await db.getSetting(imageKey);
       }
+      let sent = null;
       if (imageBase64 && imageBase64.length > 100) {
           const buffer = Buffer.from(imageBase64, 'base64');
-          await sock.sendMessage(jid, { image: buffer, caption: text });
+          sent = await sock.sendMessage(jid, { image: buffer, caption: text });
       } else {
-          await sock.sendMessage(jid, { text });
+          sent = await sock.sendMessage(jid, { text });
       }
-      db.saveWhatsAppMessage(phone, null, 'outbound', text, withImage ? 'image' : 'text');
+      await db.saveWhatsAppMessage(phone, null, 'outbound', text, withImage ? 'image' : 'text', sent?.key?.id, Date.now() / 1000);
       return true;
   } catch (err) {
       console.error('[Baileys] Send error:', err);

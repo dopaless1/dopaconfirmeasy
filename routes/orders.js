@@ -1218,6 +1218,19 @@ router.get('/chats/all', async (req, res) => {
   try {
     const client = db.getDb();
     
+    // 0. Fetch WhatsApp contacts names
+    let contactsMap = {};
+    try {
+      const contacts = await db.getWhatsAppContacts();
+      (contacts || []).forEach(c => {
+        const contactName = c.name || c.notify;
+        if (contactName) {
+          if (c.phone) contactsMap[db.normalizePhoneForLookup(c.phone)] = contactName;
+          if (c.lid) contactsMap[c.lid] = contactName;
+        }
+      });
+    } catch (e) {}
+
     // 1. Fetch chats from orders
     const resOrders = await client.execute({
       sql: `SELECT o.id, o.order_number, o.customer_name, o.customer_phone, o.status, o.customer_reply, o.rating, o.items, o.review_sent_at, o.updated_at, o.created_at,
@@ -1232,20 +1245,31 @@ router.get('/chats/all', async (req, res) => {
     });
 
     const knownPhones = new Set();
-    (resOrders.rows || []).forEach(r => {
-      if (r.customer_phone) knownPhones.add(db.normalizePhoneForLookup(r.customer_phone));
+    const ordersChats = (resOrders.rows || []).map(r => {
+      const cleanP = r.customer_phone ? db.normalizePhoneForLookup(r.customer_phone) : '';
+      if (cleanP) knownPhones.add(cleanP);
+      let custName = r.customer_name;
+      if ((!custName || custName === 'عميل') && contactsMap[cleanP]) {
+        custName = contactsMap[cleanP];
+      }
+      return {
+        ...r,
+        customer_name: custName || 'عميل',
+        last_msg: r.last_msg || r.customer_reply || null
+      };
     });
 
     // 2. Also fetch any standalone phone numbers with messages from whatsapp_messages that don't have an order
     const resMsgs = await client.execute({
       sql: `SELECT phone, MAX(created_at) as last_msg_at, 
                    (SELECT message FROM whatsapp_messages WHERE phone = m.phone ORDER BY id DESC LIMIT 1) as last_msg,
+                   (SELECT sender_name FROM whatsapp_messages WHERE phone = m.phone AND sender_name IS NOT NULL ORDER BY id DESC LIMIT 1) as push_name,
                    COUNT(*) as msg_count
             FROM whatsapp_messages m
             WHERE phone IS NOT NULL AND phone != ''
             GROUP BY phone
             ORDER BY last_msg_at DESC
-            LIMIT 100`,
+            LIMIT 150`,
       args: []
     });
 
@@ -1254,10 +1278,11 @@ router.get('/chats/all', async (req, res) => {
       const cleanP = db.normalizePhoneForLookup(m.phone);
       if (!knownPhones.has(cleanP)) {
         knownPhones.add(cleanP);
+        const contactName = contactsMap[cleanP] || m.push_name || ('محادثة ' + cleanP);
         extraChats.push({
           id: 'wa_' + cleanP,
           order_number: 'واتساب',
-          customer_name: 'محادثة ' + cleanP,
+          customer_name: contactName,
           customer_phone: cleanP,
           status: 'whatsapp_chat',
           customer_reply: null,
@@ -1272,7 +1297,7 @@ router.get('/chats/all', async (req, res) => {
       }
     });
 
-    const allMerged = [...(resOrders.rows || []), ...extraChats].sort((a, b) => {
+    const allMerged = [...ordersChats, ...extraChats].sort((a, b) => {
       const ta = new Date(a.last_msg_at || a.updated_at || a.created_at || 0).getTime();
       const tb = new Date(b.last_msg_at || b.updated_at || b.created_at || 0).getTime();
       return tb - ta;
@@ -1314,18 +1339,6 @@ router.get('/:id/chat', async (req, res) => {
 
     let messages = await db.getChatHistory(order.customer_phone, order.id);
 
-    // إذا لم توجد رسائل سابقة في الجدول ولكن يوجد customer_reply في الأوردر، أضفها كسجل
-    if (messages.length === 0 && order.customer_reply) {
-      messages.push({
-        id: 'legacy-reply',
-        phone: order.customer_phone,
-        order_id: String(order.id),
-        direction: 'inbound',
-        message: order.customer_reply,
-        created_at: order.replied_at || order.created_at,
-      });
-    }
-
     res.json({
       success: true,
       order: {
@@ -1338,7 +1351,7 @@ router.get('/:id/chat', async (req, res) => {
         items: order.items,
         status: order.status,
       },
-      messages
+      messages: messages || []
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
