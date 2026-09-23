@@ -423,8 +423,9 @@ async function updateOrderStatus(shopifyOrderId, status, extra = {}) {
   if (extra.handed_to_courier_at !== undefined) { sql += ', handed_to_courier_at = ?'; args.push(extra.handed_to_courier_at); }
   if (extra.delivered_at        !== undefined) { sql += ', delivered_at = ?';         args.push(extra.delivered_at); }
 
-  sql += ' WHERE shopify_order_id = ?';
-  args.push(shopifyOrderId);
+  sql += ' WHERE (shopify_order_id = ? OR easyorders_id = ? OR CAST(id AS TEXT) = ?)';
+  const idStr = String(shopifyOrderId || '');
+  args.push(idStr, idStr, idStr);
 
   return client.execute({ sql, args });
 }

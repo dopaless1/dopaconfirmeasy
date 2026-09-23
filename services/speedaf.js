@@ -1428,24 +1428,33 @@ function mapSpeedafToInternalStatus(speedafStatus) {
   if (!speedafStatus) return null;
   const s = speedafStatus.toLowerCase().trim();
 
-  // Delivered (في Speedaf مصطلح Collected يعني تم التسليم والتوقيع من المستلم)
+  // 1. Delivered (تم التسليم بنجاح والتوقيع من العميل)
   if (s.includes('delivered') || s.includes('تم التسليم') || s.includes('collected') || s.includes('signed') || s.includes('receipt') || s.includes('sign') || s === '5') {
     return 'delivered';
   }
 
-  // Returned / Cancelled / Rejection / Failed
-  if (s.includes('return') || s.includes('مرتجع') || s.includes('cancelled') || s.includes('ملغي') || s.includes('reject') || s.includes('رفض') || s.includes('failed delivery')) {
-    return 'cancelled';
-  }
-
-  // Handed to courier / Picked Up / DC / Site Dispatch
-  if (s.includes('picked up') || s.includes('pickup') || s.includes('تم الاستلام') || s.includes('dc arrival') || s.includes('dc departure') || s.includes('site arrival') || s.includes('site departure')) {
+  // 2. Delivery Issues / Exceptions / Rejections / Reschedule / Problem
+  // (رفض الاستلام / مغلق / لم يرد / مشكلة في العنوان / تأجيل التسليم)
+  // ⚠️ تنبيه منطقي مهم: رفض الاستلام أثناء محاولة التسليم هو مشكلة شحن (Delivery Exception)
+  // وليس إلغاءً نهائياً للأوردر — يظل الأوردر نشطاً مع المندوب لمتابعة العميل أو إعادة المحاولة،
+  // ويظهر بادج المشكلة وخط السير في الداشبورد دون تحويل الأوردر إلى ملغي (cancelled).
+  if (s.includes('reject') || s.includes('refuse') || s.includes('رفض') || s.includes('problem') || s.includes('exception') || s.includes('abnormal') || s.includes('reschedule') || s.includes('postpone') || s.includes('not answer') || s.includes('closed') || s.includes('failed delivery') || s.includes('تعذر')) {
     return 'handed_to_courier';
   }
 
-  // In transit / out for delivery
-  if (s.includes('transit') || s.includes('delivery') || s.includes('delivering') || s.includes('في الشحن') || s.includes('قيد الشحن') || s.includes('في الطريق') || s.includes('reschedule')) {
+  // 3. Handed to courier / Picked Up / DC / Site Dispatch / Delivering
+  if (s.includes('picked up') || s.includes('pickup') || s.includes('تم الاستلام') || s.includes('dc arrival') || s.includes('dc departure') || s.includes('site arrival') || s.includes('site departure') || s.includes('delivering') || s.includes('خرجت للتسليم') || s.includes('مع المندوب')) {
+    return 'handed_to_courier';
+  }
+
+  // 4. In transit / Shipped
+  if (s.includes('transit') || s.includes('delivery') || s.includes('في الشحن') || s.includes('قيد الشحن') || s.includes('في الطريق')) {
     return 'shipping_sent';
+  }
+
+  // 5. Returned (فقط إذا اكتملت دورة الإرجاع وتم استلام الشحنة في مخزن التاجر)
+  if (s.includes('returned to sender') || s.includes('rto delivered') || s.includes('تم استلام المرتجع في المخزن')) {
+    return 'returned';
   }
 
   return null; // Unknown — don't change internal status

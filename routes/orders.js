@@ -504,16 +504,46 @@ router.put('/:id/status', async (req, res) => {
     const { status } = req.body;
     if (!status) return res.status(400).json({ error: 'Status is required' });
 
-    await db.updateOrderStatus(order.shopify_order_id, status);
-    updateShopifyOrderTags(order.shopify_order_id, status).catch(e => {});
-    if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.shopify_order_id, status });
+    await db.updateOrderStatus(order.id, status);
+    const { updateSourceStatus } = require('../services/sourceAdapter');
+    updateSourceStatus(order, status).catch(e => {});
+    if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.id, status });
 
-    if (status === 'cancelled' && !String(order.shopify_order_id).startsWith('SIM-')) {
+    if (status === 'cancelled' && (order.source === 'shopify' || !order.source) && order.shopify_order_id && !String(order.shopify_order_id).startsWith('SIM-')) {
       await cancelShopifyOrder(order.shopify_order_id, 'merchant');
     }
     res.json({ success: true, status });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/orders/:id/change-status (تغيير ومزامنة حالة الأوردر من القائمة المنسدلة في الداشبورد)
+router.post('/:id/change-status', async (req, res) => {
+  try {
+    const order = await db.getOrderById(parseInt(req.params.id));
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ success: false, error: 'Status is required' });
+
+    const extra = {};
+    const now = new Date().toISOString();
+    if (status === 'delivered') extra.delivered_at = now;
+    if (status === 'handed_to_courier') extra.handed_to_courier_at = now;
+    if (status === 'shipping_sent') extra.shipping_sent_at = now;
+    if (status === 'confirmed') extra.replied_at = now;
+
+    await db.updateOrderStatus(order.id, status, extra);
+    const { updateSourceStatus } = require('../services/sourceAdapter');
+    updateSourceStatus(order, status).catch(e => {});
+    if (global.broadcastSSE) global.broadcastSSE({ type: 'order_updated', order_id: order.id, status });
+
+    if (status === 'cancelled' && (order.source === 'shopify' || !order.source) && order.shopify_order_id && !String(order.shopify_order_id).startsWith('SIM-')) {
+      await cancelShopifyOrder(order.shopify_order_id, 'merchant');
+    }
+    res.json({ success: true, status });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
